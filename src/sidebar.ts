@@ -57,7 +57,9 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
     return;
   }
 
+  let idx = 0;
   for (const a of agents) {
+    idx += 1;
     const row = document.createElement('div');
     row.className =
       'agentrow' + (a.id === cur ? ' active' : '') + (a.attention ? ' attention' : '');
@@ -98,13 +100,16 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
       ev.stopPropagation();
       h.onClose(a.id);
     };
+    const num = document.createElement('span');
+    num.className = 'rnum';
+    num.textContent = String(idx);
     if (a.attention) {
       const star = document.createElement('span');
       star.className = 'attn';
       star.appendChild(icon('bell-ringing'));
-      top.append(dot, star, label, close);
+      top.append(num, dot, star, label, close);
     } else {
-      top.append(dot, label, close);
+      top.append(num, dot, label, close);
     }
 
     const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));

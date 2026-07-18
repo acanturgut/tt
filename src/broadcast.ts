@@ -2,11 +2,14 @@ import type { Agent } from './agents';
 import { icon } from './icon';
 
 export interface BroadcastHandlers {
-  onSend: (ids: string[], text: string) => void;
+  onSend: (ids: string[], text: string, numbered: boolean) => void;
 }
 
 // Agents explicitly turned OFF as targets. New agents default ON.
 const excluded = new Set<string>();
+// When on, each agent is prefixed with "You are agent N of M" so one message can
+// address each differently.
+let numbered = localStorage.getItem('tt.bcNumbered') === '1';
 
 let rootEl: HTMLElement | null = null;
 let chipsEl: HTMLElement | null = null;
@@ -34,6 +37,16 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'Send to selected agents…  (Enter)';
+  const numBtn = document.createElement('button');
+  numBtn.className = 'bc-num' + (numbered ? ' on' : '');
+  numBtn.title = 'prefix each agent with "You are agent N of M" — one message can address each differently';
+  numBtn.append(icon('hash'), document.createTextNode(' number'));
+  numBtn.onclick = () => {
+    numbered = !numbered;
+    localStorage.setItem('tt.bcNumbered', numbered ? '1' : '0');
+    numBtn.classList.toggle('on', numbered);
+  };
+
   const send = document.createElement('button');
   send.className = 'bc-send';
   send.append(icon('paper-plane-tilt'), document.createTextNode(' Send'));
@@ -42,7 +55,7 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
     const text = input.value;
     const ids = selectedIds();
     if (!text || ids.length === 0) return;
-    h.onSend(ids, text);
+    h.onSend(ids, text, numbered);
     input.value = '';
     input.focus();
   };
@@ -53,7 +66,7 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
     }
   };
   send.onclick = doSend;
-  inputWrap.append(input, send);
+  inputWrap.append(numBtn, input, send);
 
   root.append(tag, chips, inputWrap);
 }

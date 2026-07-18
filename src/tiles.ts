@@ -22,6 +22,7 @@ export interface TilesHandlers {
 interface TileEls {
   root: HTMLElement;
   header: HTMLElement;
+  num: HTMLElement;
   name: HTMLElement;
   dot: HTMLElement;
   star: HTMLElement;
@@ -80,6 +81,8 @@ export function syncTiles(
       if (from) h.onReorder(from, a.id);
     };
 
+    const num = document.createElement('span');
+    num.className = 'tnum';
     const dot = document.createElement('span');
     dot.className = 'dot';
     const star = document.createElement('span');
@@ -114,7 +117,7 @@ export function syncTiles(
       ev.stopPropagation();
       h.onClose(a.id);
     };
-    header.append(dot, star, name, pill, meta, zoomOut, zoomIn, close);
+    header.append(num, dot, star, name, pill, meta, zoomOut, zoomIn, close);
 
     const body = document.createElement('div');
     body.className = 'tile-body';
@@ -122,7 +125,7 @@ export function syncTiles(
 
     root.append(header, body);
     stage.appendChild(root);
-    tiles.set(a.id, { root, header, name, dot, star, meta, pill, term });
+    tiles.set(a.id, { root, header, num, name, dot, star, meta, pill, term });
     term.open();
   }
 
@@ -152,9 +155,12 @@ export function syncTiles(
   stage.style.gridTemplateColumns = focusMode ? '1fr' : `repeat(${cols || 1}, 1fr)`;
   stage.style.gridTemplateRows = focusMode ? '1fr' : `repeat(${rows || 1}, 1fr)`;
 
+  let idx = 0;
   for (const a of agents) {
+    idx += 1;
     const t = tiles.get(a.id);
     if (!t) continue;
+    t.num.textContent = String(idx);
     const visible = !focusMode || a.id === focusedId;
     t.root.style.display = visible ? 'flex' : 'none';
     t.dot.style.background = DOT[a.status];

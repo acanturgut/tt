@@ -87,10 +87,14 @@ function closeAgent(id: string) {
 }
 
 // Broadcast: write the text + Enter to every selected agent's PTY.
-function broadcast(ids: string[], text: string) {
+function broadcast(ids: string[], text: string, numbered: boolean) {
+  const all = list();
+  const total = all.length;
   for (const id of ids) {
     markInput(id);
-    void invoke('write_agent', { id, data: `${text}\r` });
+    const num = all.findIndex((a) => a.id === id) + 1; // same number shown on the tile/rail
+    const msg = numbered ? `You are agent ${num} of ${total}. ${text}` : text;
+    void invoke('write_agent', { id, data: `${msg}\r` });
   }
 }
 
