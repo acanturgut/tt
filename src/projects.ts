@@ -1,6 +1,7 @@
 export interface Project {
   name: string;
   path: string;
+  icon?: string; // Phosphor icon name shown on the tab
 }
 
 const KEY = 'tt.projects';
@@ -51,6 +52,14 @@ export function addProject(path: string) {
 
 export function selectProject(path: string) {
   currentPath = path;
+  save();
+  emit();
+}
+
+export function setProjectIcon(path: string, icon: string) {
+  const p = projects.find((x) => x.path === path);
+  if (!p) return;
+  p.icon = icon;
   save();
   emit();
 }

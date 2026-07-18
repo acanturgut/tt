@@ -1,6 +1,7 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { listProjects, current, addProject, selectProject } from './projects';
+import { listProjects, current, addProject, selectProject, setProjectIcon } from './projects';
 import { icon } from './icon';
+import { placeMenu } from './menu';
 
 export interface TopbarHandlers {
   onSpawn: (agentId: string) => void;
@@ -21,6 +22,42 @@ function iconBtn(name: string, title: string, onClick: () => void, extra = ''): 
   return b;
 }
 
+const PROJECT_ICONS = [
+  'folder', 'code', 'terminal-window', 'rocket', 'cube', 'globe',
+  'database', 'package', 'git-branch', 'lightning', 'flask', 'palette',
+  'book-open', 'robot', 'brain', 'gear-six', 'browser', 'device-mobile',
+];
+
+let iconPicker: HTMLElement | null = null;
+function closeIconPicker() {
+  iconPicker?.remove();
+  iconPicker = null;
+  document.removeEventListener('mousedown', onPickerDown);
+}
+function onPickerDown(e: MouseEvent) {
+  if (iconPicker && !iconPicker.contains(e.target as Node)) closeIconPicker();
+}
+function openIconPicker(path: string, anchor: HTMLElement) {
+  closeIconPicker();
+  iconPicker = document.createElement('div');
+  iconPicker.className = 'icon-picker';
+  for (const name of PROJECT_ICONS) {
+    const b = document.createElement('button');
+    b.className = 'icon-picker-item';
+    b.title = name;
+    b.appendChild(icon(name));
+    b.onmousedown = (e) => {
+      e.preventDefault();
+      setProjectIcon(path, name);
+      closeIconPicker();
+    };
+    iconPicker.appendChild(b);
+  }
+  document.body.appendChild(iconPicker);
+  placeMenu(iconPicker, anchor.getBoundingClientRect());
+  setTimeout(() => document.addEventListener('mousedown', onPickerDown), 0);
+}
+
 // Project tabs live on their own row above the nav; each tab is its own panel.
 export function renderProjectTabs(root: HTMLElement) {
   root.innerHTML = '';
@@ -29,8 +66,18 @@ export function renderProjectTabs(root: HTMLElement) {
   for (const p of projs) {
     const tab = document.createElement('button');
     tab.className = 'proj-tab' + (cur && p.path === cur.path ? ' active' : '');
-    tab.textContent = p.name;
     tab.title = p.path;
+    const ic = icon(p.icon ?? 'folder');
+    ic.classList.add('proj-tab-ic');
+    ic.title = 'change project icon';
+    ic.onclick = (e) => {
+      e.stopPropagation();
+      openIconPicker(p.path, tab);
+    };
+    const nm = document.createElement('span');
+    nm.className = 'proj-tab-name';
+    nm.textContent = p.name;
+    tab.append(ic, nm);
     tab.onclick = () => selectProject(p.path);
     root.appendChild(tab);
   }
