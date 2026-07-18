@@ -19,7 +19,8 @@
 - Claude token number = latest `assistant` record's `usage`: `input_tokens + cache_creation_input_tokens + cache_read_input_tokens + output_tokens`.
 - Claude project slug rule: map every non-`[A-Za-z0-9]` char of the absolute dir to `-` (e.g. `/Users/x/p` → `-Users-x-p`). Watch the newest `*.jsonl` in that slug dir.
 - App identifier: `com.acanturgut.tt`.
-- v0 shows ONE terminal at a time (switch via sidebar). No tiling, no persistence, agents die when the app quits.
+- **Toolchain / shell:** node is behind an nvm lazy-loader that breaks in non-interactive shells (`_load_nvm: command not found`). Prefix EVERY `npm`/`npx`/`cargo` command with `source scripts/dev-env.sh;` (the file is committed in the repo) — e.g. `source scripts/dev-env.sh; npm run build`. Verified versions: node v20.19.6, npm 10.8.2, cargo 1.97.1, rustc 1.97.1.
+- v0 shows ALL agents at once in an auto-grid tiling stage, with click-to-focus (zoom) one tile. Grid = `cols = ceil(√n)`, `rows = ceil(n/cols)`. No manual splits, no saved layouts, no persistence; agents die when the app quits.
 
 ## File Structure
 
@@ -28,12 +29,16 @@ tt/
   index.html
   package.json
   vite.config.ts
+  scripts/dev-env.sh        # toolchain prelude (source before npm/cargo)
   src/                      # frontend
-    main.ts                 # event wiring, spawn flow, mount current terminal
-    agents.ts               # store: agents + status transitions (unit-tested)
-    agents.test.ts          # vitest: status transitions
+    main.ts                 # event wiring, spawn flow, grid render + focus
+    agents.ts               # store: agents + status + focus (unit-tested)
+    agents.test.ts          # vitest: status transitions + focus
+    grid.ts                 # pure tiling math: gridDims(n) (unit-tested)
+    grid.test.ts            # vitest: gridDims for n=1..6
     terminal.ts             # AgentTerminal: xterm wrapper
     sidebar.ts              # sidebar render + `+` form
+    tiles.ts                # grid/tile DOM: headers, colors, zoom
     styles.css
   src-tauri/
     Cargo.toml
@@ -809,8 +814,9 @@ git commit -m "feat: tauri commands (spawn/write/resize/kill) + state + agent ev
 **Interfaces:**
 - Produces:
   - `type Status = 'working' | 'idle' | 'exited'`
-  - `interface Agent { id: string; agentId: string; dir: string; status: Status; title?: string; tokens?: number }`
-  - `add(a: Agent)`, `select(id: string)`, `list(): Agent[]`, `current(): string | null`, `subscribe(fn): () => void`
+  - `interface Agent { id: string; agentId: string; dir: string; color: string; status: Status; title?: string; tokens?: number }`
+  - `add(a: Agent)`, `list(): Agent[]`, `subscribe(fn): () => void`
+  - `focused(): string | null`, `focus(id: string | null)` — the zoomed tile (null = grid view)
   - `markOutput(id)`, `markExit(id)`, `markClaude(id, title?, tokens?)`
 
 - [ ] **Step 1: Write the failing test** — create `src/agents.test.ts`:
@@ -819,18 +825,22 @@ git commit -m "feat: tauri commands (spawn/write/resize/kill) + state + agent ev
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as store from './agents';
 
+const A = (over: Partial<store.Agent> = {}): store.Agent => ({
+  id: 'a', agentId: 'codex', dir: '/p', color: '#e3b341', status: 'working', ...over,
+});
+
 beforeEach(() => store.__resetForTest());
 
 describe('agents store', () => {
-  it('adds an agent as current and working', () => {
-    store.add({ id: 'claude-0', agentId: 'claude', dir: '/p', status: 'working' });
-    expect(store.current()).toBe('claude-0');
+  it('adds an agent and lists it', () => {
+    store.add(A({ id: 'claude-0', agentId: 'claude' }));
+    expect(store.list().map((a) => a.id)).toEqual(['claude-0']);
     expect(store.list()[0].status).toBe('working');
   });
 
   it('markOutput -> working, then idle after 2s', () => {
     vi.useFakeTimers();
-    store.add({ id: 'a', agentId: 'codex', dir: '/p', status: 'idle' });
+    store.add(A({ status: 'idle' }));
     store.markOutput('a');
     expect(store.list()[0].status).toBe('working');
     vi.advanceTimersByTime(2001);
@@ -839,17 +849,26 @@ describe('agents store', () => {
   });
 
   it('markExit wins over later output timer', () => {
-    store.add({ id: 'a', agentId: 'codex', dir: '/p', status: 'working' });
+    store.add(A());
     store.markExit('a');
     store.markOutput('a'); // must NOT resurrect an exited agent
     expect(store.list()[0].status).toBe('exited');
   });
 
   it('markClaude sets title and tokens', () => {
-    store.add({ id: 'c', agentId: 'claude', dir: '/p', status: 'working' });
+    store.add(A({ id: 'c', agentId: 'claude' }));
     store.markClaude('c', 'Fixing colors', 12000);
     expect(store.list()[0].title).toBe('Fixing colors');
     expect(store.list()[0].tokens).toBe(12000);
+  });
+
+  it('focus sets and clears the zoomed tile', () => {
+    store.add(A({ id: 'x' }));
+    expect(store.focused()).toBeNull();
+    store.focus('x');
+    expect(store.focused()).toBe('x');
+    store.focus(null);
+    expect(store.focused()).toBeNull();
   });
 });
 ```
@@ -868,6 +887,7 @@ export interface Agent {
   id: string;
   agentId: string;
   dir: string;
+  color: string;
   status: Status;
   title?: string;
   tokens?: number;
@@ -876,7 +896,7 @@ export interface Agent {
 const agents = new Map<string, Agent>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 const listeners = new Set<() => void>();
-let currentId: string | null = null;
+let focusedId: string | null = null;
 
 function emit() {
   listeners.forEach((l) => l());
@@ -891,24 +911,24 @@ export function list(): Agent[] {
   return [...agents.values()];
 }
 
-export function current(): string | null {
-  return currentId;
+export function focused(): string | null {
+  return focusedId;
+}
+
+export function focus(id: string | null) {
+  focusedId = id;
+  emit();
 }
 
 export function add(a: Agent) {
   agents.set(a.id, a);
-  currentId = a.id;
-  emit();
-}
-
-export function select(id: string) {
-  currentId = id;
   emit();
 }
 
 export function markOutput(id: string) {
   const a = agents.get(id);
   if (!a || a.status === 'exited') return;
+  const changed = a.status !== 'working'; // only notify on transition — avoids a UI render per output chunk
   a.status = 'working';
   const prev = timers.get(id);
   if (prev) clearTimeout(prev);
@@ -922,7 +942,7 @@ export function markOutput(id: string) {
       }
     }, 2000),
   );
-  emit();
+  if (changed) emit();
 }
 
 export function markExit(id: string) {
@@ -947,14 +967,14 @@ export function __resetForTest() {
   agents.clear();
   timers.clear();
   listeners.clear();
-  currentId = null;
+  focusedId = null;
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npm test`
-Expected: PASS (4 tests).
+Run: `source scripts/dev-env.sh; npm test`
+Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -964,16 +984,83 @@ git commit -m "feat: frontend agents store with status transitions"
 ```
 
 ---
-
-### Task 7: Frontend UI (`terminal.ts`, `sidebar.ts`, `main.ts`, `styles.css`) + end-to-end verification
+### Task 7: `grid.ts` — tiling math (spec check #3)
 
 **Files:**
-- Create: `src/terminal.ts`, `src/sidebar.ts`, `src/styles.css`
+- Create: `src/grid.ts`, `src/grid.test.ts`
+
+**Interfaces:**
+- Produces: `grid::gridDims(n: number) => { cols: number; rows: number }`
+
+- [ ] **Step 1: Write the failing test** — create `src/grid.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { gridDims } from './grid';
+
+describe('gridDims', () => {
+  it('lays n agents into a near-square grid', () => {
+    expect(gridDims(1)).toEqual({ cols: 1, rows: 1 });
+    expect(gridDims(2)).toEqual({ cols: 2, rows: 1 });
+    expect(gridDims(3)).toEqual({ cols: 2, rows: 2 });
+    expect(gridDims(4)).toEqual({ cols: 2, rows: 2 });
+    expect(gridDims(5)).toEqual({ cols: 3, rows: 2 });
+    expect(gridDims(6)).toEqual({ cols: 3, rows: 2 });
+  });
+
+  it('returns 0x0 for no agents', () => {
+    expect(gridDims(0)).toEqual({ cols: 0, rows: 0 });
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `source scripts/dev-env.sh; npm test -- grid`
+Expected: FAIL — `./grid` has no export `gridDims`.
+
+- [ ] **Step 3: Write minimal implementation** — create `src/grid.ts`:
+
+```ts
+export interface Dims {
+  cols: number;
+  rows: number;
+}
+
+// Near-square auto-grid: cols = ceil(sqrt(n)), rows = ceil(n/cols).
+export function gridDims(n: number): Dims {
+  if (n <= 0) return { cols: 0, rows: 0 };
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  return { cols, rows };
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `source scripts/dev-env.sh; npm test -- grid`
+Expected: PASS (2 tests).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/grid.ts src/grid.test.ts
+git commit -m "feat: gridDims — near-square tiling layout math"
+```
+
+---
+
+### Task 8: Tiling UI (`terminal.ts`, `tiles.ts`, `sidebar.ts`, `main.ts`, `styles.css`) + end-to-end
+
+**Files:**
+- Create: `src/terminal.ts`, `src/tiles.ts`, `src/sidebar.ts`, `src/styles.css`
 - Modify: `src/main.ts` (replace generated contents), `index.html`
 
 **Interfaces:**
-- Consumes: `agents.ts` store; Tauri `invoke` + `listen`; the `agent-output` / `agent-exit` / `agent-claude` events and the four commands from Task 5.
-- Produces: `AgentTerminal` class; `renderSidebar(root, handlers)`.
+- Consumes: `agents.ts` (`add`, `list`, `focus`, `focused`, `subscribe`, `markOutput/Exit/Claude`, `Agent`); `grid.ts` `gridDims`; Tauri `invoke` + `listen`; events `agent-output` / `agent-exit` / `agent-claude` and commands from Task 5.
+- Produces: `AgentTerminal` (xterm wrapper, opened once, never reparented); `syncTiles(...)`; `renderSidebar(...)`.
+
+**Design note — never reparent a terminal.** Each agent gets ONE persistent tile appended once; re-renders only toggle `display`, the grid template, and header text, then re-`fit()` visible terminals. `stage.innerHTML = ''` is never used. This keeps xterm state/scroll stable while still showing all agents at once and zooming one on focus.
 
 - [ ] **Step 1: xterm wrapper** — create `src/terminal.ts`:
 
@@ -988,6 +1075,7 @@ export class AgentTerminal {
   term: Terminal;
   fit: FitAddon;
   el: HTMLDivElement;
+  private opened = false;
 
   constructor(public id: string) {
     this.term = new Terminal({
@@ -1006,8 +1094,10 @@ export class AgentTerminal {
     );
   }
 
-  // Call after this.el is attached to the DOM.
+  // Call once, after this.el is attached to the DOM.
   open() {
+    if (this.opened) return;
+    this.opened = true;
     this.term.open(this.el);
     try {
       this.term.loadAddon(new WebglAddon());
@@ -1031,10 +1121,118 @@ export class AgentTerminal {
 }
 ```
 
-- [ ] **Step 2: Sidebar** — create `src/sidebar.ts`:
+- [ ] **Step 2: Tile grid (persistent, no reparenting)** — create `src/tiles.ts`:
 
 ```ts
-import { list, current, type Agent } from './agents';
+import { gridDims } from './grid';
+import type { Agent } from './agents';
+import type { AgentTerminal } from './terminal';
+
+const DOT: Record<Agent['status'], string> = {
+  working: '#3fb950',
+  idle: '#8b949e',
+  exited: '#f85149',
+};
+
+export interface TilesHandlers {
+  onToggleFocus: (id: string) => void;
+}
+
+interface TileEls {
+  root: HTMLElement;
+  dot: HTMLElement;
+  meta: HTMLElement;
+  term: AgentTerminal;
+}
+
+const tiles = new Map<string, TileEls>();
+
+function fmtTokens(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
+}
+
+export function syncTiles(
+  stage: HTMLElement,
+  agents: Agent[],
+  focusedId: string | null,
+  terms: Map<string, AgentTerminal>,
+  h: TilesHandlers,
+) {
+  // 1. create a tile for each new agent (append once, open once)
+  for (const a of agents) {
+    if (tiles.has(a.id)) continue;
+    const term = terms.get(a.id);
+    if (!term) continue;
+
+    const root = document.createElement('div');
+    root.className = 'tile';
+
+    const header = document.createElement('div');
+    header.className = 'tile-header';
+    header.style.borderTopColor = a.color;
+    header.onclick = () => h.onToggleFocus(a.id);
+
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.style.color = a.color;
+    name.textContent = a.agentId;
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    header.append(dot, name, meta);
+
+    const body = document.createElement('div');
+    body.className = 'tile-body';
+    body.appendChild(term.el);
+
+    root.append(header, body);
+    stage.appendChild(root);
+    tiles.set(a.id, { root, dot, meta, term });
+    term.open(); // el is now in the DOM
+  }
+
+  // 2. drop tiles whose agent is gone
+  const ids = new Set(agents.map((a) => a.id));
+  for (const [id, t] of tiles) {
+    if (!ids.has(id)) {
+      t.root.remove();
+      tiles.delete(id);
+    }
+  }
+
+  // 3. grid template (or single cell when focused)
+  const focusMode = !!focusedId;
+  const { cols, rows } = gridDims(agents.length);
+  stage.style.gridTemplateColumns = focusMode ? '1fr' : `repeat(${cols || 1}, 1fr)`;
+  stage.style.gridTemplateRows = focusMode ? '1fr' : `repeat(${rows || 1}, 1fr)`;
+
+  // 4. per-tile visibility + header content
+  for (const a of agents) {
+    const t = tiles.get(a.id);
+    if (!t) continue;
+    const visible = !focusMode || a.id === focusedId;
+    t.root.style.display = visible ? 'flex' : 'none';
+    t.dot.style.background = DOT[a.status];
+    t.meta.textContent = a.title
+      ? a.title + (a.tokens ? ` · ${fmtTokens(a.tokens)}` : '')
+      : '';
+  }
+
+  // 5. re-fit visible terminals once the layout has applied
+  requestAnimationFrame(() => {
+    for (const a of agents) {
+      const t = tiles.get(a.id);
+      if (t && (!focusMode || a.id === focusedId)) t.term.fitNow();
+    }
+  });
+}
+```
+
+- [ ] **Step 3: Sidebar** — create `src/sidebar.ts`:
+
+```ts
+import { list, focused, type Agent } from './agents';
 
 const DOT: Record<Agent['status'], string> = {
   working: '#3fb950',
@@ -1043,8 +1241,17 @@ const DOT: Record<Agent['status'], string> = {
 };
 
 export interface SidebarHandlers {
-  onSelect: (id: string) => void;
   onNew: (agentId: string, dir: string) => void;
+  onFocusToggle: (id: string) => void;
+  onGrid: () => void;
+}
+
+function fmtTokens(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
+}
+
+function homeDir(): string {
+  return (window as any).__HOME__ ?? '~';
 }
 
 export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
@@ -1069,16 +1276,24 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   form.append(dir, pick, btn);
   root.appendChild(form);
 
-  const cur = current();
+  const grid = document.createElement('button');
+  grid.className = 'gridbtn';
+  grid.textContent = focused() ? '▦ Show all' : '▦ Grid';
+  grid.disabled = !focused();
+  grid.onclick = () => h.onGrid();
+  root.appendChild(grid);
+
+  const cur = focused();
   for (const a of list()) {
     const row = document.createElement('div');
     row.className = 'agentrow' + (a.id === cur ? ' active' : '');
-    row.onclick = () => h.onSelect(a.id);
+    row.onclick = () => h.onFocusToggle(a.id);
     const dot = document.createElement('span');
     dot.className = 'dot';
     dot.style.background = DOT[a.status];
     const label = document.createElement('span');
     label.className = 'label';
+    label.style.color = a.color;
     label.textContent = a.agentId;
     row.append(dot, label);
     if (a.title) {
@@ -1090,63 +1305,44 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
     root.appendChild(row);
   }
 }
-
-function fmtTokens(n: number): string {
-  return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
-}
-
-function homeDir(): string {
-  // Filled in by main.ts before first render; falls back to '~'.
-  return (window as any).__HOME__ ?? '~';
-}
 ```
 
-- [ ] **Step 3: Wire everything** — replace `src/main.ts` with:
+- [ ] **Step 4: Wire everything** — replace `src/main.ts` with:
 
 ```ts
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { homeDir } from '@tauri-apps/api/path';
-import { add, markClaude, markExit, markOutput, select, current, subscribe } from './agents';
+import { add, focus, focused, list, markClaude, markExit, markOutput, subscribe } from './agents';
 import { AgentTerminal } from './terminal';
+import { syncTiles } from './tiles';
 import { renderSidebar } from './sidebar';
 import './styles.css';
 
+const COLORS = ['#e3b341', '#3fb950', '#58a6ff', '#bc8cff', '#f778ba', '#39c5cf'];
 const terms = new Map<string, AgentTerminal>();
 const sidebarEl = document.getElementById('sidebar')!;
 const stageEl = document.getElementById('stage')!;
 
-function mountCurrent() {
-  const id = current();
-  stageEl.innerHTML = '';
-  if (!id) return;
-  const t = terms.get(id);
-  if (!t) return;
-  stageEl.appendChild(t.el);
-  if (!t.el.dataset.opened) {
-    t.open();
-    t.el.dataset.opened = '1';
-  } else {
-    t.fitNow();
-  }
-  t.term.focus();
+function toggleFocus(id: string) {
+  focus(focused() === id ? null : id);
 }
 
 function render() {
   renderSidebar(sidebarEl, {
-    onSelect: (id) => {
-      select(id);
-    },
     onNew: (agentId, dir) => void spawn(agentId, dir),
+    onFocusToggle: toggleFocus,
+    onGrid: () => focus(null),
   });
-  mountCurrent();
+  syncTiles(stageEl, list(), focused(), terms, { onToggleFocus: toggleFocus });
 }
 
 async function spawn(agentId: string, dir: string) {
   try {
     const id = await invoke<string>('spawn_agent', { projectDir: dir, agentId });
     terms.set(id, new AgentTerminal(id));
-    add({ id, agentId, dir, status: 'working' });
+    const color = COLORS[list().length % COLORS.length];
+    add({ id, agentId, dir, color, status: 'working' });
   } catch (e) {
     alert(`spawn failed: ${e}`);
   }
@@ -1163,18 +1359,19 @@ await listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e)
 
 (window as any).__HOME__ = await homeDir();
 subscribe(render);
-window.addEventListener('resize', () => terms.get(current() ?? '')?.fitNow());
+window.addEventListener('resize', () => {
+  for (const t of terms.values()) t.fitNow();
+});
 render();
 ```
 
-Add the path plugin (used for `homeDir()`):
+Add the Tauri API package if the scaffold didn't already:
 ```bash
-cd ~/Documents/personal/tt && npm install @tauri-apps/api
-cd src-tauri && cargo add tauri-plugin-... # NOT needed: path is core in @tauri-apps/api/path
+source scripts/dev-env.sh; npm install @tauri-apps/api
 ```
-(`@tauri-apps/api/path`'s `homeDir` is available without a separate plugin in Tauri v2.)
+(`homeDir` comes from `@tauri-apps/api/path` — core in Tauri v2, no extra plugin.)
 
-- [ ] **Step 4: index.html + styles** — set `index.html` `<body>` to:
+- [ ] **Step 5: index.html + styles** — set `index.html` `<body>` to:
 
 ```html
 <body>
@@ -1195,43 +1392,54 @@ html, body, #app { height: 100%; margin: 0; }
 body { background: #0d1117; color: #e6edf3; font: 13px Menlo, monospace; }
 #app { display: flex; height: 100vh; }
 #sidebar { width: 240px; flex: 0 0 240px; border-right: 1px solid #30363d; padding: 8px; overflow-y: auto; }
-#stage { flex: 1; min-width: 0; padding: 6px; }
-.term { width: 100%; height: 100%; }
-.newagent { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-.newagent input, .newagent select, .newagent button {
+#stage { flex: 1; min-width: 0; display: grid; gap: 6px; padding: 6px; }
+
+.tile { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; background: #010409; }
+.tile-header { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-top: 2px solid #30363d; background: #0d1117; cursor: pointer; user-select: none; }
+.tile-header .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.tile-header .name { font-weight: 700; }
+.tile-header .meta { color: #8b949e; margin-left: auto; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-body { flex: 1; min-height: 0; }
+.tile-body .term { width: 100%; height: 100%; }
+
+.newagent { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.newagent input, .newagent select, .newagent button, .gridbtn {
   background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 6px;
 }
-.newagent button { cursor: pointer; }
+.newagent button, .gridbtn { cursor: pointer; }
+.gridbtn { width: 100%; margin-bottom: 12px; }
+.gridbtn:disabled { opacity: .5; cursor: default; }
 .agentrow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
 .agentrow.active { background: #161b22; }
 .agentrow .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
 .agentrow .label { font-weight: 600; }
-.agentrow .meta { color: #8b949e; margin-left: auto; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
+.agentrow .meta { color: #8b949e; margin-left: auto; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
 ```
 
-- [ ] **Step 5: Build check**
+- [ ] **Step 6: Build check**
 
-Run: `cd ~/Documents/personal/tt && npm run build`
+Run: `source scripts/dev-env.sh; npm run build`
 Expected: Vite build succeeds, no TS errors.
 
-- [ ] **Step 6: End-to-end verification (manual — this is the whole point)**
+- [ ] **Step 7: End-to-end verification (manual — the whole point)**
 
-Run: `cd ~/Documents/personal/tt && npm run tauri dev`
+Run: `source scripts/dev-env.sh; npm run tauri dev`
 
 Verify, in order:
-1. Window shows a sidebar with a folder input (prefilled `…/Documents/personal/cc`), an agent dropdown, and `+ New agent`.
-2. Set the folder to a real project dir you use with Claude, choose `claude`, click `+`. A terminal appears and Claude Code starts. **Type a message and confirm keystrokes register and output streams.** Mouse-select text in the pane (xterm mouse works).
-3. Within ~4s the sidebar row shows Claude's task title and a token count (e.g. `Fixing… · 12k`); the dot is green while it works, grey when idle.
-4. Choose `codex`, click `+` again → a second row appears, its own terminal opens. Switch between the two rows — **both keep running**, each restores its own scrollback.
-5. In the claude pane, exit Claude (Ctrl-C / `/exit`). The row dot turns red (`exited`) and the last output stays visible.
+1. Sidebar shows the folder input (prefilled `…/Documents/personal/cc`), an agent dropdown, `+ New agent`, and a `▦ Grid` button (disabled while already in grid).
+2. Set the folder to a real Claude project dir, choose `claude`, click `+`. A **tile** appears filling the stage (1 agent → 1×1) with a colored header (dot + `claude`). Type a message → keystrokes register and output streams; mouse-select works.
+3. Within ~4s the tile header (and the sidebar row) show Claude's task title + token count; the dot is green while working, grey when idle.
+4. Choose `codex`, click `+` → the stage **splits to a 2-up grid**, both terminals visible and live at once. Add a third → auto 2×2. **All keep running simultaneously.**
+5. Click a tile header (or its sidebar row) → that tile **zooms fullscreen**, others hide, `▦ Show all` enables. Click the header again (or `▦ Show all`) → back to the grid, every terminal intact with its scrollback.
+6. In the claude tile, exit Claude (`/exit`). Its dot turns red (`exited`); the tile stays with its last output.
 
-If all five hold, v0 is done.
+If all six hold, v0 is done.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/terminal.ts src/sidebar.ts src/main.ts src/styles.css index.html package.json package-lock.json
-git commit -m "feat: sidebar + xterm UI, event wiring — v0 core loop end to end"
+git add src/terminal.ts src/tiles.ts src/sidebar.ts src/main.ts src/styles.css src/grid.ts index.html package.json package-lock.json
+git commit -m "feat: auto-grid tiling UI with click-to-focus — v0 core loop end to end"
 ```
 
 ---
@@ -1239,19 +1447,25 @@ git commit -m "feat: sidebar + xterm UI, event wiring — v0 core loop end to en
 ## Self-Review
 
 **Spec coverage:**
-- Sidebar + `+` picker (claude/codex) → Task 7 (+ registry Task 2). ✓
-- Spawn terminal running chosen CLI in a folder → Tasks 3, 5, 7. ✓
-- Full mouse/keyboard → xterm (Task 7, `allowProposedApi` + webgl). ✓
-- Universal working/idle/exited dot → store (Task 6) + events (Task 5). ✓
-- Claude rich status (title + tokens) → Tasks 4 + 5 (`agent-claude`) + 7 render. ✓
-- Create project as folder under `~/Documents/personal/cc` → Task 7 sidebar default. ✓
-- Switching hides but keeps PTY + xterm alive → Task 7 `mountCurrent` keeps `terms` map + `dataset.opened`. ✓
+- Sidebar + `+` picker (claude/codex) → Task 8 (+ registry Task 2). ✓
+- Spawn terminal running chosen CLI in a folder → Tasks 3, 5, 8. ✓
+- Full mouse/keyboard → xterm (`allowProposedApi` + webgl), Task 8. ✓
+- Universal working/idle/exited dot → store (Task 6, emit-on-change) + events (Task 5). ✓
+- Claude rich status (title + tokens) → Tasks 4 + 5 (`agent-claude`) + 8 (tile + sidebar). ✓
+- Create project as folder under `~/Documents/personal/cc` → Task 8 sidebar default. ✓
+- **Auto-grid tiling, all agents at once** → `gridDims` (Task 7) + `syncTiles` (Task 8). ✓
+- **Click-to-focus / zoom (focus mode)** → store `focus/focused` (Task 6) + `syncTiles` display toggle + sidebar/header handlers (Task 8). ✓
+- **Terminals never reparented / stay alive** → `syncTiles` creates each tile once, toggles `display` only; `open()` guarded. ✓
 - Error handling: binary-not-found / exit / watcher degrade → Task 5 (`spawn_agent` Err → alert; `agent-exit`; watch loop tolerates missing files). ✓
-- Both spec checks present → Task 3 (echo hi), Task 4 (fixture jsonl). ✓
-- Out-of-scope items (tiling, persistence, other agents, non-claude rich status) → not implemented, correct.
+- Spec checks present → Task 3 (echo hi), Task 4 (fixture jsonl), Task 7 (gridDims) + Task 6 (focus toggle). ✓
+- Out-of-scope (manual splits, saved layouts, persistence, other agents, non-claude rich status) → not implemented, correct.
 
-**Placeholder scan:** No TBD/TODO; every code step shows full code; commands have expected output. The one manual-verification task (Task 7 Step 6) lists exact observable outcomes.
+**Placeholder scan:** No TBD/TODO; every code step shows full code; commands include the `source scripts/dev-env.sh;` prelude where node/cargo are used; the one manual step (Task 8 Step 7) lists exact observable outcomes.
 
-**Type consistency:** `spawn_agent(projectDir, agentId)→id`, `write_agent(id,data)`, `resize_agent(id,cols,rows)`, `kill_agent(id)` match between Task 5 (Rust `#[tauri::command]` snake_case params auto-map to camelCase from JS) and Task 7 (`invoke` calls use camelCase `projectDir`). Event payload shapes (`{id,data}`, `{id}`, `{id,title,tokens}`) match emit (Task 5) and listen (Task 7). Store API (`add/select/markOutput/markExit/markClaude`) matches between Task 6 and Task 7.
+**Type consistency:**
+- Commands `spawn_agent(projectDir, agentId)→id`, `write_agent(id,data)`, `resize_agent(id,cols,rows)`, `kill_agent(id)` match Task 5 (Rust snake_case → JS camelCase) and Task 8 (`invoke` camelCase args).
+- Event payloads `{id,data}` / `{id}` / `{id,title,tokens}` match emit (Task 5) and listen (Task 8).
+- Store API `add/list/focus/focused/subscribe/markOutput/markExit/markClaude` + `Agent` (now with `color`) match Task 6 ↔ Tasks 8. `focus`/`focused` replace the old `select`/`current` consistently (no stale references).
+- `gridDims` return `{cols, rows}` matches Task 7 ↔ `syncTiles` usage.
 
-**Note on Tauri param casing:** Tauri v2 converts snake_case command args to camelCase for JS by default. Task 5 params `project_dir`/`agent_id` are invoked as `projectDir`/`agentId` in Task 7 — consistent. If a future Tauri config disables the rename, align both sides.
+**Perf note:** `markOutput` only emits on the idle→working transition, so streaming output does not trigger UI renders; `syncTiles` never calls `innerHTML=''` and never reparents a terminal, so re-renders (status/title changes) are cheap DOM updates.

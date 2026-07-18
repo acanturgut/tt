@@ -11,8 +11,8 @@ Codex, later gemini / opencode / cursor) in a project folder, shows each one's
 live status, and lets you jump between them. It generalizes an existing tmux
 setup (`cc4`=claude, `co4`=codex, `tt4`=plain terminals) into a real app.
 
-This document specs **v0 only**: the core loop, proven with two agents. Tiling,
-the full agent roster, and persistence are deliberately later specs.
+This document specs **v0 only**: the core loop, proven with two agents. The full
+agent roster and persistence are deliberately later specs.
 
 ## Decisions (settled during brainstorming)
 
@@ -22,6 +22,7 @@ the full agent roster, and persistence are deliberately later specs.
 | Stack | Tauri (Rust) + xterm.js | Mature, cross-platform, plays to web-frontend strength |
 | Persistence | Agents die when tt quits (raw PTY) | Keeps v0 lean; persistence is its own later spec |
 | Status | Universal dumb dot **+** Claude-only rich status | Dot works for every CLI; Claude gets title+tokens from jsonl |
+| Layout | Auto-grid tiling + click-to-focus | See all agents at once (cc4-style); focus mode = zoom one tile |
 
 **Key insight:** because tt owns every PTY it spawns, working/idle/exited status
 comes from PTY output activity alone — no per-CLI parsing, no reading
@@ -55,11 +56,17 @@ Tauri app: Rust backend owns processes; web frontend is pure UI over events.
 - **`Sidebar`** — projects (folders); under each, its spawned agents with a
   status dot (and, for Claude, live title + tokens). A `+` button opens
   pick/create-folder (default root `~/Documents/personal/cc`) + pick-agent, then
-  calls `spawn_agent`.
+  calls `spawn_agent`. Clicking an agent row focuses (zooms) its tile.
+- **`Grid`** — the tiling stage. Lays every live agent's terminal into an
+  auto-sized near-square grid (`cols = ceil(√n)`), each tile wrapped in a
+  colored header (agent name, status dot, and for Claude its title + tokens).
+  Clicking a header — or a sidebar row — zooms that tile fullscreen (focus mode);
+  clicking again returns to the grid. See **Tiling** below.
 - **`Terminal`** — an xterm.js wrapper (fit + webgl addons, full mouse) bound to
-  the selected agent's PTY. Switching agents only hides the view — the PTY keeps
-  running, output keeps streaming, and the status dot stays live. One xterm
-  instance persists per agent for its lifetime (not torn down on switch).
+  one agent's PTY. Every agent's xterm instance lives in its own grid cell for
+  the agent's lifetime — never torn down; layout/focus changes only move and
+  re-`fit()` it. The PTY keeps running whether the tile is gridded, zoomed, or
+  behind a zoomed sibling.
 - **`useAgents`** — frontend store of agents, their status, and which is focused.
 
 ## Data flow
@@ -76,6 +83,20 @@ claude_watch  ──►  event  agent://claude/{id}  { title, tokens }  ──�
 Status thresholds: bytes within ~2s → `working`; quiet → `idle`; process gone →
 `exited`.
 
+## Tiling (v0)
+
+- **Auto-grid** — N live agents fill a near-square grid: `cols = ceil(√N)`,
+  `rows = ceil(N / cols)` (1→1×1, 2→2×1, 3–4→2×2, 5–6→3×2, …). Pure function,
+  unit-tested.
+- **Colored tile headers** — each tile has a header bar tinted per agent (reusing
+  the cc4 border-color idea): status dot + agent name + (Claude) title + tokens.
+- **Focus mode** — click a tile header or its sidebar row → that tile fills the
+  stage, siblings hidden; click again → back to the grid. Focus is a single
+  `focusedId | null` in the store.
+- **All mounted** — terminals are never unmounted on layout change; the grid just
+  shows/hides cells and re-`fit()`s the visible ones (on grid change and window
+  resize). Scrollback and process state are always preserved.
+
 ## Error handling
 
 - **Binary not found** (agent CLI not installed) → error row in the sidebar and a
@@ -86,11 +107,12 @@ Status thresholds: bytes within ~2s → `working`; quiet → `idle`; process gon
 
 ## v0 scope
 
-**In:** one window; sidebar + one visible terminal (switch via sidebar); full
-mouse + keyboard in the terminal; claude + codex; status dots + Claude rich
-status; create-project-as-folder under `~/Documents/personal/cc`.
+**In:** one window; sidebar + an auto-grid tiling stage showing all agents at
+once, with click-to-focus (zoom) one tile; full mouse + keyboard in every
+terminal; claude + codex; per-tile + sidebar status dots + Claude rich status;
+create-project-as-folder under `~/Documents/personal/cc`.
 
-**Out (later specs):** tiling / split view; focus mode; gemini / opencode /
+**Out (later specs):** manual/draggable splits; saved layouts; gemini / opencode /
 cursor; rich status for non-Claude agents; session persistence across restart.
 
 ## Testing (core only — YAGNI on the rest)
@@ -98,12 +120,14 @@ cursor; rich status for non-Claude agents; session persistence across restart.
 1. Spawn `bash -c 'echo hi'` through a PTY and assert the bytes reach the
    frontend channel — proves the engine end to end.
 2. Feed `claude_watch` a fixture `.jsonl` and assert it extracts title + tokens.
+3. `gridDims(n)` returns the expected `{cols, rows}` for n = 1..6, and the focus
+   toggle sets/clears `focusedId`.
 
-No UI test harness in v0.
+No full UI/render test harness in v0.
 
 ## Later specs (not now)
 
-- **Tiling + focus mode** — splits, saved layouts, zoom.
+- **Manual tiling** — draggable dividers, saved/named layouts (v0 auto-grids + zoom).
 - **Full agent roster** — gemini / opencode / cursor registry rows + any
   status heuristics.
 - **Persistence** — back each agent with a detached process/mux so agents
