@@ -339,7 +339,7 @@ body.viewer-open #viewer { display: flex; flex-direction: column; flex: 1; min-h
 .code-pre { margin: 0; }
 .viewer-code code.hljs { display: block; padding: 0 16px; background: transparent; white-space: pre; }
 /* Rendered markdown */
-.viewer-md { max-width: 860px; margin: 0 auto; padding: 8px 24px 48px; color: #cdd6e0; line-height: 1.65; }
+.viewer-md { padding: 8px 24px 48px; color: #cdd6e0; line-height: 1.65; }
 .viewer-md h1, .viewer-md h2 { border-bottom: 1px solid #262626; padding-bottom: 6px; }
 .viewer-md h1, .viewer-md h2, .viewer-md h3 { color: #e6edf3; margin: 20px 0 12px; }
 .viewer-md a { color: #58a6ff; }
