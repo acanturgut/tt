@@ -1349,21 +1349,26 @@ async function spawn(agentId: string, dir: string) {
   }
 }
 
-await listen<{ id: string; data: number[] }>('agent-output', (e) => {
+// Fire-and-forget: we never need the unlisten handles, so no top-level await
+// (Tauri's Vite build target predates top-level await).
+listen<{ id: string; data: number[] }>('agent-output', (e) => {
   markOutput(e.payload.id);
   terms.get(e.payload.id)?.write(new Uint8Array(e.payload.data));
 });
-await listen<{ id: string }>('agent-exit', (e) => markExit(e.payload.id));
-await listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
+listen<{ id: string }>('agent-exit', (e) => markExit(e.payload.id));
+listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
   markClaude(e.payload.id, e.payload.title, e.payload.tokens),
 );
 
-(window as any).__HOME__ = await homeDir();
 subscribe(render);
 window.addEventListener('resize', () => {
   for (const t of terms.values()) t.fitNow();
 });
-render();
+render(); // initial paint (folder input falls back to '~' until home resolves)
+homeDir().then((h) => {
+  (window as any).__HOME__ = h;
+  render();
+});
 ```
 
 Add the Tauri API package if the scaffold didn't already:
