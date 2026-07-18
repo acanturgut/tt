@@ -16,6 +16,7 @@ export interface TilesHandlers {
   onClose: (id: string) => void;
   onSetLabel: (id: string, label: WorkflowLabel | undefined) => void;
   onRename: (id: string, name: string) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
 }
 
 interface TileEls {
@@ -57,6 +58,25 @@ export function syncTiles(
     const header = document.createElement('div');
     header.className = 'tile-header';
     header.onclick = () => h.onToggleFocus(a.id);
+
+    // Drag a tile by its header to reorder the grid.
+    header.draggable = true;
+    header.ondragstart = (ev) => {
+      ev.dataTransfer?.setData('text/plain', a.id);
+      root.classList.add('dragging');
+    };
+    header.ondragend = () => root.classList.remove('dragging');
+    root.ondragover = (ev) => {
+      ev.preventDefault();
+      root.classList.add('drop-target');
+    };
+    root.ondragleave = () => root.classList.remove('drop-target');
+    root.ondrop = (ev) => {
+      ev.preventDefault();
+      root.classList.remove('drop-target');
+      const from = ev.dataTransfer?.getData('text/plain');
+      if (from) h.onReorder(from, a.id);
+    };
 
     const dot = document.createElement('span');
     dot.className = 'dot';

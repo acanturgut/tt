@@ -24,6 +24,7 @@ workflow status you set.
   - `claude` — Claude Code
   - `codex` — Codex CLI
   - `cursor-agent` — Cursor CLI
+  - `gemini` — Gemini CLI
   - a shell for the plain terminal (uses `$SHELL`)
 
 ## Develop / Run
@@ -51,6 +52,7 @@ Each agent is launched in the folder you pick:
 | claude | `claude --permission-mode auto --effort high --session-id <uuid>` |
 | codex | `codex --sandbox workspace-write --ask-for-approval never` |
 | cursor | `cursor-agent` |
+| gemini | `gemini` |
 | terminal | `$SHELL -l` |
 
 Claude gets a pinned `--session-id` so tt reads exactly that session's title +

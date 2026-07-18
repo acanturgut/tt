@@ -160,7 +160,7 @@ async function buildNode(
 function openAgentMenu(path: string, h: TreeHandlers, anchor: HTMLElement) {
   const menu = document.createElement('div');
   menu.className = 'popmenu';
-  for (const a of ['claude', 'codex', 'cursor', 'terminal']) {
+  for (const a of ['claude', 'codex', 'cursor', 'gemini', 'terminal']) {
     const item = document.createElement('div');
     item.className = 'popmenu-item';
     item.textContent = `${a} here`;

@@ -73,6 +73,7 @@ function renderAgents() {
     onClose: closeAgent,
     onSetLabel: setLabel,
     onRename: setName,
+    onReorder: reorder,
   });
 }
 
