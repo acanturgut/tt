@@ -43,6 +43,7 @@ import { chime } from './sound';
 import { showInstallHelp } from './installs';
 import { randomName } from './naming';
 import { visibleProviders, subscribeProviders } from './providers';
+import { renderWelcome } from './welcome';
 import './styles.css';
 
 const terms = new Map<string, AgentTerminal>();
@@ -61,6 +62,7 @@ const sidebarEl = document.getElementById('sidebar')!;
 const stageEl = document.getElementById('stage')!;
 const treeEl = document.getElementById('tree')!;
 const broadcastEl = document.getElementById('broadcast')!;
+const welcomeEl = document.getElementById('welcome')!;
 
 function fitAll() {
   for (const t of terms.values()) t.fitNow();
@@ -246,6 +248,8 @@ function renderAgents() {
 
 // Project-driven UI — topbar + tree, only re-renders on project change.
 function renderProject() {
+  // No projects yet → show the centered welcome/onboarding screen.
+  document.body.classList.toggle('no-project', listProjects().length === 0);
   renderProjectTabs(projtabsEl, {
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
@@ -480,6 +484,7 @@ window.addEventListener('keydown', (e) => {
 applyCollapse();
 applyOled();
 mountBroadcast(broadcastEl, { onSend: broadcast });
+renderWelcome(welcomeEl);
 renderProject();
 renderAgents();
 void restoreAgents();

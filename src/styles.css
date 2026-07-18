@@ -18,6 +18,24 @@ body.oled { filter: grayscale(1) brightness(0.82); }
 #app { display: flex; flex-direction: column; height: 100vh; }
 #body { flex: 1; display: flex; min-height: 0; }
 #maincol { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+/* Onboarding screen shown when there are no projects yet. */
+#welcome { display: none; }
+body.no-project #welcome { display: flex; flex: 1; min-height: 0; overflow-y: auto; align-items: center; justify-content: center; padding: 40px 24px; }
+body.no-project #workspace,
+body.no-project #sidebar,
+body.no-project #broadcast { display: none; }
+.welcome-card { max-width: 720px; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.welcome-mark { width: 64px; height: 64px; border-radius: 16px; background: var(--tab-accent, #122a4a); display: flex; align-items: center; justify-content: center; font-size: 30px; color: #fff; margin-bottom: 18px; }
+.welcome-title { font-size: 26px; font-weight: 800; }
+.welcome-sub { color: var(--muted); font-size: 14px; line-height: 1.5; margin-top: 8px; max-width: 460px; }
+.welcome-btn { margin-top: 22px; display: inline-flex; align-items: center; gap: 7px; background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 12px 22px; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; }
+.welcome-btn:hover { background: var(--accent-hi); }
+.welcome-tips { margin-top: 34px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; width: 100%; text-align: left; }
+.welcome-tip { display: flex; gap: 11px; padding: 14px; background: var(--elev); border: 1px solid #1b1f27; border-radius: 12px; }
+.welcome-tip-ic { color: var(--accent-hi); font-size: 20px; flex: 0 0 auto; margin-top: 1px; }
+.welcome-tip-title { font-weight: 700; font-size: 13px; }
+.welcome-tip-body { color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 3px; }
+@media (max-width: 640px) { .welcome-tips { grid-template-columns: 1fr; } }
 #workspace { flex: 1 1 auto; display: flex; min-height: 0; }
 .ph { font-size: 15px; line-height: 1; display: inline-flex; vertical-align: middle; }
 .flip { transform: scaleX(-1); }
