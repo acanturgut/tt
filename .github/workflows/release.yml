@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -31,15 +33,25 @@ jobs:
       - name: Install JS deps
         run: npm ci
 
-      # Builds the app (runs `npm run build` via beforeBuildCommand), bundles the
+      # Builds the app, signs it with the Developer ID cert, notarizes + staples it
+      # with Apple (so a downloaded build isn't blocked as "damaged"), bundles the
       # .dmg/.app, and creates a DRAFT GitHub Release so publishing stays manual.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing — Developer ID Application cert (base64 .p12 + its password).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          # Notarization — Apple ID + an app-specific password + team id.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
+          args: --target universal-apple-darwin
           tagName: ${{ github.event.inputs.tag }}
           releaseName: 'tt ${{ github.event.inputs.tag }}'
           releaseBody: |
             Download the `.dmg` below and drag **tt** to Applications.
-            Unsigned build — first launch: right-click **tt** → Open → Open.
           releaseDraft: true
