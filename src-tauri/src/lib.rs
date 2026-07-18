@@ -9,12 +9,15 @@ use commands::AppState;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init()) // keep: capabilities/default.json lists opener:default
+        .plugin(tauri_plugin_dialog::init()) // native folder picker (dialog:default)
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::spawn_agent,
             commands::write_agent,
             commands::resize_agent,
-            commands::kill_agent
+            commands::kill_agent,
+            commands::list_dir,
+            commands::make_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

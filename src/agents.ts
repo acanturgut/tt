@@ -1,4 +1,5 @@
 export type Status = 'working' | 'idle' | 'exited';
+export type WorkflowLabel = 'planning' | 'in-progress' | 'done';
 
 export interface Agent {
   id: string;
@@ -6,6 +7,7 @@ export interface Agent {
   dir: string;
   color: string;
   status: Status;
+  label?: WorkflowLabel;
   title?: string;
   tokens?: number;
 }
@@ -76,6 +78,13 @@ export function markClaude(id: string, title?: string, tokens?: number) {
   if (!a) return;
   a.title = title;
   a.tokens = tokens;
+  emit();
+}
+
+export function setLabel(id: string, label: WorkflowLabel | undefined) {
+  const a = agents.get(id);
+  if (!a) return;
+  a.label = label;
   emit();
 }
 

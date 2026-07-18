@@ -1,31 +1,81 @@
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+  --bg: #05070a;
+  --panel: #0b0e14;
+  --panel-2: #11161f;
+  --border: #1b212b;
+  --text: #e6edf3;
+  --muted: #7d8590;
+  --accent: #2f81f7;
+  --accent-hi: #58a6ff;
+  --danger: #f85149;
+}
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
-body { background: #0d1117; color: #e6edf3; font: 13px Menlo, monospace; }
-#app { display: flex; height: 100vh; }
-#sidebar { width: 240px; flex: 0 0 240px; border-right: 1px solid #30363d; padding: 8px; overflow-y: auto; }
-#stage { flex: 1; min-width: 0; display: grid; gap: 6px; padding: 6px; }
+body { background: var(--bg); color: var(--text); font: 13px Menlo, monospace; }
+#app { display: flex; flex-direction: column; height: 100vh; }
+#body { flex: 1; display: flex; min-height: 0; }
 
-.tile { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; background: #010409; }
-.tile-header { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-top: 2px solid #30363d; background: #0d1117; cursor: pointer; user-select: none; }
+/* ── top bar ─────────────────────────────────────────── */
+#topbar { display: flex; align-items: center; gap: 16px; height: 44px; flex: 0 0 44px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--border); }
+#topbar .brand { font-weight: 800; letter-spacing: .5px; color: var(--accent-hi); font-size: 15px; }
+.proj-wrap { display: flex; align-items: center; gap: 8px; }
+.proj-label { color: var(--muted); }
+.proj-select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; min-width: 160px; }
+.proj-select:focus { outline: none; border-color: var(--accent); }
+.addproj { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.addproj:hover { background: var(--accent-hi); }
+
+/* ── left rail (agents) ──────────────────────────────── */
+#sidebar { width: 216px; flex: 0 0 216px; background: var(--panel); border-right: 1px solid var(--border); padding: 8px; overflow-y: auto; }
+.rail-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-weight: 600; }
+.rail-empty { color: var(--muted); padding: 8px 4px; font-size: 12px; }
+.gridbtn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px; }
+.gridbtn:hover:not(:disabled) { border-color: var(--accent); }
+.gridbtn:disabled { opacity: .45; cursor: default; }
+.agentrow { padding: 6px 8px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; }
+.agentrow:hover { background: var(--panel-2); }
+.agentrow.active { background: var(--panel-2); border-color: var(--accent); }
+.agentrow-top { display: flex; align-items: center; gap: 8px; }
+.agentrow .label { font-weight: 700; }
+.agentrow .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.agentrow .close { margin-left: auto; color: var(--muted); cursor: pointer; padding: 0 4px; border-radius: 4px; font-size: 15px; line-height: 1; }
+.agentrow .close:hover { color: var(--danger); background: var(--border); }
+.agentrow .pill { margin-top: 5px; display: inline-block; }
+.rail-meta { color: var(--muted); font-size: 11px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── stage / tiles ───────────────────────────────────── */
+#stage { flex: 1; min-width: 0; display: grid; gap: 6px; padding: 6px; background: var(--bg); }
+.tile { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #03050a; }
+.tile-header { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-top: 2px solid var(--border); background: var(--panel); cursor: pointer; user-select: none; }
 .tile-header .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
 .tile-header .name { font-weight: 700; }
-.tile-header .meta { color: #8b949e; margin-left: auto; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-header .meta { color: var(--muted); margin-left: auto; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-header .close { margin-left: 6px; color: var(--muted); cursor: pointer; padding: 0 4px; border-radius: 4px; font-size: 15px; line-height: 1; }
+.tile-header .close:hover { color: var(--danger); background: var(--border); }
 .tile-body { flex: 1; min-height: 0; }
 .tile-body .term { width: 100%; height: 100%; }
-.tile-header .close { cursor: pointer; color: #8b949e; margin-left: 6px; padding: 0 4px; border-radius: 4px; font-size: 15px; line-height: 1; }
-.tile-header .close:hover { color: #f85149; background: #30363d; }
 
-.newagent { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-.newagent input, .newagent select, .newagent button, .gridbtn {
-  background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 6px;
-}
-.newagent button, .gridbtn { cursor: pointer; }
-.gridbtn { width: 100%; margin-bottom: 12px; }
-.gridbtn:disabled { opacity: .5; cursor: default; }
-.rows { display: flex; flex-direction: column; gap: 2px; }
-.agentrow { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
-.agentrow.active { background: #161b22; }
-.agentrow .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
-.agentrow .label { font-weight: 600; }
-.agentrow .meta { color: #8b949e; margin-left: auto; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+/* ── workflow status pill ────────────────────────────── */
+.pill { font-size: 10px; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+.pill.pill-empty { color: var(--muted); }
+.pill:hover { border-color: var(--accent); }
+
+/* ── right tree ──────────────────────────────────────── */
+#tree { width: 264px; flex: 0 0 264px; background: var(--panel); border-left: 1px solid var(--border); padding: 6px; overflow: auto; }
+.tree-empty { color: var(--muted); padding: 10px 6px; font-size: 12px; }
+.tree-row { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 6px; white-space: nowrap; }
+.tree-row:hover { background: var(--panel-2); }
+.tree-row .chev { width: 12px; text-align: center; color: var(--muted); cursor: pointer; flex: 0 0 auto; }
+.tree-name { flex: 1; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.tree-act { color: var(--muted); cursor: pointer; padding: 0 3px; border-radius: 4px; visibility: hidden; flex: 0 0 auto; }
+.tree-row:hover .tree-act { visibility: visible; }
+.tree-act:hover { color: var(--accent-hi); background: var(--border); }
+.tree-newinput { background: var(--panel-2); color: var(--text); border: 1px solid var(--accent); border-radius: 4px; padding: 2px 6px; margin: 2px 0 2px 18px; width: calc(100% - 24px); }
+.tree-newinput:focus { outline: none; }
+
+/* ── popup menus (agent picker, status picker) ───────── */
+.popmenu { position: fixed; z-index: 50; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, .55); min-width: 128px; }
+.popmenu-item { padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.popmenu-item:hover { background: var(--accent); color: #fff !important; }
+.popmenu-clear { color: var(--muted); border-top: 1px solid var(--border); margin-top: 2px; }

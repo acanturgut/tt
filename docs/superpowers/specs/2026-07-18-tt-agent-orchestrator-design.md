@@ -125,6 +125,24 @@ cursor; rich status for non-Claude agents; session persistence across restart.
 
 No full UI/render test harness in v0.
 
+## v0.1 additions (built)
+
+Layered on top of v0:
+- **Projects** — a project = a root folder, added via the native folder picker
+  (`@tauri-apps/plugin-dialog`), listed in a top-bar dropdown, persisted in
+  `localStorage`. Selecting a project drives the tree.
+- **Directory tree (right panel)** — lazy-expand folders (`list_dir`), create a
+  folder inline (`make_dir`), and open an agent (claude/codex) in any folder.
+  Agent creation moved here from the old left-sidebar form.
+- **Workflow status** — a human-set pill per agent (Planning / In progress /
+  Done), separate from the automatic activity dot; shown on the tile header and
+  the rail row.
+- **Kill** — an `×` on both the tile header and the rail row (`kill_agent`).
+- **Theme** — super-dark backgrounds + blue accent via CSS variables; per-agent
+  colors shifted to a blue/cyan family.
+- **New backend commands** — `list_dir`, `make_dir`; dialog plugin registered
+  (`dialog:default` capability).
+
 ## Later specs (not now)
 
 - **Manual tiling** — draggable dividers, saved/named layouts (v0 auto-grids + zoom).

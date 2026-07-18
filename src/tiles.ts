@@ -1,6 +1,7 @@
 import { gridDims } from './grid';
-import type { Agent } from './agents';
+import type { Agent, WorkflowLabel } from './agents';
 import type { AgentTerminal } from './terminal';
+import { statusPill, updatePill } from './statuspill';
 
 const DOT: Record<Agent['status'], string> = {
   working: '#3fb950',
@@ -11,12 +12,14 @@ const DOT: Record<Agent['status'], string> = {
 export interface TilesHandlers {
   onToggleFocus: (id: string) => void;
   onClose: (id: string) => void;
+  onSetLabel: (id: string, label: WorkflowLabel | undefined) => void;
 }
 
 interface TileEls {
   root: HTMLElement;
   dot: HTMLElement;
   meta: HTMLElement;
+  pill: HTMLElement;
   term: AgentTerminal;
 }
 
@@ -53,6 +56,7 @@ export function syncTiles(
     name.className = 'name';
     name.style.color = a.color;
     name.textContent = a.agentId;
+    const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
     const meta = document.createElement('span');
     meta.className = 'meta';
     const close = document.createElement('span');
@@ -60,10 +64,10 @@ export function syncTiles(
     close.textContent = '×';
     close.title = 'close agent';
     close.onclick = (ev) => {
-      ev.stopPropagation(); // don't also toggle focus
+      ev.stopPropagation();
       h.onClose(a.id);
     };
-    header.append(dot, name, meta, close);
+    header.append(dot, name, pill, meta, close);
 
     const body = document.createElement('div');
     body.className = 'tile-body';
@@ -71,7 +75,7 @@ export function syncTiles(
 
     root.append(header, body);
     stage.appendChild(root);
-    tiles.set(a.id, { root, dot, meta, term });
+    tiles.set(a.id, { root, dot, meta, pill, term });
     term.open(); // el is now in the DOM
   }
 
@@ -100,6 +104,7 @@ export function syncTiles(
     t.meta.textContent = a.title
       ? a.title + (a.tokens ? ` · ${fmtTokens(a.tokens)}` : '')
       : '';
+    updatePill(t.pill, a);
   }
 
   // 5. re-fit visible terminals once the layout has applied

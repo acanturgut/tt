@@ -179,6 +179,33 @@ pub fn kill_agent(state: State<AppState>, id: String) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+pub struct DirEntry {
+    name: String,
+    path: String,
+}
+
+// List immediate subdirectories (dirs only), sorted case-insensitively.
+#[tauri::command]
+pub fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(&path).map_err(|e| e.to_string())?.flatten() {
+        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            out.push(DirEntry {
+                name: entry.file_name().to_string_lossy().to_string(),
+                path: entry.path().to_string_lossy().to_string(),
+            });
+        }
+    }
+    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn make_dir(path: String) -> Result<(), String> {
+    std::fs::create_dir_all(&path).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,5 +225,13 @@ mod tests {
         assert_eq!(expand_dir("~/Documents/cc"), "/Users/x/Documents/cc");
         assert_eq!(expand_dir("/a/b/"), "/a/b");
         assert_eq!(expand_dir("/a/b"), "/a/b");
+    }
+
+    #[test]
+    fn make_dir_then_list_dir_sees_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        make_dir(tmp.path().join("newfolder").to_string_lossy().to_string()).unwrap();
+        let entries = list_dir(tmp.path().to_string_lossy().to_string()).unwrap();
+        assert!(entries.iter().any(|e| e.name == "newfolder"));
     }
 }

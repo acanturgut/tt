@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { homeDir } from '@tauri-apps/api/path';
 import {
   add,
   focus,
@@ -10,20 +9,28 @@ import {
   markExit,
   markOutput,
   remove,
+  setLabel,
   subscribe,
+  type WorkflowLabel,
 } from './agents';
 import { AgentTerminal } from './terminal';
 import { syncTiles } from './tiles';
-import { mountSidebar, updateSidebar, setDefaultDir } from './sidebar';
+import { renderSidebar } from './sidebar';
+import { renderTopbar } from './topbar';
+import { renderTree } from './tree';
+import { subscribeProjects, current as currentProject } from './projects';
 import './styles.css';
 
-const COLORS = ['#e3b341', '#3fb950', '#58a6ff', '#bc8cff', '#f778ba', '#39c5cf'];
+// Blue/cyan family so per-agent identity colors sit with the blue accent theme.
+const COLORS = ['#2f81f7', '#58a6ff', '#39c5cf', '#56d4dd', '#79c0ff', '#a5d6ff'];
 const terms = new Map<string, AgentTerminal>();
-// Output that arrives before its AgentTerminal is registered (the reader thread
-// can emit before spawn's invoke resolves) is buffered here and flushed on create.
+// Output that arrives before its AgentTerminal is registered is buffered and flushed on create.
 const pending = new Map<string, Uint8Array[]>();
+
+const topbarEl = document.getElementById('topbar')!;
 const sidebarEl = document.getElementById('sidebar')!;
 const stageEl = document.getElementById('stage')!;
+const treeEl = document.getElementById('tree')!;
 
 function toggleFocus(id: string) {
   focus(focused() === id ? null : id);
@@ -37,11 +44,30 @@ function closeAgent(id: string) {
   remove(id);
 }
 
-function render() {
-  updateSidebar();
+function setAgentLabel(id: string, label: WorkflowLabel | undefined) {
+  setLabel(id, label);
+}
+
+// Agent-driven UI — re-renders on every agent store change.
+function renderAgents() {
+  renderSidebar(sidebarEl, {
+    onFocusToggle: toggleFocus,
+    onClose: closeAgent,
+    onSetLabel: setAgentLabel,
+    onGrid: () => focus(null),
+  });
   syncTiles(stageEl, list(), focused(), terms, {
     onToggleFocus: toggleFocus,
     onClose: closeAgent,
+    onSetLabel: setAgentLabel,
+  });
+}
+
+// Project-driven UI — topbar + tree, only re-renders on project change.
+function renderProject() {
+  renderTopbar(topbarEl, { onChange: renderProject });
+  void renderTree(treeEl, currentProject()?.path ?? null, {
+    onOpenAgent: (folder, agentId) => void spawn(agentId, folder),
   });
 }
 
@@ -62,8 +88,6 @@ async function spawn(agentId: string, dir: string) {
   }
 }
 
-// Fire-and-forget: we never need the unlisten handles, so no top-level await
-// (Tauri's Vite build target predates top-level await).
 listen<{ id: string; data: number[] }>('agent-output', (e) => {
   const { id, data } = e.payload;
   markOutput(id);
@@ -82,18 +106,11 @@ listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
   markClaude(e.payload.id, e.payload.title, e.payload.tokens),
 );
 
-mountSidebar(sidebarEl, {
-  onNew: (agentId, dir) => void spawn(agentId, dir),
-  onFocusToggle: toggleFocus,
-  onGrid: () => focus(null),
-});
-subscribe(render);
+subscribe(renderAgents);
+subscribeProjects(renderProject);
 window.addEventListener('resize', () => {
   for (const t of terms.values()) t.fitNow();
 });
-render();
-homeDir().then((h) => {
-  (window as any).__HOME__ = h;
-  setDefaultDir(h);
-  render();
-});
+
+renderProject();
+renderAgents();

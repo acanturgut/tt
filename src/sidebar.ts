@@ -1,4 +1,5 @@
-import { list, focused, type Agent } from './agents';
+import { list, focused, type Agent, type WorkflowLabel } from './agents';
+import { statusPill } from './statuspill';
 
 const DOT: Record<Agent['status'], string> = {
   working: '#3fb950',
@@ -7,8 +8,9 @@ const DOT: Record<Agent['status'], string> = {
 };
 
 export interface SidebarHandlers {
-  onNew: (agentId: string, dir: string) => void;
   onFocusToggle: (id: string) => void;
+  onClose: (id: string) => void;
+  onSetLabel: (id: string, label: WorkflowLabel | undefined) => void;
   onGrid: () => void;
 }
 
@@ -16,68 +18,40 @@ function fmtTokens(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
 }
 
-function homeDir(): string {
-  return (window as any).__HOME__ ?? '~';
-}
-
-// Persistent elements — built once so typing / selection / focus survive re-renders.
-let rowsEl: HTMLElement | null = null;
-let gridBtn: HTMLButtonElement | null = null;
-let dirInput: HTMLInputElement | null = null;
-let handlers: SidebarHandlers | null = null;
-
-export function mountSidebar(root: HTMLElement, h: SidebarHandlers) {
-  handlers = h;
+// The rail is just live agent rows — no persistent form to preserve, so a full
+// rebuild per store change is fine (rows are meant to reflect live state).
+export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   root.innerHTML = '';
 
-  const form = document.createElement('div');
-  form.className = 'newagent';
-  const dir = document.createElement('input');
-  dir.type = 'text';
-  dir.value = `${homeDir()}/Documents/personal/cc`;
-  dir.placeholder = 'project folder';
-  dirInput = dir;
-  const pick = document.createElement('select');
-  for (const a of ['claude', 'codex']) {
-    const o = document.createElement('option');
-    o.value = a;
-    o.textContent = a;
-    pick.appendChild(o);
-  }
-  const btn = document.createElement('button');
-  btn.textContent = '+ New agent';
-  btn.onclick = () => h.onNew(pick.value, dir.value.trim());
-  form.append(dir, pick, btn);
-  root.appendChild(form);
-
+  const head = document.createElement('div');
+  head.className = 'rail-head';
+  const title = document.createElement('span');
+  title.textContent = 'Agents';
   const grid = document.createElement('button');
   grid.className = 'gridbtn';
+  grid.textContent = focused() ? '▦ All' : '▦ Grid';
+  grid.disabled = !focused();
   grid.onclick = () => h.onGrid();
-  gridBtn = grid;
-  root.appendChild(grid);
+  head.append(title, grid);
+  root.appendChild(head);
 
-  const rows = document.createElement('div');
-  rows.className = 'rows';
-  rowsEl = rows;
-  root.appendChild(rows);
-
-  updateSidebar();
-}
-
-// Update only the volatile parts (grid button + agent rows) on each store change.
-export function updateSidebar() {
-  if (!rowsEl || !gridBtn || !handlers) return;
-  const h = handlers;
   const cur = focused();
+  const agents = list();
+  if (agents.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'rail-empty';
+    empty.textContent = 'Open an agent from the tree →';
+    root.appendChild(empty);
+    return;
+  }
 
-  gridBtn.textContent = cur ? '▦ Show all' : '▦ Grid';
-  gridBtn.disabled = !cur;
-
-  rowsEl.innerHTML = '';
-  for (const a of list()) {
+  for (const a of agents) {
     const row = document.createElement('div');
     row.className = 'agentrow' + (a.id === cur ? ' active' : '');
     row.onclick = () => h.onFocusToggle(a.id);
+
+    const top = document.createElement('div');
+    top.className = 'agentrow-top';
     const dot = document.createElement('span');
     dot.className = 'dot';
     dot.style.background = DOT[a.status];
@@ -85,21 +59,25 @@ export function updateSidebar() {
     label.className = 'label';
     label.style.color = a.color;
     label.textContent = a.agentId;
-    row.append(dot, label);
+    const close = document.createElement('span');
+    close.className = 'close';
+    close.textContent = '×';
+    close.title = 'close agent';
+    close.onclick = (ev) => {
+      ev.stopPropagation();
+      h.onClose(a.id);
+    };
+    top.append(dot, label, close);
+
+    const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
+    row.append(top, pill);
+
     if (a.title) {
-      const meta = document.createElement('span');
-      meta.className = 'meta';
+      const meta = document.createElement('div');
+      meta.className = 'rail-meta';
       meta.textContent = a.title + (a.tokens ? ` · ${fmtTokens(a.tokens)}` : '');
       row.appendChild(meta);
     }
-    rowsEl.appendChild(row);
-  }
-}
-
-// Once home resolves, update the folder default — but only if the user hasn't
-// started editing it (still holds the '~' placeholder path).
-export function setDefaultDir(home: string) {
-  if (dirInput && dirInput.value.startsWith('~')) {
-    dirInput.value = `${home}/Documents/personal/cc`;
+    root.appendChild(row);
   }
 }
