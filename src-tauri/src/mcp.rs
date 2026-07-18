@@ -17,8 +17,10 @@ const PORT: u16 = 4127;
 // lead and worker agents learn how to coordinate through the shared task board.
 const TT_INSTRUCTIONS: &str = "\
 tt runs several coding agents side by side. Besides spawning and messaging agents \
-(spawn_agent, send, broadcast, close_agent, list_agents), tt has a shared TASK BOARD \
-for the human's active project — use it to divide and track work across agents.
+(spawn_agent, send, broadcast, close_agent, list_agents), you can READ a worker's recent \
+terminal output with read_agent(agent_number) — use it to collect a worker's result or \
+check its progress. tt also has a shared TASK BOARD for the human's active project — use \
+it to divide and track work across agents.
 
 Board tools:
 - add_task(title, description?) — creates a task in the Planning column, returns its id (e.g. \"t3\").
@@ -157,6 +159,43 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
                 s
             }
         }
+        "read_agent" => {
+            let n = num_arg(args, "agent_number");
+            if n.is_empty() {
+                return "error: 'agent_number' is required".into();
+            }
+            let lines = args.get("lines").and_then(|v| v.as_i64()).unwrap_or(160).clamp(1, 2000);
+            // Find the agent's tmux session from the snapshot the frontend pushes.
+            let st = app.state::<AppState>();
+            let snap = st.mcp_agents.lock().map(|g| g.clone()).unwrap_or_default();
+            let session = serde_json::from_str::<Value>(&snap)
+                .ok()
+                .and_then(|v| {
+                    v.as_array().and_then(|arr| {
+                        arr.iter()
+                            .find(|e| e.get("number").and_then(|x| x.as_str()) == Some(n.as_str()))
+                            .and_then(|e| e.get("session").and_then(|x| x.as_str()))
+                            .map(|s| s.to_string())
+                    })
+                })
+                .unwrap_or_default();
+            if session.is_empty() {
+                return format!(
+                    "error: no agent {n}, or it isn't running in tmux (its output can't be captured)"
+                );
+            }
+            match std::process::Command::new("tmux")
+                .args(["capture-pane", "-p", "-t", &session, "-S", &format!("-{lines}")])
+                .output()
+            {
+                Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+                Ok(o) => format!(
+                    "error: tmux capture failed: {}",
+                    String::from_utf8_lossy(&o.stderr).trim()
+                ),
+                Err(e) => format!("error: could not run tmux: {e}"),
+            }
+        }
         "send" => {
             let n = num_arg(args, "agent_number");
             let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
@@ -247,6 +286,18 @@ fn tool_defs() -> Value {
             "name": "list_agents",
             "description": "List the current agents with their number, name, kind, dir and status.",
             "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "read_agent",
+            "description": "Read an agent's recent terminal output by its number (captures its tmux pane). Use it to collect a worker's result or check what it is doing. Only works for tmux-backed agents.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "agent_number": { "type": "string", "description": "agent number, e.g. \"2\" or \"1-1\"" },
+                    "lines": { "type": "number", "description": "lines of scrollback to capture (default 160)" }
+                },
+                "required": ["agent_number"]
+            }
         },
         {
             "name": "send",

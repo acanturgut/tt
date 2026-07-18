@@ -266,6 +266,7 @@ function renderAgents() {
         kind: a.agentId,
         dir: a.dir,
         status: a.status,
+        session: a.key ? `tt-${a.key}` : '', // tmux session, for read_agent capture
       })),
     ),
   }).catch(() => {});
