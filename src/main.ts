@@ -28,6 +28,7 @@ import { renderSidebar } from './sidebar';
 import { renderTopbar } from './topbar';
 import { renderTree } from './tree';
 import { mountBroadcast, updateBroadcast } from './broadcast';
+import { openPalette, type Command } from './palette';
 import { subscribeProjects, current as currentProject } from './projects';
 import './styles.css';
 
@@ -89,6 +90,33 @@ function broadcast(ids: string[], text: string) {
 
 function globalZoom(delta: number) {
   for (const t of terms.values()) (delta > 0 ? t.zoomIn() : t.zoomOut());
+}
+
+function buildCommands(): Command[] {
+  const cmds: Command[] = [];
+  const p = currentProject();
+  if (p) {
+    for (const ag of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal']) {
+      cmds.push({ label: `Spawn ${ag}`, hint: p.name, run: () => void spawn(ag, p.path) });
+    }
+  }
+  for (const a of list()) {
+    cmds.push({
+      label: `Focus ${a.name}`,
+      hint: a.agentId,
+      run: () => {
+        clearAttention(a.id);
+        focus(a.id);
+      },
+    });
+  }
+  cmds.push({ label: 'Show grid', run: () => focus(null) });
+  cmds.push({ label: 'Zoom in (all terminals)', run: () => globalZoom(1) });
+  cmds.push({ label: 'Zoom out (all terminals)', run: () => globalZoom(-1) });
+  cmds.push({ label: 'Toggle agents panel', run: () => toggleSide('tt.left') });
+  cmds.push({ label: 'Toggle tree panel', run: () => toggleSide('tt.right') });
+  cmds.push({ label: 'Toggle OLED / dim mode', run: toggleOled });
+  return cmds;
 }
 
 function applyCollapse() {
@@ -210,6 +238,9 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   } else if (e.key === '\\') {
     toggleSide('tt.right');
+    e.preventDefault();
+  } else if (e.key.toLowerCase() === 'k') {
+    openPalette(buildCommands());
     e.preventDefault();
   }
 });

@@ -33,6 +33,8 @@ The build is unsigned, so on first launch: right-click **tt** -> **Open** -> **O
   - `codex` - Codex CLI
   - `cursor-agent` - Cursor CLI
   - `gemini` - Gemini CLI
+  - `opencode` - opencode CLI
+  - `antigravity` - Antigravity CLI
   - a shell for the plain terminal (uses `$SHELL`)
 
   > Gemini's free Google sign-in was deprecated for the CLI. Set a `GEMINI_API_KEY`
@@ -64,6 +66,8 @@ Each agent is launched in the folder you pick:
 | codex | `codex --sandbox workspace-write --ask-for-approval never` |
 | cursor | `cursor-agent` |
 | gemini | `gemini` |
+| opencode | `opencode` |
+| antigravity | `antigravity` |
 | terminal | `$SHELL -l` |
 
 Claude gets a pinned `--session-id` so tt reads exactly that session's title +

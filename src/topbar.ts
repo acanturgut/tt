@@ -96,7 +96,7 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   // Quick-spawn in the selected project's root.
   const cur = current();
   const hasProj = !!cur;
-  for (const agent of ['claude', 'codex', 'cursor', 'gemini', 'terminal']) {
+  for (const agent of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal']) {
     const b = document.createElement('button');
     b.className = 'spawnbtn';
     b.disabled = !hasProj;

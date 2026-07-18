@@ -29,7 +29,38 @@ export async function renderTree(container: HTMLElement, rootPath: string | null
   const node = await buildNode(rootPath, rootName, 0, h);
   if (gen !== treeGen) return; // superseded by a newer render — don't append (avoids duplicate trees)
   container.innerHTML = '';
-  container.appendChild(node);
+  const search = document.createElement('input');
+  search.className = 'tree-search';
+  search.placeholder = 'Filter folders…';
+  search.oninput = () => filterNode(node, search.value.trim().toLowerCase());
+  const scroll = document.createElement('div');
+  scroll.className = 'tree-scroll';
+  scroll.appendChild(node);
+  container.append(search, scroll);
+}
+
+// Client-side filter of the loaded tree by folder name: hides non-matching
+// branches, reveals matches, restores the collapse state when cleared.
+function filterNode(wrap: HTMLElement, q: string): boolean {
+  const row = wrap.querySelector(':scope > .tree-row') as HTMLElement | null;
+  const children = wrap.querySelector(':scope > .tree-children') as HTMLElement | null;
+  const name = (row?.querySelector('.tree-name')?.textContent ?? '').toLowerCase();
+  const isOpen = row?.querySelector('.chev')?.classList.contains('ph-caret-down') ?? false;
+  const selfMatch = q === '' || name.includes(q);
+  let childMatch = false;
+  if (children) {
+    for (const child of Array.from(children.children)) {
+      if ((child as HTMLElement).classList.contains('tree-newinput')) continue;
+      if (filterNode(child as HTMLElement, q)) childMatch = true;
+    }
+  }
+  const visible = selfMatch || childMatch;
+  wrap.style.display = visible ? '' : 'none';
+  if (children) {
+    if (q === '') children.style.display = isOpen ? '' : 'none';
+    else if (childMatch) children.style.display = '';
+  }
+  return visible;
 }
 
 async function buildNode(
@@ -161,7 +192,7 @@ async function buildNode(
 function openAgentMenu(path: string, h: TreeHandlers, anchor: HTMLElement) {
   const menu = document.createElement('div');
   menu.className = 'popmenu';
-  for (const a of ['claude', 'codex', 'cursor', 'gemini', 'terminal']) {
+  for (const a of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal']) {
     const item = document.createElement('div');
     item.className = 'popmenu-item';
     item.textContent = `${a} here`;
