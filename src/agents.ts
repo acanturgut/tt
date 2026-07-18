@@ -79,6 +79,15 @@ export function markClaude(id: string, title?: string, tokens?: number) {
   emit();
 }
 
+export function remove(id: string) {
+  agents.delete(id);
+  const t = timers.get(id);
+  if (t) clearTimeout(t);
+  timers.delete(id);
+  if (focusedId === id) focusedId = null;
+  emit();
+}
+
 // test-only reset
 export function __resetForTest() {
   agents.clear();

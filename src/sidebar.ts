@@ -20,7 +20,14 @@ function homeDir(): string {
   return (window as any).__HOME__ ?? '~';
 }
 
-export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
+// Persistent elements — built once so typing / selection / focus survive re-renders.
+let rowsEl: HTMLElement | null = null;
+let gridBtn: HTMLButtonElement | null = null;
+let dirInput: HTMLInputElement | null = null;
+let handlers: SidebarHandlers | null = null;
+
+export function mountSidebar(root: HTMLElement, h: SidebarHandlers) {
+  handlers = h;
   root.innerHTML = '';
 
   const form = document.createElement('div');
@@ -29,6 +36,7 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   dir.type = 'text';
   dir.value = `${homeDir()}/Documents/personal/cc`;
   dir.placeholder = 'project folder';
+  dirInput = dir;
   const pick = document.createElement('select');
   for (const a of ['claude', 'codex']) {
     const o = document.createElement('option');
@@ -44,12 +52,28 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
 
   const grid = document.createElement('button');
   grid.className = 'gridbtn';
-  grid.textContent = focused() ? '▦ Show all' : '▦ Grid';
-  grid.disabled = !focused();
   grid.onclick = () => h.onGrid();
+  gridBtn = grid;
   root.appendChild(grid);
 
+  const rows = document.createElement('div');
+  rows.className = 'rows';
+  rowsEl = rows;
+  root.appendChild(rows);
+
+  updateSidebar();
+}
+
+// Update only the volatile parts (grid button + agent rows) on each store change.
+export function updateSidebar() {
+  if (!rowsEl || !gridBtn || !handlers) return;
+  const h = handlers;
   const cur = focused();
+
+  gridBtn.textContent = cur ? '▦ Show all' : '▦ Grid';
+  gridBtn.disabled = !cur;
+
+  rowsEl.innerHTML = '';
   for (const a of list()) {
     const row = document.createElement('div');
     row.className = 'agentrow' + (a.id === cur ? ' active' : '');
@@ -68,6 +92,14 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
       meta.textContent = a.title + (a.tokens ? ` · ${fmtTokens(a.tokens)}` : '');
       row.appendChild(meta);
     }
-    root.appendChild(row);
+    rowsEl.appendChild(row);
+  }
+}
+
+// Once home resolves, update the folder default — but only if the user hasn't
+// started editing it (still holds the '~' placeholder path).
+export function setDefaultDir(home: string) {
+  if (dirInput && dirInput.value.startsWith('~')) {
+    dirInput.value = `${home}/Documents/personal/cc`;
   }
 }

@@ -51,4 +51,8 @@ export class AgentTerminal {
       /* not visible yet */
     }
   }
+
+  dispose() {
+    this.term.dispose();
+  }
 }

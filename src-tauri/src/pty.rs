@@ -65,10 +65,6 @@ impl PtySession {
         })
     }
 
-    pub fn stop_flag(&self) -> Arc<AtomicBool> {
-        self.stop.clone()
-    }
-
     pub fn write(&self, data: &[u8]) -> Result<(), String> {
         let mut w = self.writer.lock().map_err(|e| e.to_string())?;
         w.write_all(data).map_err(|e| e.to_string())?;

@@ -8,7 +8,9 @@ use tauri::{AppHandle, Emitter, State};
 
 #[derive(Default)]
 pub struct AppState {
-    agents: Mutex<HashMap<String, PtySession>>,
+    // Arc so a command can clone a handle out and drop the map lock before a
+    // blocking PTY op — one stuck child must not freeze every other agent.
+    agents: Mutex<HashMap<String, Arc<PtySession>>>,
     counter: AtomicU64,
 }
 
@@ -35,6 +37,36 @@ fn claude_projects_root() -> std::path::PathBuf {
     std::path::Path::new(&home).join(".claude/projects")
 }
 
+// Expand a leading `~`/`~/` to $HOME and drop trailing slashes: the PTY cwd is
+// used literally (no shell expands it) and the claude-watch slug must match the
+// on-disk project dir exactly (a trailing `/` would break the match).
+fn expand_dir(dir: &str) -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let expanded = if dir == "~" {
+        home
+    } else if let Some(rest) = dir.strip_prefix("~/") {
+        format!("{home}/{rest}")
+    } else {
+        dir.to_string()
+    };
+    let trimmed = expanded.trim_end_matches('/');
+    if trimmed.is_empty() {
+        "/".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn get_session(state: &State<AppState>, id: &str) -> Result<Arc<PtySession>, String> {
+    state
+        .agents
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get(id)
+        .cloned()
+        .ok_or_else(|| format!("no agent: {id}"))
+}
+
 #[tauri::command]
 pub fn spawn_agent(
     app: AppHandle,
@@ -44,9 +76,15 @@ pub fn spawn_agent(
 ) -> Result<String, String> {
     let cmd =
         registry::command_for(&agent_id).ok_or_else(|| format!("unknown agent: {agent_id}"))?;
+    let project_dir = expand_dir(&project_dir);
 
     let n = state.counter.fetch_add(1, Ordering::Relaxed);
     let id = format!("{agent_id}-{n}");
+
+    // One flag stops the claude-watch poller. on_exit flips it, so BOTH a natural
+    // exit and kill_agent (kill -> child dies -> reader EOF -> on_exit) end it.
+    let watch_stop = Arc::new(AtomicBool::new(false));
+    let watch_stop_exit = watch_stop.clone();
 
     let app_out = app.clone();
     let id_out = id.clone();
@@ -69,25 +107,21 @@ pub fn spawn_agent(
             );
         },
         move || {
+            watch_stop_exit.store(true, Ordering::Relaxed);
             let _ = app_exit.emit("agent-exit", ExitPayload { id: id_exit.clone() });
         },
     )?;
 
     // Claude-only: tail the newest jsonl for title + tokens.
     if agent_id == "claude" {
-        start_claude_watch(
-            app.clone(),
-            id.clone(),
-            project_dir.clone(),
-            session.stop_flag(),
-        );
+        start_claude_watch(app.clone(), id.clone(), project_dir.clone(), watch_stop);
     }
 
     state
         .agents
         .lock()
         .map_err(|e| e.to_string())?
-        .insert(id.clone(), session);
+        .insert(id.clone(), Arc::new(session));
     Ok(id)
 }
 
@@ -119,9 +153,8 @@ fn start_claude_watch(app: AppHandle, id: String, project_dir: String, stop: Arc
 
 #[tauri::command]
 pub fn write_agent(state: State<AppState>, id: String, data: String) -> Result<(), String> {
-    let agents = state.agents.lock().map_err(|e| e.to_string())?;
-    let s = agents.get(&id).ok_or_else(|| format!("no agent: {id}"))?;
-    s.write(data.as_bytes())
+    // Clone the Arc out and release the map lock before the (blocking) write.
+    get_session(&state, &id)?.write(data.as_bytes())
 }
 
 #[tauri::command]
@@ -131,15 +164,16 @@ pub fn resize_agent(
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
-    let agents = state.agents.lock().map_err(|e| e.to_string())?;
-    let s = agents.get(&id).ok_or_else(|| format!("no agent: {id}"))?;
-    s.resize(cols, rows)
+    get_session(&state, &id)?.resize(cols, rows)
 }
 
 #[tauri::command]
 pub fn kill_agent(state: State<AppState>, id: String) -> Result<(), String> {
-    let mut agents = state.agents.lock().map_err(|e| e.to_string())?;
-    if let Some(s) = agents.remove(&id) {
+    let removed = {
+        let mut agents = state.agents.lock().map_err(|e| e.to_string())?;
+        agents.remove(&id)
+    };
+    if let Some(s) = removed {
         s.kill();
     }
     Ok(())
@@ -155,5 +189,14 @@ mod tests {
         let a = state.counter.fetch_add(1, Ordering::Relaxed);
         let b = state.counter.fetch_add(1, Ordering::Relaxed);
         assert_ne!(format!("claude-{a}"), format!("claude-{b}"));
+    }
+
+    #[test]
+    fn expand_dir_handles_tilde_and_trailing_slash() {
+        std::env::set_var("HOME", "/Users/x");
+        assert_eq!(expand_dir("~"), "/Users/x");
+        assert_eq!(expand_dir("~/Documents/cc"), "/Users/x/Documents/cc");
+        assert_eq!(expand_dir("/a/b/"), "/a/b");
+        assert_eq!(expand_dir("/a/b"), "/a/b");
     }
 }

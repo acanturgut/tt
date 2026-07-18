@@ -10,6 +10,7 @@ const DOT: Record<Agent['status'], string> = {
 
 export interface TilesHandlers {
   onToggleFocus: (id: string) => void;
+  onClose: (id: string) => void;
 }
 
 interface TileEls {
@@ -54,7 +55,15 @@ export function syncTiles(
     name.textContent = a.agentId;
     const meta = document.createElement('span');
     meta.className = 'meta';
-    header.append(dot, name, meta);
+    const close = document.createElement('span');
+    close.className = 'close';
+    close.textContent = '×';
+    close.title = 'close agent';
+    close.onclick = (ev) => {
+      ev.stopPropagation(); // don't also toggle focus
+      h.onClose(a.id);
+    };
+    header.append(dot, name, meta, close);
 
     const body = document.createElement('div');
     body.className = 'tile-body';
