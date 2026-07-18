@@ -5,96 +5,272 @@ export interface BroadcastHandlers {
   onSend: (ids: string[], text: string, numbered: boolean) => void;
 }
 
-// Agents explicitly turned OFF as targets. New agents default ON.
+// Agents explicitly turned OFF as targets (via the dropdown). New agents default ON.
 const excluded = new Set<string>();
-// When on, each agent is prefixed with "You are agent N of M" so one message can
-// address each differently.
+// When on, each agent is prefixed with "You are agent N of M".
 let numbered = localStorage.getItem('tt.bcNumbered') === '1';
 
-let rootEl: HTMLElement | null = null;
-let chipsEl: HTMLElement | null = null;
+let handlers: BroadcastHandlers | null = null;
 let currentAgents: Agent[] = [];
+
+let rootEl: HTMLElement | null = null;
+let input: HTMLInputElement | null = null;
+let targetBtn: HTMLButtonElement | null = null;
+let numBtn: HTMLButtonElement | null = null;
+let pop: HTMLElement | null = null; // target multi-select popover
+let slash: HTMLElement | null = null; // slash-command menu
 
 function selectedIds(): string[] {
   return currentAgents.filter((a) => !excluded.has(a.id)).map((a) => a.id);
 }
 
-// Built once so the text input keeps its value/focus across store re-renders.
+function setNumbered(v: boolean) {
+  numbered = v;
+  localStorage.setItem('tt.bcNumbered', v ? '1' : '0');
+  numBtn?.classList.toggle('on', numbered);
+}
+
+// ---- slash commands -------------------------------------------------------
+interface Slash {
+  cmd: string;
+  desc: string;
+  run: () => void;
+}
+function slashCommands(): Slash[] {
+  return [
+    { cmd: '/all', desc: 'target every agent', run: () => { excluded.clear(); syncTargetBtn(); } },
+    {
+      cmd: '/none',
+      desc: 'clear target selection',
+      run: () => { currentAgents.forEach((a) => excluded.add(a.id)); syncTargetBtn(); },
+    },
+    {
+      cmd: '/number',
+      desc: `${numbered ? 'disable' : 'enable'} "You are agent N of M" prefix`,
+      run: () => setNumbered(!numbered),
+    },
+    { cmd: '/clear', desc: 'clear the message box', run: () => { if (input) input.value = ''; } },
+  ];
+}
+
+// #N tokens target agents by their number (1-based position). Returns targets + stripped text.
+function parseTargets(text: string): { ids: string[]; clean: string } | null {
+  const nums = new Set<number>();
+  const re = /(?:^|\s)#(\d+)\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) nums.add(Number(m[1]));
+  if (!nums.size) return null;
+  const ids: string[] = [];
+  currentAgents.forEach((a, i) => {
+    if (nums.has(i + 1)) ids.push(a.id);
+  });
+  const clean = text.replace(/(?:^|\s)#\d+\b/g, ' ').replace(/\s+/g, ' ').trim();
+  return { ids, clean };
+}
+
+function doSend() {
+  if (!input || !handlers) return;
+  const trimmed = input.value.trim();
+  if (!trimmed) return;
+  // A bare slash command runs the command instead of sending.
+  if (trimmed.startsWith('/')) {
+    const match = slashCommands().find((c) => c.cmd === trimmed);
+    if (match) {
+      match.run();
+      input.value = '';
+      closeSlash();
+      return;
+    }
+  }
+  const parsed = parseTargets(trimmed);
+  const ids = parsed ? parsed.ids : selectedIds();
+  const msg = parsed ? parsed.clean : trimmed;
+  if (!ids.length || !msg) return;
+  handlers.onSend(ids, msg, numbered);
+  input.value = '';
+  input.focus();
+  closeSlash();
+}
+
+function positionAbove(menu: HTMLElement, anchor: HTMLElement) {
+  const r = anchor.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.left = `${r.left}px`;
+  menu.style.bottom = `${window.innerHeight - r.top + 6}px`;
+}
+
+function closeSlash() {
+  slash?.remove();
+  slash = null;
+}
+function openSlash(prefix: string) {
+  closeSlash();
+  const cmds = slashCommands().filter((c) => c.cmd.startsWith(prefix));
+  if (!cmds.length || !input) return;
+  slash = document.createElement('div');
+  slash.className = 'bc-slash';
+  for (const c of cmds) {
+    const it = document.createElement('div');
+    it.className = 'bc-slash-item';
+    const name = document.createElement('span');
+    name.className = 'bc-slash-cmd';
+    name.textContent = c.cmd;
+    const desc = document.createElement('span');
+    desc.className = 'bc-slash-desc';
+    desc.textContent = c.desc;
+    it.append(name, desc);
+    it.onmousedown = (e) => {
+      e.preventDefault();
+      c.run();
+      if (input) input.value = '';
+      closeSlash();
+      input?.focus();
+    };
+    slash.appendChild(it);
+  }
+  document.body.appendChild(slash);
+  positionAbove(slash, input);
+}
+
+// ---- target multi-select popover -----------------------------------------
+function onPopDown(e: MouseEvent) {
+  if (pop && !pop.contains(e.target as Node) && !targetBtn?.contains(e.target as Node)) closePop();
+}
+function closePop() {
+  pop?.remove();
+  pop = null;
+  document.removeEventListener('mousedown', onPopDown);
+}
+function togglePop() {
+  if (pop) {
+    closePop();
+    return;
+  }
+  pop = document.createElement('div');
+  pop.className = 'bc-pop';
+  renderPop();
+  document.body.appendChild(pop);
+  if (targetBtn) positionAbove(pop, targetBtn);
+  setTimeout(() => document.addEventListener('mousedown', onPopDown), 0);
+}
+function renderPop() {
+  if (!pop) return;
+  pop.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'bc-pop-head';
+  const t = document.createElement('span');
+  t.textContent = 'Broadcast to';
+  const all = document.createElement('button');
+  all.className = 'bc-pop-mini';
+  all.textContent = 'All';
+  all.onmousedown = (e) => { e.preventDefault(); excluded.clear(); renderPop(); syncTargetBtn(); };
+  const none = document.createElement('button');
+  none.className = 'bc-pop-mini';
+  none.textContent = 'None';
+  none.onmousedown = (e) => {
+    e.preventDefault();
+    currentAgents.forEach((a) => excluded.add(a.id));
+    renderPop();
+    syncTargetBtn();
+  };
+  head.append(t, all, none);
+  pop.appendChild(head);
+
+  const list = document.createElement('div');
+  list.className = 'bc-pop-list';
+  currentAgents.forEach((a, i) => {
+    const on = !excluded.has(a.id);
+    const row = document.createElement('div');
+    row.className = 'bc-pop-item' + (on ? ' on' : '');
+    const check = document.createElement('span');
+    check.className = 'bc-pop-check';
+    check.appendChild(icon(on ? 'check-square' : 'square'));
+    const num = document.createElement('span');
+    num.className = 'bc-pop-num';
+    num.textContent = String(i + 1);
+    const nm = document.createElement('span');
+    nm.className = 'bc-pop-name';
+    nm.textContent = a.name;
+    row.append(check, num, nm);
+    row.onmousedown = (e) => {
+      e.preventDefault();
+      if (on) excluded.add(a.id);
+      else excluded.delete(a.id);
+      renderPop();
+      syncTargetBtn();
+    };
+    list.appendChild(row);
+  });
+  pop.appendChild(list);
+}
+
+function syncTargetBtn() {
+  if (!targetBtn) return;
+  const total = currentAgents.length;
+  const sel = selectedIds().length;
+  const label = targetBtn.querySelector('.bc-target-label');
+  if (label) label.textContent = sel === total ? `All ${total}` : `${sel} of ${total}`;
+}
+
+// Built once so the input keeps its value/focus across store re-renders.
 export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
+  handlers = h;
   rootEl = root;
   root.innerHTML = '';
 
-  const tag = document.createElement('span');
-  tag.className = 'bc-tag';
-  tag.append(icon('broadcast'), document.createTextNode(' Broadcast'));
-
-  const chips = document.createElement('div');
-  chips.className = 'bc-chips';
-  chipsEl = chips;
+  targetBtn = document.createElement('button');
+  targetBtn.className = 'bc-target';
+  targetBtn.title = 'choose which agents receive the broadcast';
+  targetBtn.append(icon('broadcast'));
+  const tl = document.createElement('span');
+  tl.className = 'bc-target-label';
+  tl.textContent = '0 of 0';
+  targetBtn.append(tl, icon('caret-up'));
+  targetBtn.onclick = (e) => {
+    e.stopPropagation();
+    togglePop();
+  };
 
   const inputWrap = document.createElement('div');
   inputWrap.className = 'bc-input';
-  const input = document.createElement('input');
+  input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'Send to selected agents…  (Enter)';
-  const numBtn = document.createElement('button');
-  numBtn.className = 'bc-num' + (numbered ? ' on' : '');
-  numBtn.title = 'prefix each agent with "You are agent N of M" — one message can address each differently';
-  numBtn.append(icon('hash'), document.createTextNode(' number'));
-  numBtn.onclick = () => {
-    numbered = !numbered;
-    localStorage.setItem('tt.bcNumbered', numbered ? '1' : '0');
-    numBtn.classList.toggle('on', numbered);
-  };
-
-  const doSend = () => {
-    const text = input.value;
-    const ids = selectedIds();
-    if (!text || ids.length === 0) return;
-    h.onSend(ids, text, numbered);
-    input.value = '';
-    input.focus();
+  input.placeholder = 'Message selected agents…   ( / commands · #2 targets agent 2 · Enter )';
+  input.oninput = () => {
+    const v = input!.value;
+    if (v.startsWith('/')) openSlash(v.trim().split(/\s+/)[0]);
+    else closeSlash();
   };
   input.onkeydown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       doSend();
+    } else if (e.key === 'Escape') {
+      closeSlash();
     }
   };
-  inputWrap.append(numBtn, input);
+  input.onblur = () => setTimeout(closeSlash, 120);
+  inputWrap.append(input);
 
-  root.append(tag, chips, inputWrap);
+  numBtn = document.createElement('button');
+  numBtn.className = 'bc-num' + (numbered ? ' on' : '');
+  numBtn.title = 'prefix each agent with "You are agent N of M" — one message can address each differently';
+  numBtn.append(icon('hash'), document.createTextNode(' number'));
+  numBtn.onclick = () => setNumbered(!numbered);
+
+  root.append(targetBtn, inputWrap, numBtn);
 }
 
-// Rebuild only the target chips on agent changes (never the input).
+// Refresh only the target button + open popover on agent changes (never the input).
 export function updateBroadcast(agents: Agent[]) {
   currentAgents = agents;
-  if (!rootEl || !chipsEl) return;
+  if (!rootEl) return;
   rootEl.style.display = agents.length ? 'flex' : 'none';
-  if (!agents.length) return;
-
-  chipsEl.innerHTML = '';
-  const allOn = agents.every((a) => !excluded.has(a.id));
-  const all = document.createElement('button');
-  all.className = 'bc-chip bc-all' + (allOn ? ' on' : '');
-  all.textContent = allOn ? 'All' : 'None';
-  all.onclick = () => {
-    if (allOn) agents.forEach((a) => excluded.add(a.id));
-    else excluded.clear();
-    updateBroadcast(currentAgents);
-  };
-  chipsEl.appendChild(all);
-
-  for (const a of agents) {
-    const on = !excluded.has(a.id);
-    const chip = document.createElement('button');
-    chip.className = 'bc-chip' + (on ? ' on' : '');
-    chip.textContent = a.name;
-    chip.onclick = () => {
-      if (on) excluded.add(a.id);
-      else excluded.delete(a.id);
-      updateBroadcast(currentAgents);
-    };
-    chipsEl.appendChild(chip);
+  if (!agents.length) {
+    closePop();
+    closeSlash();
+    return;
   }
+  syncTargetBtn();
+  if (pop) renderPop();
 }

@@ -35,6 +35,7 @@ import { getSettings, openSettings } from './settings';
 import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
 import { showInstallHelp } from './installs';
+import { randomName } from './naming';
 import './styles.css';
 
 const terms = new Map<string, AgentTerminal>();
@@ -241,7 +242,7 @@ async function spawn(agentId: string, dir: string, label?: WorkflowLabel) {
     add({
       id,
       agentId,
-      name: agentId,
+      name: randomName(),
       dir,
       status: 'working',
       key,
@@ -376,6 +377,14 @@ window.addEventListener('keydown', (e) => {
     const f = focused();
     if (f) closeAgent(f);
     e.preventDefault(); // don't let Cmd-W close the window
+  } else if (e.key.toLowerCase() === 'n') {
+    const p = currentProject();
+    if (p) void spawn(getSettings().defaultAgent, p.path);
+    e.preventDefault();
+  } else if (e.key.toLowerCase() === 't') {
+    const p = currentProject();
+    if (p) void spawn('terminal', p.path);
+    e.preventDefault();
   }
 });
 

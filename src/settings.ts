@@ -4,6 +4,7 @@ export interface Settings {
   notifications: boolean; // desktop "needs you" notifications
   sound: boolean; // soft chime when an agent needs you
   claudeMode: 'auto' | 'plan' | 'default'; // claude --permission-mode
+  defaultAgent: string; // agent spawned by ⌘N
 }
 
 const DEFAULTS: Settings = {
@@ -12,6 +13,7 @@ const DEFAULTS: Settings = {
   notifications: true,
   sound: true,
   claudeMode: 'auto',
+  defaultAgent: 'claude',
 };
 const KEY = 'tt.settings';
 
@@ -58,6 +60,14 @@ export function openSettings() {
   box.appendChild(title);
 
   const general = section('General');
+  general.appendChild(
+    choice(
+      'Default agent (⌘N)',
+      ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal'],
+      s.defaultAgent,
+      (v) => set('defaultAgent', v),
+    ),
+  );
   general.appendChild(toggle('Tag new agents as Planning', s.autoPlanning, (v) => set('autoPlanning', v)));
   general.appendChild(toggle('Auto-focus the newest agent', s.autoFocus, (v) => set('autoFocus', v)));
   general.appendChild(toggle('Desktop notifications', s.notifications, (v) => set('notifications', v)));

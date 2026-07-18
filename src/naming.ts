@@ -1,5 +1,15 @@
 import type { Agent } from './agents';
 
+const ADJ = ['swift', 'calm', 'bold', 'keen', 'wise', 'brave', 'quiet', 'sharp', 'lucky', 'nimble', 'clever', 'sunny', 'cosmic', 'rapid', 'witty', 'zen', 'fuzzy', 'mellow', 'plucky', 'stellar'];
+const NOUN = ['otter', 'falcon', 'koala', 'panda', 'lynx', 'heron', 'marlin', 'tapir', 'ibex', 'raven', 'comet', 'maple', 'willow', 'ember', 'pixel', 'quartz', 'badger', 'sparrow', 'onyx', 'delta'];
+
+// A friendly random codename for a freshly spawned agent (double-click to rename).
+export function randomName(): string {
+  const a = ADJ[Math.floor(Math.random() * ADJ.length)];
+  const n = NOUN[Math.floor(Math.random() * NOUN.length)];
+  return `${a}-${n}`;
+}
+
 // A name label that becomes an inline rename input on double-click. Use only
 // where the element persists across re-renders (e.g. cached tile headers);
 // callers that fully rebuild every tick should render a plain label instead.
