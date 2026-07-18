@@ -81,6 +81,16 @@ pub fn spawn_agent(
     let n = state.counter.fetch_add(1, Ordering::Relaxed);
     let id = format!("{agent_id}-{n}");
 
+    // For claude, pin a session id (`--session-id <uuid>`) so we watch exactly this
+    // agent's jsonl — two claudes in one folder would otherwise cross their status.
+    let mut args = cmd.args;
+    let mut session_id = String::new();
+    if agent_id == "claude" {
+        session_id = uuid::Uuid::new_v4().to_string();
+        args.push("--session-id".to_string());
+        args.push(session_id.clone());
+    }
+
     // One flag stops the claude-watch poller. on_exit flips it, so BOTH a natural
     // exit and kill_agent (kill -> child dies -> reader EOF -> on_exit) end it.
     let watch_stop = Arc::new(AtomicBool::new(false));
@@ -93,7 +103,7 @@ pub fn spawn_agent(
 
     let session = PtySession::spawn(
         &cmd.program,
-        &cmd.args,
+        &args,
         &project_dir,
         80,
         24,
@@ -114,7 +124,7 @@ pub fn spawn_agent(
 
     // Claude-only: tail the newest jsonl for title + tokens.
     if agent_id == "claude" {
-        start_claude_watch(app.clone(), id.clone(), project_dir.clone(), watch_stop);
+        start_claude_watch(app.clone(), id.clone(), project_dir.clone(), session_id, watch_stop);
     }
 
     state
@@ -125,25 +135,29 @@ pub fn spawn_agent(
     Ok(id)
 }
 
-fn start_claude_watch(app: AppHandle, id: String, project_dir: String, stop: Arc<AtomicBool>) {
+fn start_claude_watch(
+    app: AppHandle,
+    id: String,
+    project_dir: String,
+    session_id: String,
+    stop: Arc<AtomicBool>,
+) {
     thread::spawn(move || {
-        let root = claude_projects_root();
+        let file = claude_watch::session_file(&claude_projects_root(), &project_dir, &session_id);
         let mut last = String::new();
         while !stop.load(Ordering::Relaxed) {
-            if let Some(p) = claude_watch::newest_jsonl(&root, &project_dir) {
-                let st = claude_watch::read_status(&p);
-                let key = format!("{}|{}", st.title.clone().unwrap_or_default(), st.tokens);
-                if key != last {
-                    last = key;
-                    let _ = app.emit(
-                        "agent-claude",
-                        ClaudePayload {
-                            id: id.clone(),
-                            title: st.title,
-                            tokens: st.tokens,
-                        },
-                    );
-                }
+            let st = claude_watch::read_status(&file);
+            let key = format!("{}|{}", st.title.clone().unwrap_or_default(), st.tokens);
+            if key != last {
+                last = key;
+                let _ = app.emit(
+                    "agent-claude",
+                    ClaudePayload {
+                        id: id.clone(),
+                        title: st.title,
+                        tokens: st.tokens,
+                    },
+                );
             }
             // ponytail: poll, not fs-notify — a sidebar number doesn't need sub-2s latency
             thread::sleep(Duration::from_secs(2));
@@ -197,7 +211,7 @@ pub fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
             });
         }
     }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|e| e.name.to_lowercase());
     Ok(out)
 }
 

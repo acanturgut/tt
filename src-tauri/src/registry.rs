@@ -15,6 +15,14 @@ pub fn command_for(agent_id: &str) -> Option<AgentCommand> {
             program: "codex".into(),
             args: s(&["--sandbox", "workspace-write", "--ask-for-approval", "never"]),
         }),
+        "cursor" => Some(AgentCommand {
+            program: "cursor-agent".into(),
+            args: vec![],
+        }),
+        "terminal" => Some(AgentCommand {
+            program: std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string()),
+            args: vec!["-l".to_string()], // login shell → their aliases/prompt/env
+        }),
         _ => None,
     }
 }

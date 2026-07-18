@@ -12,7 +12,8 @@ let currentPath: string | null = localStorage.getItem(SEL);
 
 function load(): Project[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '[]');
+    const v = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+    return Array.isArray(v) ? v : [];
   } catch {
     return [];
   }

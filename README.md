@@ -1,9 +1,71 @@
 # tt
 
-Every coding-agent CLI in one place. A desktop app (Tauri + xterm.js) with a
-sidebar `+` button that spawns a terminal running the agent of your choice —
-Claude Code, Codex, and later gemini / opencode / cursor — in a project folder,
-shows each one's live status, and lets you jump between them.
+Every coding-agent CLI in one place. A desktop app (Tauri + xterm.js): add a
+project folder, then spawn **Claude Code, Codex, Cursor, or a plain terminal**
+in any directory — tiled side-by-side, each with a live activity dot and a
+workflow status you set.
 
-Status: **v0 in design.** See
-[`docs/superpowers/specs/2026-07-18-tt-agent-orchestrator-design.md`](docs/superpowers/specs/2026-07-18-tt-agent-orchestrator-design.md).
+## Features
+
+- **Projects** — add a folder via the native picker; switch via the top-bar
+  dropdown (persisted).
+- **Directory tree** (right panel) — browse, create folders, and open an agent
+  in any folder.
+- **Auto-grid tiling** of all running agents; click a tile to zoom (focus mode).
+- **Status** — a live dot (working / idle / exited) plus a workflow tag you set:
+  Planning · In progress · In review · Done (it colors the tile).
+- **Rename** agents (double-click the title); **collapse** the left/right panels.
+- **× kill** an agent from its tile or the rail.
+
+## Requirements
+
+- **Rust** (rustup) and **Node 20+**
+- The agent CLIs you want to use, on your `PATH`:
+  - `claude` — Claude Code
+  - `codex` — Codex CLI
+  - `cursor-agent` — Cursor CLI
+  - a shell for the plain terminal (uses `$SHELL`)
+
+## Develop / Run
+
+```sh
+# from the repo root
+source scripts/dev-env.sh   # puts cargo + node on PATH (see note below)
+npm install
+npm run tauri dev           # compiles the Rust, opens the app window
+```
+
+Production build: `npm run tauri build`.
+
+> **`scripts/dev-env.sh`** exists because this machine loads node through an nvm
+> lazy-loader that only works in interactive shells; it drops the stub and points
+> `PATH` at node + `~/.cargo/bin`. If cargo and node are already on your `PATH`,
+> you can skip sourcing it.
+
+## Agent commands
+
+Each agent is launched in the folder you pick:
+
+| Agent | Command |
+|-------|---------|
+| claude | `claude --permission-mode auto --effort high --session-id <uuid>` |
+| codex | `codex --sandbox workspace-write --ask-for-approval never` |
+| cursor | `cursor-agent` |
+| terminal | `$SHELL -l` |
+
+Claude gets a pinned `--session-id` so tt reads exactly that session's title +
+token count from `~/.claude/projects` (no cross-talk between two claudes in one
+folder).
+
+## Tests
+
+```sh
+source scripts/dev-env.sh
+cd src-tauri && cargo test    # Rust: registry, PTY, jsonl parsing, fs
+cd .. && npm test             # frontend: store + tiling math
+```
+
+## Design docs
+
+`docs/superpowers/specs/` (design) and `docs/superpowers/plans/` (implementation
+plan).

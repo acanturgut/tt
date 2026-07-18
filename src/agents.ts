@@ -1,11 +1,11 @@
 export type Status = 'working' | 'idle' | 'exited';
-export type WorkflowLabel = 'planning' | 'in-progress' | 'done';
+export type WorkflowLabel = 'planning' | 'in-progress' | 'in-review' | 'done';
 
 export interface Agent {
   id: string;
   agentId: string;
+  name: string;
   dir: string;
-  color: string;
   status: Status;
   label?: WorkflowLabel;
   title?: string;
@@ -85,6 +85,26 @@ export function setLabel(id: string, label: WorkflowLabel | undefined) {
   const a = agents.get(id);
   if (!a) return;
   a.label = label;
+  emit();
+}
+
+export function setName(id: string, name: string) {
+  const a = agents.get(id);
+  if (!a) return;
+  a.name = name;
+  emit();
+}
+
+export function reorder(draggedId: string, targetId: string) {
+  if (draggedId === targetId) return;
+  const arr = [...agents.values()];
+  const from = arr.findIndex((a) => a.id === draggedId);
+  const to = arr.findIndex((a) => a.id === targetId);
+  if (from < 0 || to < 0) return;
+  const [moved] = arr.splice(from, 1);
+  arr.splice(to, 0, moved);
+  agents.clear();
+  for (const a of arr) agents.set(a.id, a);
   emit();
 }
 

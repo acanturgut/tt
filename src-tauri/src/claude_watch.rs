@@ -44,23 +44,13 @@ pub fn slug_for(dir: &str) -> String {
         .collect()
 }
 
-pub fn newest_jsonl(projects_root: &Path, dir: &str) -> Option<PathBuf> {
-    let d = projects_root.join(slug_for(dir));
-    let mut newest: Option<PathBuf> = None;
-    let mut newest_m = std::time::SystemTime::UNIX_EPOCH;
-    for entry in std::fs::read_dir(&d).ok()?.flatten() {
-        let p = entry.path();
-        if p.extension().and_then(|x| x.to_str()) != Some("jsonl") {
-            continue;
-        }
-        if let Ok(m) = entry.metadata().and_then(|m| m.modified()) {
-            if m >= newest_m {
-                newest_m = m;
-                newest = Some(p);
-            }
-        }
-    }
-    newest
+// The exact session file for a tt-spawned claude agent. We pass claude
+// `--session-id <sid>`, so its jsonl is deterministically `<slug>/<sid>.jsonl` —
+// no guessing "newest file", which would cross two claudes in the same folder.
+pub fn session_file(projects_root: &Path, dir: &str, session_id: &str) -> PathBuf {
+    projects_root
+        .join(slug_for(dir))
+        .join(format!("{session_id}.jsonl"))
 }
 
 #[cfg(test)]

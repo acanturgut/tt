@@ -1,5 +1,6 @@
 import { list, focused, type Agent, type WorkflowLabel } from './agents';
-import { statusPill } from './statuspill';
+import { statusPill, labelColor } from './statuspill';
+import { icon } from './icon';
 
 const DOT: Record<Agent['status'], string> = {
   working: '#3fb950',
@@ -11,6 +12,7 @@ export interface SidebarHandlers {
   onFocusToggle: (id: string) => void;
   onClose: (id: string) => void;
   onSetLabel: (id: string, label: WorkflowLabel | undefined) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
   onGrid: () => void;
 }
 
@@ -18,8 +20,7 @@ function fmtTokens(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
 }
 
-// The rail is just live agent rows — no persistent form to preserve, so a full
-// rebuild per store change is fine (rows are meant to reflect live state).
+// Rebuilt fully per store change — no persistent input to preserve.
 export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   root.innerHTML = '';
 
@@ -29,7 +30,8 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   title.textContent = 'Agents';
   const grid = document.createElement('button');
   grid.className = 'gridbtn';
-  grid.textContent = focused() ? '▦ All' : '▦ Grid';
+  grid.append(icon(focused() ? 'arrows-out' : 'squares-four'));
+  grid.append(document.createTextNode(focused() ? ' All' : ' Grid'));
   grid.disabled = !focused();
   grid.onclick = () => h.onGrid();
   head.append(title, grid);
@@ -50,6 +52,25 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
     row.className = 'agentrow' + (a.id === cur ? ' active' : '');
     row.onclick = () => h.onFocusToggle(a.id);
 
+    // Drag to reorder (reorders the tile grid too, since it follows agent order).
+    row.draggable = true;
+    row.ondragstart = (ev) => {
+      ev.dataTransfer?.setData('text/plain', a.id);
+      row.classList.add('dragging');
+    };
+    row.ondragend = () => row.classList.remove('dragging');
+    row.ondragover = (ev) => {
+      ev.preventDefault();
+      row.classList.add('drop-target');
+    };
+    row.ondragleave = () => row.classList.remove('drop-target');
+    row.ondrop = (ev) => {
+      ev.preventDefault();
+      row.classList.remove('drop-target');
+      const from = ev.dataTransfer?.getData('text/plain');
+      if (from) h.onReorder(from, a.id);
+    };
+
     const top = document.createElement('div');
     top.className = 'agentrow-top';
     const dot = document.createElement('span');
@@ -57,12 +78,12 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
     dot.style.background = DOT[a.status];
     const label = document.createElement('span');
     label.className = 'label';
-    label.style.color = a.color;
-    label.textContent = a.agentId;
+    label.textContent = a.name;
+    label.style.color = labelColor(a.label) ?? '';
     const close = document.createElement('span');
     close.className = 'close';
-    close.textContent = '×';
     close.title = 'close agent';
+    close.appendChild(icon('x'));
     close.onclick = (ev) => {
       ev.stopPropagation();
       h.onClose(a.id);

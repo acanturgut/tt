@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as store from './agents';
 
 const A = (over: Partial<store.Agent> = {}): store.Agent => ({
-  id: 'a', agentId: 'codex', dir: '/p', color: '#e3b341', status: 'working', ...over,
+  id: 'a', agentId: 'codex', name: 'codex', dir: '/p', status: 'working', ...over,
 });
 
 beforeEach(() => store.__resetForTest());

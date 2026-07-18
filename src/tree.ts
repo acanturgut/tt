@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { icon } from './icon';
 
 interface DirEntry {
   name: string;
@@ -9,12 +10,13 @@ export interface TreeHandlers {
   onOpenAgent: (folderPath: string, agentId: string) => void;
 }
 
-// Expanded folder paths persist across re-renders (and project switches).
 const expanded = new Set<string>();
+let treeGen = 0;
 
 export async function renderTree(container: HTMLElement, rootPath: string | null, h: TreeHandlers) {
-  container.innerHTML = '';
+  const gen = ++treeGen;
   if (!rootPath) {
+    container.innerHTML = '';
     const empty = document.createElement('div');
     empty.className = 'tree-empty';
     empty.textContent = 'No project yet — use “+ Add project” above.';
@@ -23,7 +25,10 @@ export async function renderTree(container: HTMLElement, rootPath: string | null
   }
   const rootName = rootPath.split('/').filter(Boolean).pop() ?? rootPath;
   expanded.add(rootPath); // root is always open
-  container.appendChild(await buildNode(rootPath, rootName, 0, h));
+  const node = await buildNode(rootPath, rootName, 0, h);
+  if (gen !== treeGen) return; // superseded by a newer render — don't append (avoids duplicate trees)
+  container.innerHTML = '';
+  container.appendChild(node);
 }
 
 async function buildNode(
@@ -38,20 +43,20 @@ async function buildNode(
   row.className = 'tree-row';
   row.style.paddingLeft = `${depth * 12 + 6}px`;
 
-  const chev = document.createElement('span');
-  chev.className = 'chev';
+  const chev = document.createElement('i');
+  const fico = document.createElement('i');
   const label = document.createElement('span');
   label.className = 'tree-name';
   label.textContent = name;
   const openBtn = document.createElement('span');
   openBtn.className = 'tree-act';
-  openBtn.textContent = '⌗';
   openBtn.title = 'open agent here';
+  openBtn.appendChild(icon('terminal-window'));
   const newBtn = document.createElement('span');
   newBtn.className = 'tree-act';
-  newBtn.textContent = '＋';
   newBtn.title = 'new folder';
-  row.append(chev, label, openBtn, newBtn);
+  newBtn.appendChild(icon('folder-plus'));
+  row.append(chev, fico, label, openBtn, newBtn);
 
   const children = document.createElement('div');
   children.className = 'tree-children';
@@ -72,7 +77,8 @@ async function buildNode(
   };
 
   const setOpen = (isOpen: boolean) => {
-    chev.textContent = isOpen ? '▾' : '▸';
+    chev.className = `chev ph ph-caret-${isOpen ? 'down' : 'right'}`;
+    fico.className = `fico ph ph-folder${isOpen ? '-open' : ''}`;
     children.style.display = isOpen ? '' : 'none';
   };
 
@@ -94,7 +100,6 @@ async function buildNode(
     ev.stopPropagation();
     void toggle();
   };
-
   openBtn.onclick = (ev) => {
     ev.stopPropagation();
     openAgentMenu(path, h, openBtn);
@@ -104,11 +109,16 @@ async function buildNode(
     const inp = document.createElement('input');
     inp.className = 'tree-newinput';
     inp.placeholder = 'new folder name';
+    inp.onblur = () => inp.remove(); // click away = cancel
     inp.onkeydown = async (e) => {
       if (e.key === 'Enter') {
         const nm = inp.value.trim();
         inp.remove();
         if (!nm) return;
+        if (nm.includes('/') || nm === '.' || nm === '..') {
+          alert('folder name cannot contain "/" or be "." / ".."');
+          return;
+        }
         try {
           await invoke('make_dir', { path: `${path}/${nm}` });
         } catch (err) {
@@ -150,7 +160,7 @@ async function buildNode(
 function openAgentMenu(path: string, h: TreeHandlers, anchor: HTMLElement) {
   const menu = document.createElement('div');
   menu.className = 'popmenu';
-  for (const a of ['claude', 'codex']) {
+  for (const a of ['claude', 'codex', 'cursor', 'terminal']) {
     const item = document.createElement('div');
     item.className = 'popmenu-item';
     item.textContent = `${a} here`;

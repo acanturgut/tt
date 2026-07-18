@@ -3,8 +3,13 @@ import type { Agent, WorkflowLabel } from './agents';
 const LABELS: { key: WorkflowLabel; text: string; color: string }[] = [
   { key: 'planning', text: 'Planning', color: '#bc8cff' },
   { key: 'in-progress', text: 'In progress', color: '#e3b341' },
+  { key: 'in-review', text: 'In review', color: '#58a6ff' },
   { key: 'done', text: 'Done', color: '#3fb950' },
 ];
+
+export function labelColor(label?: WorkflowLabel): string | null {
+  return LABELS.find((l) => l.key === label)?.color ?? null;
+}
 
 export function updatePill(pill: HTMLElement, agent: Agent) {
   const cur = LABELS.find((l) => l.key === agent.label);
