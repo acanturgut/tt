@@ -178,7 +178,12 @@ body.right-collapsed #tree { display: none; }
 .tmpl-savebtn:hover { background: var(--accent); color: #fff; }
 
 /* ── broadcast bar ───────────────────────────────────── */
-#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 22px 8px 12px; background: var(--bg); }
+/* Bottom bar stops at the stage's right edge (doesn't run under the tree). */
+#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 22px 8px 12px; background: var(--bg); margin-right: 268px; }
+body.right-collapsed #broadcast { margin-right: 0; }
+/* Otter mascot in the freed bottom-right corner (under the tree). */
+#mascot { position: fixed; right: 12px; bottom: 8px; width: 90px; height: 90px; background: url(/otter-corner.png) center / contain no-repeat; opacity: .9; pointer-events: none; z-index: 6; }
+body.right-collapsed #mascot { display: none; }
 .bc-tag { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-hi); font-weight: 700; flex: 0 0 auto; }
 .bc-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; max-width: 42%; }
 .bc-chip { font-size: 11px; padding: 4px 11px; border-radius: 999px; border: none; background: var(--elev); color: var(--muted); cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
