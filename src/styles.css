@@ -77,7 +77,9 @@ body.left-collapsed #sidebar { display: none; }
 .tile-header .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
 .tile-header .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile-header .meta { color: var(--muted); margin-left: auto; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tile-header .close { margin-left: 6px; display: inline-flex; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 4px; flex: 0 0 auto; }
+.tile-header .zoombtn { display: inline-flex; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 4px; flex: 0 0 auto; font-size: 13px; }
+.tile-header .zoombtn:hover { color: var(--accent-hi); background: var(--border); }
+.tile-header .close { margin-left: 4px; display: inline-flex; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 4px; flex: 0 0 auto; }
 .tile-header .close:hover { color: var(--danger); background: var(--border); }
 .tile.dragging { opacity: .5; }
 .tile.drop-target { outline: 2px solid var(--accent-hi); outline-offset: -2px; }

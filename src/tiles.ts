@@ -84,6 +84,22 @@ export function syncTiles(
     const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
     const meta = document.createElement('span');
     meta.className = 'meta';
+    const zoomOut = document.createElement('span');
+    zoomOut.className = 'zoombtn';
+    zoomOut.title = 'zoom out';
+    zoomOut.appendChild(icon('minus'));
+    zoomOut.onclick = (ev) => {
+      ev.stopPropagation();
+      term.zoomOut();
+    };
+    const zoomIn = document.createElement('span');
+    zoomIn.className = 'zoombtn';
+    zoomIn.title = 'zoom in';
+    zoomIn.appendChild(icon('plus'));
+    zoomIn.onclick = (ev) => {
+      ev.stopPropagation();
+      term.zoomIn();
+    };
     const close = document.createElement('span');
     close.className = 'close';
     close.title = 'close agent';
@@ -92,7 +108,7 @@ export function syncTiles(
       ev.stopPropagation();
       h.onClose(a.id);
     };
-    header.append(dot, name, pill, meta, close);
+    header.append(dot, name, pill, meta, zoomOut, zoomIn, close);
 
     const body = document.createElement('div');
     body.className = 'tile-body';

@@ -9,11 +9,12 @@ export class AgentTerminal {
   fit: FitAddon;
   el: HTMLDivElement;
   private opened = false;
+  private fontSize = 12;
 
   constructor(public id: string) {
     this.term = new Terminal({
       fontFamily: 'Menlo, monospace',
-      fontSize: 13,
+      fontSize: this.fontSize,
       cursorBlink: true,
       allowProposedApi: true,
     });
@@ -50,6 +51,18 @@ export class AgentTerminal {
     } catch {
       /* not visible yet */
     }
+  }
+
+  setFontSize(px: number) {
+    this.fontSize = Math.max(6, Math.min(32, px));
+    this.term.options.fontSize = this.fontSize;
+    this.fitNow();
+  }
+  zoomIn() {
+    this.setFontSize(this.fontSize + 1);
+  }
+  zoomOut() {
+    this.setFontSize(this.fontSize - 1);
   }
 
   dispose() {
