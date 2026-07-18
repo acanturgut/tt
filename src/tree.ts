@@ -257,12 +257,33 @@ async function buildNode(
 
 // A file leaf: file icon + name, click opens the read-only viewer. No chevron,
 // no folder actions.
+// Map a filename to a Phosphor file-* icon by extension (generic 'file' fallback).
+const EXT_ICON: Record<string, string> = {
+  ts: 'file-ts', tsx: 'file-tsx', mts: 'file-ts', cts: 'file-ts',
+  js: 'file-js', jsx: 'file-jsx', mjs: 'file-js', cjs: 'file-js',
+  css: 'file-css', scss: 'file-css', sass: 'file-css', less: 'file-css',
+  html: 'file-html', htm: 'file-html', vue: 'file-vue', svg: 'file-svg',
+  png: 'file-image', jpg: 'file-image', jpeg: 'file-image', gif: 'file-image',
+  webp: 'file-image', ico: 'file-image', bmp: 'file-image',
+  pdf: 'file-pdf', zip: 'file-zip', tar: 'file-zip', gz: 'file-zip', tgz: 'file-zip',
+  mp3: 'file-audio', wav: 'file-audio', flac: 'file-audio', ogg: 'file-audio',
+  mp4: 'file-video', mov: 'file-video', webm: 'file-video', mkv: 'file-video',
+  csv: 'file-csv', py: 'file-py', md: 'file-text', markdown: 'file-text', txt: 'file-text',
+  json: 'file-code', rs: 'file-code', go: 'file-code', c: 'file-code', cpp: 'file-code',
+  h: 'file-code', java: 'file-code', rb: 'file-code', sh: 'file-code', bash: 'file-code',
+  yml: 'file-code', yaml: 'file-code', toml: 'file-code', sql: 'file-sql', lock: 'file-code',
+};
+function fileIcon(name: string): string {
+  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+  return EXT_ICON[ext] ?? 'file';
+}
+
 function fileRow(path: string, name: string, depth: number, h: TreeHandlers): HTMLElement {
   const row = document.createElement('div');
   row.className = 'tree-row tree-file';
   row.style.paddingLeft = `${depth * 12 + 6}px`;
   const fico = document.createElement('i');
-  fico.className = 'fico ph ph-file';
+  fico.className = `fico ph ph-${fileIcon(name)}`;
   const label = document.createElement('span');
   label.className = 'tree-name';
   label.textContent = name;

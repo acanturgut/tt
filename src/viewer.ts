@@ -1,10 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
+import hljs from 'highlight.js/lib/common';
+import 'highlight.js/styles/github-dark.css';
+import { marked } from 'marked';
 
 let viewerEl: HTMLElement | null = null;
 let getRoot: () => string | null = () => null;
 let open = false;
 let curRel = '';
 let reqId = 0;
+
+// Current file, kept so the markdown Raw/Rendered toggle can re-render.
+let curPath = '';
+let curContent = '';
+let mdRaw = false;
+// The highlighted <code> block in code mode — selection→line math reads from it.
+let curCodeEl: HTMLElement | null = null;
 
 export function isViewerOpen(): boolean {
   return open;
@@ -44,6 +54,7 @@ export function mountViewer(root: HTMLElement, getProjectRoot: () => string | nu
 
 export async function openViewer(path: string): Promise<void> {
   open = true;
+  mdRaw = false; // new file opens rendered (for markdown)
   document.body.classList.add('viewer-open');
   const myReq = ++reqId;
   let text: string;
@@ -58,8 +69,43 @@ export async function openViewer(path: string): Promise<void> {
   render(path, text, false);
 }
 
+function isMarkdown(path: string): boolean {
+  return /\.(md|markdown)$/i.test(path);
+}
+
+// Extension → highlight.js language; unknown falls back to auto-detect.
+const EXT_LANG: Record<string, string> = {
+  ts: 'typescript', tsx: 'typescript', mts: 'typescript', cts: 'typescript',
+  js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
+  json: 'json', css: 'css', scss: 'scss', less: 'less', html: 'xml', htm: 'xml',
+  xml: 'xml', svg: 'xml', vue: 'xml', py: 'python', rs: 'rust', go: 'go',
+  c: 'c', h: 'c', cpp: 'cpp', hpp: 'cpp', java: 'java', rb: 'ruby', php: 'php',
+  sh: 'bash', bash: 'bash', zsh: 'bash', yml: 'yaml', yaml: 'yaml', toml: 'ini',
+  ini: 'ini', sql: 'sql', md: 'markdown', markdown: 'markdown', swift: 'swift',
+  kt: 'kotlin', dockerfile: 'dockerfile',
+};
+function highlight(path: string, code: string): string {
+  const ext = path.includes('.') ? path.split('.').pop()!.toLowerCase() : '';
+  const lang = EXT_LANG[ext];
+  try {
+    return lang && hljs.getLanguage(lang)
+      ? hljs.highlight(code, { language: lang }).value
+      : hljs.highlightAuto(code).value;
+  } catch {
+    return escapeHtml(code);
+  }
+}
+function escapeHtml(s: string): string {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 function render(path: string, content: string, isError: boolean): void {
   if (!viewerEl) return;
+  curPath = path;
+  curContent = content;
+  curCodeEl = null;
   const rel = relPathOf(getRoot(), path);
   curRel = rel;
   viewerEl.innerHTML = '';
@@ -74,11 +120,26 @@ function render(path: string, content: string, isError: boolean): void {
   const title = document.createElement('span');
   title.className = 'viewer-path';
   title.textContent = rel;
+  header.append(back, title);
+
+  // Markdown files get a Rendered/Raw toggle.
+  if (!isError && isMarkdown(path)) {
+    const toggle = document.createElement('button');
+    toggle.className = 'viewer-toggle';
+    toggle.textContent = mdRaw ? 'Rendered' : 'Raw';
+    toggle.title = mdRaw ? 'show rendered markdown' : 'show raw source';
+    toggle.onclick = () => {
+      mdRaw = !mdRaw;
+      render(curPath, curContent, false);
+    };
+    header.appendChild(toggle);
+  }
+
   const copyPath = document.createElement('button');
   copyPath.className = 'viewer-copypath';
   copyPath.textContent = 'Copy path';
   copyPath.onclick = () => copy(rel);
-  header.append(back, title, copyPath);
+  header.appendChild(copyPath);
   viewerEl.appendChild(header);
 
   const body = document.createElement('div');
@@ -92,27 +153,48 @@ function render(path: string, content: string, isError: boolean): void {
     return;
   }
 
-  const code = document.createElement('div');
-  code.className = 'viewer-code';
-  const lines = content.split('\n');
-  lines.forEach((line, i) => {
-    const row = document.createElement('div');
-    row.className = 'code-line';
-    row.dataset.line = String(i + 1);
-    const ln = document.createElement('span');
-    ln.className = 'code-ln';
-    ln.textContent = String(i + 1);
-    const lc = document.createElement('span');
-    lc.className = 'code-lc';
-    lc.textContent = line;
-    row.append(ln, lc);
-    code.appendChild(row);
-  });
-  body.appendChild(code);
+  if (isMarkdown(path) && !mdRaw) {
+    renderMarkdown(body, content);
+  } else {
+    renderCode(body, path, content);
+  }
   viewerEl.appendChild(body);
+}
 
-  // Selection → floating copy button.
-  body.addEventListener('mouseup', () => setTimeout(() => onSelect(rel), 0));
+function renderMarkdown(body: HTMLElement, content: string): void {
+  const md = document.createElement('div');
+  md.className = 'viewer-md';
+  // ponytail: no HTML sanitization — the viewer only shows the user's own local
+  // project files, which are trusted. Add DOMPurify if untrusted files ever load here.
+  md.innerHTML = marked.parse(content, { async: false }) as string;
+  md.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el as HTMLElement));
+  body.appendChild(md);
+}
+
+function renderCode(body: HTMLElement, path: string, content: string): void {
+  const wrap = document.createElement('div');
+  wrap.className = 'viewer-code';
+
+  const gutter = document.createElement('div');
+  gutter.className = 'code-gutter';
+  const nLines = content.split('\n').length;
+  for (let i = 1; i <= nLines; i++) {
+    const d = document.createElement('div');
+    d.className = 'code-ln';
+    d.textContent = String(i);
+    gutter.appendChild(d);
+  }
+
+  const pre = document.createElement('pre');
+  pre.className = 'code-pre';
+  const codeEl = document.createElement('code');
+  codeEl.className = 'hljs';
+  codeEl.innerHTML = highlight(path, content);
+  pre.appendChild(codeEl);
+  curCodeEl = codeEl;
+
+  wrap.append(gutter, pre);
+  body.appendChild(wrap);
 }
 
 let copyBtn: HTMLButtonElement | null = null;
@@ -121,32 +203,40 @@ function hideCopyBtn(): void {
   copyBtn = null;
 }
 
-function lineOf(node: Node | null): number | null {
-  let el = node instanceof Element ? node : node?.parentElement ?? null;
-  el = el?.closest('.code-line') ?? null;
-  const v = (el as HTMLElement | null)?.dataset.line;
-  return v ? Number(v) : null;
+// Character offset of (node, offset) within the highlighted code block's text.
+function offsetInCode(node: Node, offset: number): number {
+  if (!curCodeEl) return -1;
+  const range = document.createRange();
+  range.selectNodeContents(curCodeEl);
+  range.setEnd(node, offset);
+  return range.toString().length;
+}
+function lineAt(text: string, charOffset: number): number {
+  let line = 1;
+  for (let i = 0; i < charOffset && i < text.length; i++) if (text[i] === '\n') line++;
+  return line;
 }
 
 function onSelect(relPath: string): void {
+  // Copy-for-agent only applies to code view (rendered markdown has no line numbers).
+  if (!curCodeEl) {
+    hideCopyBtn();
+    return;
+  }
   const sel = window.getSelection();
   const text = sel?.toString() ?? '';
-  if (!sel || sel.isCollapsed || !text.trim()) {
+  if (!sel || sel.isCollapsed || !text.trim() || !sel.anchorNode || !sel.focusNode) {
     hideCopyBtn();
     return;
   }
-  if (viewerEl && !viewerEl.contains(sel.anchorNode)) {
+  if (!curCodeEl.contains(sel.anchorNode) || !curCodeEl.contains(sel.focusNode)) {
     hideCopyBtn();
     return;
   }
-  const a = lineOf(sel.anchorNode);
-  const b = lineOf(sel.focusNode);
-  if (a == null || b == null) {
-    hideCopyBtn();
-    return;
-  }
-  const start = Math.min(a, b);
-  const end = Math.max(a, b);
+  const oa = offsetInCode(sel.anchorNode, sel.anchorOffset);
+  const ob = offsetInCode(sel.focusNode, sel.focusOffset);
+  const start = lineAt(curContent, Math.min(oa, ob));
+  const end = lineAt(curContent, Math.max(oa, ob));
   const rect = sel.getRangeAt(0).getBoundingClientRect();
 
   hideCopyBtn();

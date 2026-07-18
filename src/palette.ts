@@ -4,6 +4,32 @@ export interface Command {
   run: () => void;
 }
 
+// Subsequence fuzzy match: returns a score (higher = better) or null if q isn't
+// a subsequence of text. Rewards matches at word starts and consecutive runs.
+export function fuzzyScore(text: string, q: string): number | null {
+  if (!q) return 0;
+  const t = text.toLowerCase();
+  q = q.toLowerCase();
+  let ti = 0;
+  let score = 0;
+  let streak = 0;
+  for (const ch of q) {
+    const at = t.indexOf(ch, ti);
+    if (at === -1) return null;
+    let bonus = 1;
+    if (at === 0 || /[^a-z0-9]/.test(t[at - 1])) bonus += 3; // word boundary
+    if (at === ti) {
+      streak += 1;
+      bonus += streak; // consecutive characters
+    } else {
+      streak = 0;
+    }
+    score += bonus;
+    ti = at + 1;
+  }
+  return score;
+}
+
 let overlay: HTMLElement | null = null;
 
 export function closePalette() {
@@ -58,8 +84,12 @@ export function openPalette(commands: Command[]) {
   };
 
   input.oninput = () => {
-    const q = input.value.toLowerCase();
-    filtered = commands.filter((c) => c.label.toLowerCase().includes(q));
+    const q = input.value.trim();
+    filtered = commands
+      .map((c) => ({ c, s: fuzzyScore(`${c.label} ${c.hint ?? ''}`, q) }))
+      .filter((x): x is { c: Command; s: number } => x.s !== null)
+      .sort((a, b) => b.s - a.s)
+      .map((x) => x.c);
     sel = 0;
     render();
   };
