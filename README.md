@@ -4,6 +4,7 @@
 
 <img width="1912" height="1243" alt="Screenshot 2026-07-18 at 14 05 16" src="https://github.com/user-attachments/assets/7c2fbed6-3cfc-4d22-b73c-816d77cea75c" />
 
+--
 
 Every coding-agent CLI in one place. A desktop app (Tauri + xterm.js): add a
 project folder, then spawn **Claude Code, Codex, Cursor, or a plain terminal**
