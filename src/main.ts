@@ -32,6 +32,7 @@ import { renderTree } from './tree';
 import { mountBroadcast, updateBroadcast } from './broadcast';
 import { openPalette, type Command } from './palette';
 import { mountBoard, openBoard, closeBoard, isBoardOpen } from './board';
+import { mountViewer, openViewer, closeViewer, isViewerOpen } from './viewer';
 import { mountTaskStrip, renderTaskStrip } from './taskstrip';
 import {
   subscribeProjects,
@@ -74,6 +75,7 @@ const stageEl = document.getElementById('stage')!;
 const treeEl = document.getElementById('tree')!;
 const broadcastEl = document.getElementById('broadcast')!;
 const boardMountEl = document.getElementById('board')!;
+const viewerEl = document.getElementById('viewer')!;
 const statuslineEl = document.getElementById('statusline')!;
 const taskstripEl = document.getElementById('taskstrip')!;
 const welcomeEl = document.getElementById('welcome')!;
@@ -211,7 +213,7 @@ function buildCommands(): Command[] {
   cmds.push({ label: 'Toggle tree panel', run: () => toggleSide('tt.right') });
   cmds.push({ label: 'Toggle OLED / dim mode', run: toggleOled });
   cmds.push({ label: 'Fleet templates…', run: showTemplates });
-  cmds.push({ label: 'Open task board', run: openBoard });
+  cmds.push({ label: 'Open task board', run: () => { closeViewer(); openBoard(); } });
   return cmds;
 }
 
@@ -286,10 +288,11 @@ function renderProject() {
     onToggleLeft: () => toggleSide('tt.left'),
     onToggleRight: () => toggleSide('tt.right'),
     onTemplates: showTemplates,
-    onBoard: openBoard,
+    onBoard: () => { closeViewer(); openBoard(); },
   });
   void renderTree(treeEl, currentProject()?.path ?? null, {
     onOpenAgent: (folder, agentId) => void spawn(agentId, folder),
+    onOpenFile: (p) => { closeBoard(); openViewer(p); },
   });
   pushTasks();
 }
@@ -528,7 +531,7 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'j') {
     if (isBoardOpen()) closeBoard();
-    else openBoard();
+    else { closeViewer(); openBoard(); }
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'k') {
     openPalette(buildCommands());
@@ -555,6 +558,11 @@ applyCollapse();
 applyOled();
 mountBroadcast(broadcastEl, { onSend: broadcast });
 mountBoard(boardMountEl, () => curProjPath());
+mountViewer(viewerEl, () => curProjPath());
+// Escape closes the code viewer (matches settings/palette/etc.).
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && isViewerOpen()) closeViewer();
+});
 mountTaskStrip(taskstripEl, statuslineEl, { getProject: () => curProjPath(), getAgents: agentCounts });
 renderWelcome(welcomeEl);
 renderProject();

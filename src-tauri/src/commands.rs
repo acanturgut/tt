@@ -171,14 +171,25 @@ pub fn spawn_agent(
         },
         move || {
             watch_stop_exit.store(true, Ordering::Relaxed);
-            let _ = app_exit.emit("agent-exit", ExitPayload { id: id_exit.clone() });
+            let _ = app_exit.emit(
+                "agent-exit",
+                ExitPayload {
+                    id: id_exit.clone(),
+                },
+            );
         },
         tmux_name.clone(),
     )?;
 
     // Claude-only: tail the jsonl (keyed by session_key) for title + tokens.
     if agent_id == "claude" {
-        start_claude_watch(app.clone(), id.clone(), project_dir.clone(), session_key, watch_stop);
+        start_claude_watch(
+            app.clone(),
+            id.clone(),
+            project_dir.clone(),
+            session_key,
+            watch_stop,
+        );
     }
 
     state
@@ -284,22 +295,45 @@ pub fn mcp_set_tasks(state: State<AppState>, json: String) {
 pub struct DirEntry {
     name: String,
     path: String,
+    dir: bool,
 }
 
-// List immediate subdirectories (dirs only), sorted case-insensitively.
+// List immediate children (folders and files), folders first, each group
+// sorted case-insensitively.
 #[tauri::command]
 pub fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
     let mut out = Vec::new();
-    for entry in std::fs::read_dir(&path).map_err(|e| e.to_string())?.flatten() {
-        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            out.push(DirEntry {
-                name: entry.file_name().to_string_lossy().to_string(),
-                path: entry.path().to_string_lossy().to_string(),
-            });
-        }
+    for entry in std::fs::read_dir(&path)
+        .map_err(|e| e.to_string())?
+        .flatten()
+    {
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        out.push(DirEntry {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path: entry.path().to_string_lossy().to_string(),
+            dir: is_dir,
+        });
     }
-    out.sort_by_key(|e| e.name.to_lowercase());
+    out.sort_by(|a, b| {
+        b.dir
+            .cmp(&a.dir) // folders (true) before files (false)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
     Ok(out)
+}
+
+// Read a text file for the viewer. Rejects oversized or non-UTF-8 (binary) files.
+#[tauri::command]
+pub fn read_file(path: String) -> Result<String, String> {
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    if !meta.is_file() {
+        return Err("error: not a regular file".into());
+    }
+    if meta.len() > 1_000_000 {
+        return Err("error: file too large to view".into());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    String::from_utf8(bytes).map_err(|_| "error: not a text file".into())
 }
 
 #[tauri::command]
@@ -361,6 +395,7 @@ pub fn search_dirs(
                 out.push(DirEntry {
                     name: name.clone(),
                     path: path.to_string_lossy().to_string(),
+                    dir: true,
                 });
                 if out.len() >= limit {
                     break;
@@ -402,6 +437,48 @@ mod tests {
         make_dir(tmp.path().join("newfolder").to_string_lossy().to_string()).unwrap();
         let entries = list_dir(tmp.path().to_string_lossy().to_string()).unwrap();
         assert!(entries.iter().any(|e| e.name == "newfolder"));
+    }
+
+    #[test]
+    fn read_file_returns_contents_of_small_utf8() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("hello.txt");
+        std::fs::write(&p, "hello\nworld").unwrap();
+        assert_eq!(
+            read_file(p.to_string_lossy().to_string()),
+            Ok("hello\nworld".to_string())
+        );
+    }
+
+    #[test]
+    fn read_file_rejects_oversized() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("big.txt");
+        std::fs::write(&p, vec![b'a'; 1_000_001]).unwrap();
+        assert_eq!(
+            read_file(p.to_string_lossy().to_string()),
+            Err("error: file too large to view".to_string())
+        );
+    }
+
+    #[test]
+    fn read_file_rejects_non_utf8() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("bin");
+        std::fs::write(&p, [0xff, 0xfe]).unwrap();
+        assert_eq!(
+            read_file(p.to_string_lossy().to_string()),
+            Err("error: not a text file".to_string())
+        );
+    }
+
+    #[test]
+    fn read_file_rejects_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert_eq!(
+            read_file(tmp.path().to_string_lossy().to_string()),
+            Err("error: not a regular file".to_string())
+        );
     }
 
     #[test]

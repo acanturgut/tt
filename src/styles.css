@@ -176,6 +176,9 @@ body.right-collapsed #tree { display: none; }
 .tree-row:hover { background: var(--elev); }
 .tree-row .chev { color: var(--muted); cursor: pointer; flex: 0 0 auto; font-size: 13px; }
 .tree-row .fico { color: var(--accent-hi); flex: 0 0 auto; font-size: 14px; }
+.tree-file .fico { margin-left: 14px; }
+.tree-file { cursor: pointer; }
+.tree-file:focus-visible { outline: 1px solid var(--tab-accent, #2563eb); outline-offset: -1px; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .tree-act { display: inline-flex; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 5px; visibility: hidden; flex: 0 0 auto; }
 .tree-row:hover .tree-act { visibility: visible; }
@@ -319,3 +322,20 @@ body.board-open #board { display: flex; flex-direction: column; flex: 1; min-hei
 .strip-bar { flex: 1; height: 6px; border-radius: 3px; background: #1a2436; overflow: hidden; display: flex; }
 .strip-bar i { display: block; height: 100%; }
 .strip-open { color: #7aa2d6; }
+
+/* Code viewer — full-page read-only overlay, hidden until body.viewer-open */
+#viewer { display: none; }
+body.viewer-open #workspace { display: none; }
+body.viewer-open #viewer { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.viewer-header { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid #262626; }
+.viewer-back { background: #222; border: 1px solid #444; border-radius: 4px; color: #ddd; padding: 3px 10px; cursor: pointer; }
+.viewer-path { color: #ccc; font-family: ui-monospace, monospace; font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-copypath { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 4px; color: #bbb; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+.viewer-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 0; }
+.viewer-error { color: #e88; padding: 16px; font-family: ui-monospace, monospace; }
+.viewer-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.5; }
+.code-line { display: flex; white-space: pre; }
+.code-ln { user-select: none; width: 44px; flex: none; text-align: right; padding-right: 12px; color: #8b93a1; }
+.code-lc { color: #cdd6e0; padding-right: 16px; }
+.viewer-copybtn { position: absolute; z-index: 50; background: #2563eb; border: none; border-radius: 5px; color: #fff; padding: 4px 10px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+.viewer-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; background: #1f6feb; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; }

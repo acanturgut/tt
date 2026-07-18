@@ -23,6 +23,7 @@ pub fn run() {
             commands::resize_agent,
             commands::kill_agent,
             commands::list_dir,
+            commands::read_file,
             commands::make_dir,
             commands::search_dirs,
             commands::session_alive,

@@ -6,10 +6,12 @@ import { visibleProviders, providerIcon } from './providers';
 interface DirEntry {
   name: string;
   path: string;
+  dir: boolean;
 }
 
 export interface TreeHandlers {
   onOpenAgent: (folderPath: string, agentId: string) => void;
+  onOpenFile: (path: string) => void;
 }
 
 const expanded = new Set<string>();
@@ -164,7 +166,11 @@ async function buildNode(
       entries = [];
     }
     for (const e of entries) {
-      children.appendChild(await buildNode(e.path, e.name, depth + 1, h));
+      if (e.dir) {
+        children.appendChild(await buildNode(e.path, e.name, depth + 1, h));
+      } else {
+        children.appendChild(fileRow(e.path, e.name, depth + 1, h));
+      }
     }
   };
 
@@ -247,6 +253,33 @@ async function buildNode(
     setOpen(false);
   }
   return wrap;
+}
+
+// A file leaf: file icon + name, click opens the read-only viewer. No chevron,
+// no folder actions.
+function fileRow(path: string, name: string, depth: number, h: TreeHandlers): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'tree-row tree-file';
+  row.style.paddingLeft = `${depth * 12 + 6}px`;
+  const fico = document.createElement('i');
+  fico.className = 'fico ph ph-file';
+  const label = document.createElement('span');
+  label.className = 'tree-name';
+  label.textContent = name;
+  row.append(fico, label);
+  row.tabIndex = 0;
+  row.setAttribute('role', 'button');
+  row.onclick = (ev) => {
+    ev.stopPropagation();
+    h.onOpenFile(path);
+  };
+  row.onkeydown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      h.onOpenFile(path);
+    }
+  };
+  return row;
 }
 
 function openAgentMenu(path: string, h: TreeHandlers, anchor: HTMLElement) {
