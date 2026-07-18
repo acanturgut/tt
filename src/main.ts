@@ -230,7 +230,6 @@ function renderProject() {
     onToggleRight: () => toggleSide('tt.right'),
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
-    onToggleOled: toggleOled,
     onSettings: openSettings,
     onTemplates: showTemplates,
   });

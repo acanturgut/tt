@@ -72,21 +72,24 @@ function parseTargets(text: string): { ids: string[]; clean: string } | null {
 
 function doSend() {
   if (!input || !handlers) return;
-  const trimmed = input.value.trim();
-  if (!trimmed) return;
-  // A bare slash command runs the command instead of sending.
-  if (trimmed.startsWith('/')) {
-    const match = slashCommands().find((c) => c.cmd === trimmed);
-    if (match) {
-      match.run();
+  let text = input.value.trim();
+  if (!text) return;
+  // A leading tt slash command runs its effect and is stripped — never sent to
+  // agents. An unrecognized "/…" is left as-is (it may be the agent's own command).
+  const m = text.match(/^\/(\S+)/);
+  if (m) {
+    const cmd = slashCommands().find((c) => c.cmd === `/${m[1]}`);
+    if (cmd) {
+      cmd.run();
+      text = text.slice(m[0].length).trim();
       input.value = '';
       closeSlash();
-      return;
+      if (!text) return; // command only — nothing left to send
     }
   }
-  const parsed = parseTargets(trimmed);
+  const parsed = parseTargets(text);
   const ids = parsed ? parsed.ids : selectedIds();
-  const msg = parsed ? parsed.clean : trimmed;
+  const msg = parsed ? parsed.clean : text;
   if (!ids.length || !msg) return;
   handlers.onSend(ids, msg, numbered);
   input.value = '';

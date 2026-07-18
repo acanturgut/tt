@@ -72,6 +72,12 @@ export function openSettings() {
   general.appendChild(toggle('Auto-focus the newest agent', s.autoFocus, (v) => set('autoFocus', v)));
   general.appendChild(toggle('Desktop notifications', s.notifications, (v) => set('notifications', v)));
   general.appendChild(toggle('Attention sound', s.sound, (v) => set('sound', v)));
+  general.appendChild(
+    toggle('OLED / dim mono mode', localStorage.getItem('tt.oled') === '1', (v) => {
+      localStorage.setItem('tt.oled', v ? '1' : '0');
+      document.body.classList.toggle('oled', v);
+    }),
+  );
   box.appendChild(general);
 
   const claude = section('Claude');

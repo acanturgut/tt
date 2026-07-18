@@ -8,7 +8,6 @@ export interface TopbarHandlers {
   onToggleRight: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onToggleOled: () => void;
   onSettings: () => void;
   onTemplates: () => void;
 }
@@ -77,7 +76,5 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   const zoomIn = iconBtn('plus', 'zoom all terminals in', () => h.onZoomIn());
   const tmplBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates());
   const settingsBtn = iconBtn('gear-six', 'Settings (⌘,)', () => h.onSettings());
-  const oled = iconBtn('moon', 'OLED / dim mono mode', () => h.onToggleOled());
-
-  root.append(treeToggle, wrap, spacer, zoomOut, zoomIn, tmplBtn, settingsBtn, oled, agentsToggle);
+  root.append(treeToggle, wrap, spacer, zoomOut, zoomIn, tmplBtn, settingsBtn, agentsToggle);
 }
