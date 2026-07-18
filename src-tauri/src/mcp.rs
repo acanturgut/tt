@@ -13,6 +13,31 @@ use tiny_http::{Header, Method, Response, Server};
 
 const PORT: u16 = 4127;
 
+// Surfaced to every connecting agent in the MCP initialize response, so both
+// lead and worker agents learn how to coordinate through the shared task board.
+const TT_INSTRUCTIONS: &str = "\
+tt runs several coding agents side by side. Besides spawning and messaging agents \
+(spawn_agent, send, broadcast, close_agent, list_agents), tt has a shared TASK BOARD \
+for the human's active project — use it to divide and track work across agents.
+
+Board tools:
+- add_task(title, description?) — creates a task in the Planning column, returns its id (e.g. \"t3\").
+- list_tasks() — returns the current project's tasks: id, title, status, assignee, result.
+- update_task(id, status?, assignee?, result?) — changes a task.
+Statuses: planning, in-progress, in-review, done. The board follows the human's active project.
+
+As a LEAD agent: break the work into tasks with add_task. Dispatch a task to a specific \
+worker with send(agent_number, \"...work task t3...\"), or let idle workers pull. Watch \
+progress with list_tasks; when a worker marks a task done with a result, read it and synthesize.
+
+As a WORKER agent: find work with list_tasks. Claim a Planning task with \
+update_task(id, status=\"in-progress\", assignee=\"<your agent number>\") so no one else takes it. \
+Do the work, then update_task(id, status=\"done\", result=\"<short summary / where the output is>\"). \
+Use status=\"in-review\" instead of done when a task needs lead or human review before it's finished.
+
+Your own agent number is the N a numbered broadcast gives you (\"You are agent N of M\"); \
+use that N as your assignee.";
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 static TASK_SEQ: AtomicUsize = AtomicUsize::new(1);
 
@@ -74,7 +99,8 @@ fn handle(app: &AppHandle, body: &str, is_post: bool) -> Option<Value> {
                 json!({
                     "protocolVersion": proto,
                     "capabilities": { "tools": {} },
-                    "serverInfo": { "name": "tt", "version": env!("CARGO_PKG_VERSION") }
+                    "serverInfo": { "name": "tt", "version": env!("CARGO_PKG_VERSION") },
+                    "instructions": TT_INSTRUCTIONS
                 }),
             ))
         }
