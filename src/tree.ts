@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { icon } from './icon';
+import { fileIconUrl, folderIconUrl, iconImg } from './fileicons';
 import { placeMenu } from './menu';
 import { visibleProviders, providerIcon } from './providers';
 
@@ -95,8 +96,7 @@ function renderResults(root: HTMLElement, rootPath: string, entries: DirEntry[],
   for (const e of entries) {
     const row = document.createElement('div');
     row.className = 'tree-row tree-result';
-    const fico = document.createElement('i');
-    fico.className = 'fico ph ph-folder';
+    const fico = iconImg(folderIconUrl(e.name, false));
     const label = document.createElement('span');
     label.className = 'tree-name tree-result-name';
     label.textContent = e.name;
@@ -138,7 +138,7 @@ async function buildNode(
   row.style.paddingLeft = `${depth * 12 + 6}px`;
 
   const chev = document.createElement('i');
-  const fico = document.createElement('i');
+  const fico = iconImg(folderIconUrl(name, false));
   const label = document.createElement('span');
   label.className = 'tree-name';
   label.textContent = name;
@@ -176,7 +176,7 @@ async function buildNode(
 
   const setOpen = (isOpen: boolean) => {
     chev.className = `chev ph ph-caret-${isOpen ? 'down' : 'right'}`;
-    fico.className = `fico ph ph-folder${isOpen ? '-open' : ''}`;
+    fico.src = folderIconUrl(name, isOpen);
     children.style.display = isOpen ? '' : 'none';
   };
 
@@ -257,56 +257,11 @@ async function buildNode(
 
 // A file leaf: file icon + name, click opens the read-only viewer. No chevron,
 // no folder actions.
-// Map a filename to a Phosphor file-* icon by extension (generic 'file' fallback).
-const EXT_ICON: Record<string, string> = {
-  ts: 'file-ts', tsx: 'file-tsx', mts: 'file-ts', cts: 'file-ts',
-  js: 'file-js', jsx: 'file-jsx', mjs: 'file-js', cjs: 'file-js',
-  css: 'file-css', scss: 'file-css', sass: 'file-css', less: 'file-css',
-  html: 'file-html', htm: 'file-html', vue: 'file-vue', svg: 'file-svg',
-  png: 'file-image', jpg: 'file-image', jpeg: 'file-image', gif: 'file-image',
-  webp: 'file-image', ico: 'file-image', bmp: 'file-image',
-  pdf: 'file-pdf', zip: 'file-zip', tar: 'file-zip', gz: 'file-zip', tgz: 'file-zip',
-  mp3: 'file-audio', wav: 'file-audio', flac: 'file-audio', ogg: 'file-audio',
-  mp4: 'file-video', mov: 'file-video', webm: 'file-video', mkv: 'file-video',
-  csv: 'file-csv', py: 'file-py', md: 'file-text', markdown: 'file-text', txt: 'file-text',
-  json: 'file-code', rs: 'file-code', go: 'file-code', c: 'file-code', cpp: 'file-code',
-  h: 'file-code', java: 'file-code', rb: 'file-code', sh: 'file-code', bash: 'file-code',
-  yml: 'file-code', yaml: 'file-code', toml: 'file-code', sql: 'file-sql', lock: 'file-code',
-};
-function fileIcon(name: string): string {
-  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
-  return EXT_ICON[ext] ?? 'file';
-}
-
-// VS Code-ish per-type icon colors so the tree isn't all one blue.
-const EXT_COLOR: Record<string, string> = {
-  ts: '#3178c6', tsx: '#3178c6', mts: '#3178c6', cts: '#3178c6',
-  js: '#e8d44d', jsx: '#e8d44d', mjs: '#e8d44d', cjs: '#e8d44d', json: '#e8d44d',
-  css: '#519aba', scss: '#c76494', sass: '#c76494', less: '#519aba',
-  html: '#e34c26', htm: '#e34c26', vue: '#42b883', svg: '#a074c4',
-  png: '#a074c4', jpg: '#a074c4', jpeg: '#a074c4', gif: '#a074c4', webp: '#a074c4', ico: '#a074c4', bmp: '#a074c4',
-  md: '#519aba', markdown: '#519aba', txt: '#9aa4b0',
-  py: '#3572a5', rs: '#dea584', go: '#00add8', rb: '#cc342d',
-  c: '#599eff', h: '#599eff', cpp: '#599eff', java: '#b07219', php: '#a074c4',
-  sh: '#89e051', bash: '#89e051',
-  yml: '#cb171e', yaml: '#cb171e', toml: '#6d8086', lock: '#6d8086',
-  sql: '#e38c00', csv: '#89e051', pdf: '#e5252a',
-  zip: '#a1887f', tar: '#a1887f', gz: '#a1887f', tgz: '#a1887f',
-  mp3: '#a074c4', wav: '#a074c4', flac: '#a074c4', ogg: '#a074c4',
-  mp4: '#a074c4', mov: '#a074c4', webm: '#a074c4', mkv: '#a074c4',
-};
-function fileColor(name: string): string {
-  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
-  return EXT_COLOR[ext] ?? '#8b93a1';
-}
-
 function fileRow(path: string, name: string, depth: number, h: TreeHandlers): HTMLElement {
   const row = document.createElement('div');
   row.className = 'tree-row tree-file';
   row.style.paddingLeft = `${depth * 12 + 6}px`;
-  const fico = document.createElement('i');
-  fico.className = `fico ph ph-${fileIcon(name)}`;
-  fico.style.color = fileColor(name);
+  const fico = iconImg(fileIconUrl(name));
   const label = document.createElement('span');
   label.className = 'tree-name';
   label.textContent = name;
