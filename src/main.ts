@@ -20,6 +20,7 @@ import { syncTiles } from './tiles';
 import { renderSidebar } from './sidebar';
 import { renderTopbar } from './topbar';
 import { renderTree } from './tree';
+import { mountBroadcast, updateBroadcast } from './broadcast';
 import { subscribeProjects, current as currentProject } from './projects';
 import './styles.css';
 
@@ -31,6 +32,7 @@ const topbarEl = document.getElementById('topbar')!;
 const sidebarEl = document.getElementById('sidebar')!;
 const stageEl = document.getElementById('stage')!;
 const treeEl = document.getElementById('tree')!;
+const broadcastEl = document.getElementById('broadcast')!;
 
 function fitAll() {
   for (const t of terms.values()) t.fitNow();
@@ -46,6 +48,11 @@ function closeAgent(id: string) {
   terms.delete(id);
   pending.delete(id);
   remove(id);
+}
+
+// Broadcast: write the text + Enter to every selected agent's PTY.
+function broadcast(ids: string[], text: string) {
+  for (const id of ids) void invoke('write_agent', { id, data: `${text}\r` });
 }
 
 function applyCollapse() {
@@ -75,6 +82,7 @@ function renderAgents() {
     onRename: setName,
     onReorder: reorder,
   });
+  updateBroadcast(list());
 }
 
 // Project-driven UI — topbar + tree, only re-renders on project change.
@@ -131,5 +139,6 @@ subscribeProjects(renderProject);
 window.addEventListener('resize', fitAll);
 
 applyCollapse();
+mountBroadcast(broadcastEl, { onSend: broadcast });
 renderProject();
 renderAgents();
