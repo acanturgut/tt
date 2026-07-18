@@ -35,9 +35,9 @@ button { font-family: inherit; }
 #projtabs { display: flex; align-items: flex-end; gap: 0; height: 40px; flex: 0 0 40px; padding: 7px 12px 0 82px; background: var(--bg); overflow-x: auto; -webkit-app-region: drag; }
 #projtabs button { -webkit-app-region: no-drag; }
 .proj-tabs { display: flex; align-items: center; gap: 4px; }
-.proj-tab { background: var(--bg); color: #9fb0c8; border: none; border-radius: 9px 9px 0 0; padding: 8px 16px; cursor: pointer; font: inherit; font-weight: 600; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; position: relative; margin-right: -6px; }
-.proj-tab:hover:not(.active) { background: #10151c; color: #fff; z-index: 3; }
-.proj-tab.active { background: #20262e; color: #fff; z-index: 2; }
+.proj-tab { background: #1b222c; color: #9fb0c8; border: none; border-radius: 9px 9px 0 0; padding: 8px 16px; cursor: pointer; font: inherit; font-weight: 600; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; position: relative; margin-right: -6px; }
+.proj-tab:hover:not(.active) { background: #262e39; color: #fff; z-index: 3; }
+.proj-tab.active { background: #122a4a; color: #fff; z-index: 2; }
 .addproj-tab { display: inline-flex; align-items: center; gap: 4px; margin-left: 12px; background: transparent; color: var(--muted); border: 1px dashed #294066; border-radius: 8px 8px 0 0; padding: 7px 12px; cursor: pointer; font: inherit; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
 .addproj-tab:hover { color: var(--text); background: var(--elev); }
 .proj-none { color: var(--muted); padding: 0 6px; }
