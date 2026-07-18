@@ -57,7 +57,9 @@ Tauri app: Rust backend owns processes; web frontend is pure UI over events.
   pick/create-folder (default root `~/Documents/personal/cc`) + pick-agent, then
   calls `spawn_agent`.
 - **`Terminal`** — an xterm.js wrapper (fit + webgl addons, full mouse) bound to
-  the selected agent's PTY.
+  the selected agent's PTY. Switching agents only hides the view — the PTY keeps
+  running, output keeps streaming, and the status dot stays live. One xterm
+  instance persists per agent for its lifetime (not torn down on switch).
 - **`useAgents`** — frontend store of agents, their status, and which is focused.
 
 ## Data flow
