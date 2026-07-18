@@ -90,21 +90,25 @@ input:focus-visible, .name-edit:focus-visible {
 #welcome { display: none; }
 body.no-project #welcome { display: flex; flex: 1; min-height: 0; overflow-y: auto; align-items: center; justify-content: center; padding: 40px 24px; }
 body.no-project #workspace,
-body.no-project #sidebar,
-body.no-project #broadcast { display: none; }
-.welcome-card { max-width: 460px; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; }
-.welcome-mark { width: 54px; height: 54px; border-radius: 14px; background: var(--accent); display: flex; align-items: center; justify-content: center; color: #fff; margin-bottom: 20px; }
-.welcome-mark svg { width: 30px; height: 30px; display: block; }
-.welcome-title { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
-.welcome-sub { color: var(--muted); font-size: 14px; line-height: 1.55; margin-top: 8px; max-width: 400px; }
-.welcome-btn { margin-top: 22px; display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: #fff; border: none; border-radius: var(--r); padding: 11px 20px; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; transition: background .12s ease; }
-.welcome-btn:hover { background: var(--accent-hi); }
-/* a quiet numbered flow, not a row of marketing cards */
-.welcome-steps { margin-top: 32px; display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 400px; text-align: left; }
-.welcome-step { display: flex; gap: 12px; align-items: flex-start; }
-.welcome-step-n { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 999px; background: var(--elev-2); color: var(--muted); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; margin-top: 1px; }
-.welcome-step-title { font-weight: 600; font-size: 13.5px; }
-.welcome-step-body { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin-top: 2px; }
+body.no-project #sidebar { display: none; }
+/* keep the broadcast box in flow (just invisible) so the right toolbar group stays pinned right */
+body.no-project #broadcast { visibility: hidden; }
+.welcome-card { max-width: 640px; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; }
+/* monochrome mark — white glyph on a quiet dark tile, no brand blue on this screen */
+.welcome-mark { width: 54px; height: 54px; border-radius: 14px; background: var(--elev-2); display: flex; align-items: center; justify-content: center; color: var(--text); margin-bottom: 20px; }
+.welcome-mark svg { width: 28px; height: 28px; display: block; }
+.welcome-title { font-size: 25px; font-weight: 600; letter-spacing: -0.01em; }
+.welcome-sub { color: var(--muted); font-size: 14px; line-height: 1.55; margin-top: 8px; max-width: 440px; }
+.welcome-btn { margin-top: 22px; display: inline-flex; align-items: center; gap: 8px; background: #fff; color: #0a0b0d; border: none; border-radius: var(--r); padding: 11px 20px; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; transition: background .12s ease; }
+.welcome-btn:hover { background: rgba(255, 255, 255, .88); }
+/* all features, laid out as a quiet two-column list — no cards, no accent color */
+.welcome-features { margin-top: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px 30px; width: 100%; max-width: 620px; text-align: left; }
+.welcome-feat { display: flex; gap: 11px; align-items: flex-start; }
+.welcome-feat-ic { color: var(--muted); font-size: 17px; flex: 0 0 auto; margin-top: 1px; }
+.welcome-feat-text { min-width: 0; }
+.welcome-feat-title { font-weight: 600; font-size: 13.5px; }
+.welcome-feat-body { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 3px; }
+@media (max-width: 640px) { .welcome-features { grid-template-columns: 1fr; } }
 #workspace { flex: 1 1 auto; display: flex; min-height: 0; }
 
 /* ── project tabs (own row, above toolbar) ───────────── */
@@ -163,13 +167,13 @@ body.no-project #broadcast { display: none; }
 .settings-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin-top: 12px; }
 
 /* shadcn-style Select */
-.sc-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 168px; background: var(--elev); color: var(--text); border: none; border-radius: var(--r); padding: 7px 10px; cursor: pointer; font: inherit; transition: background .12s ease; }
-.sc-trigger:hover:not(:disabled) { background: var(--elev-2); }
+.sc-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 150px; background: var(--elev-2); color: var(--text); border: none; border-radius: var(--r); padding: 7px 10px; cursor: pointer; font: inherit; font-size: 12.5px; transition: background .12s ease; }
+.sc-trigger:hover:not(:disabled) { background: color-mix(in srgb, var(--elev-2) 70%, #fff 12%); }
 .sc-trigger:disabled { opacity: .6; cursor: default; }
 .sc-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sc-value.sc-placeholder { color: var(--muted); }
 .sc-caret { color: var(--muted); font-size: 14px; flex: 0 0 auto; }
-.sc-content { position: fixed; z-index: 60; background: var(--elev); border-radius: var(--r-lg); padding: 5px; box-shadow: var(--shadow); max-height: 340px; overflow-y: auto; overscroll-behavior: contain; }
+.sc-content { position: fixed; z-index: 210; background: var(--elev-2); border-radius: var(--r-lg); padding: 5px; box-shadow: var(--shadow); max-height: 340px; overflow-y: auto; overscroll-behavior: contain; }
 .sc-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 6px; border-radius: var(--r); cursor: pointer; color: var(--text); }
 .sc-item:hover, .sc-item.sc-active { background: var(--accent); color: #fff; }
 .sc-item .sc-check { visibility: hidden; font-size: 14px; color: var(--accent-hi); flex: 0 0 auto; }
@@ -310,14 +314,28 @@ body.right-collapsed #tree { display: none; }
 .palette-item.sel .palette-hint, .palette-item:hover .palette-hint { color: rgba(255, 255, 255, .85); }
 
 /* ── settings ────────────────────────────────────────── */
-.settings { width: 460px; max-width: 92vw; background: var(--elev); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 18px 20px; }
-.settings-title { font-weight: 600; font-size: 16px; margin-bottom: 14px; }
-.settings-section { margin-bottom: 12px; }
-.settings-section-title { color: var(--muted); font-weight: 600; margin-bottom: 4px; text-transform: uppercase; font-size: 11px; letter-spacing: .5px; }
-.settings-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 8px 0; cursor: pointer; }
-.settings-row > span { flex: 1; }
-.settings-row input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
-.settings-select { background: var(--elev-2); color: var(--text); border: none; border-radius: var(--r-sm); padding: 6px 8px; cursor: pointer; font: inherit; }
+.settings { width: 440px; max-width: 92vw; max-height: 82vh; display: flex; flex-direction: column; background: var(--elev); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; }
+.settings-header { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px 12px; flex: 0 0 auto; }
+.settings-title { font-weight: 600; font-size: 16px; }
+.settings-close { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: none; border: none; color: var(--muted); border-radius: var(--r-sm); cursor: pointer; font-size: 16px; transition: color .12s ease, background .12s ease; }
+.settings-close:hover { color: var(--text); background: var(--elev-2); }
+.settings-body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 0 14px 16px; }
+.settings-section { margin-bottom: 18px; }
+.settings-section-title { color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 0 10px 4px; }
+.settings-section-desc { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 0 10px 6px; }
+.settings-body .settings-note { color: var(--dim); font-size: 11px; line-height: 1.5; margin: 10px 10px 0; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 10px; border-radius: var(--r); cursor: pointer; }
+.set-row:hover { background: var(--elev-2); }
+.set-text { min-width: 0; }
+.set-label { font-size: 13px; font-weight: 500; }
+.set-desc { color: var(--muted); font-size: 11.5px; line-height: 1.4; margin-top: 1px; }
+.settings-select { flex: 0 0 auto; background: var(--elev-2); color: var(--text); border: none; border-radius: var(--r-sm); padding: 6px 10px; cursor: pointer; font: inherit; font-size: 12.5px; }
+/* toggle switch */
+.switch { position: relative; flex: 0 0 auto; width: 38px; height: 22px; border-radius: 999px; background: var(--line-strong); transition: background .15s ease; }
+.switch.on { background: var(--accent); }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.switch-thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .4); transition: transform .15s ease; }
+.switch.on .switch-thumb { transform: translateX(16px); }
 /* keyboard-shortcuts cheat sheet rows */
 .sc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 0; }
 .sc-row > span:first-child { color: var(--text); }

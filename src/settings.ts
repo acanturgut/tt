@@ -1,4 +1,6 @@
 import { PROVIDERS, isProviderHidden, setProviderHidden } from './providers';
+import { icon } from './icon';
+import { scSelect } from './select';
 
 export interface Settings {
   autoPlanning: boolean; // tag new agents with the Planning status
@@ -49,66 +51,72 @@ function escClose(e: KeyboardEvent) {
   if (e.key === 'Escape') closeSettings();
 }
 
+function el(cls: string, text?: string): HTMLElement {
+  const d = document.createElement('div');
+  d.className = cls;
+  if (text) d.textContent = text;
+  return d;
+}
+
 export function openSettings() {
   closeSettings();
   overlay = document.createElement('div');
   overlay.className = 'palette-overlay';
-  const box = document.createElement('div');
-  box.className = 'settings';
+  const box = el('settings');
 
-  const title = document.createElement('div');
-  title.className = 'settings-title';
-  title.textContent = 'Settings';
-  box.appendChild(title);
+  const header = el('settings-header');
+  header.append(el('settings-title', 'Settings'));
+  const close = document.createElement('button');
+  close.className = 'settings-close';
+  close.setAttribute('aria-label', 'Close settings');
+  close.append(icon('x'));
+  close.onclick = closeSettings;
+  header.append(close);
+  box.append(header);
+
+  const body = el('settings-body');
 
   const general = section('General');
-  general.appendChild(
-    choice(
-      'Default agent (⌘N)',
+  general.append(
+    choice('Default agent', 'Spawned by ⌘N and the New-agent button.',
       ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal'],
-      s.defaultAgent,
-      (v) => set('defaultAgent', v),
-    ),
+      s.defaultAgent, (v) => set('defaultAgent', v)),
+    toggle('Tag new agents as Planning', 'New agents start with a Planning status.', s.autoPlanning, (v) => set('autoPlanning', v)),
+    toggle('Auto-focus the newest agent', 'Zoom to an agent the moment it spawns.', s.autoFocus, (v) => set('autoFocus', v)),
+    toggle('Desktop notifications', 'Notify you when an agent needs attention.', s.notifications, (v) => set('notifications', v)),
+    toggle('Attention sound', 'Play a soft chime when an agent needs you.', s.sound, (v) => set('sound', v)),
+    toggle('Show shortcut keys on buttons', 'Display the ⌘-key chips on toolbar buttons.',
+      localStorage.getItem('tt.hideBtnKbd') !== '1', (v) => {
+        localStorage.setItem('tt.hideBtnKbd', v ? '0' : '1');
+        document.body.classList.toggle('hide-btn-kbd', !v);
+      }),
+    toggle('OLED / dim mono mode', 'Desaturate and dim the whole app for OLED screens.',
+      localStorage.getItem('tt.oled') === '1', (v) => {
+        localStorage.setItem('tt.oled', v ? '1' : '0');
+        document.body.classList.toggle('oled', v);
+      }),
   );
-  general.appendChild(toggle('Tag new agents as Planning', s.autoPlanning, (v) => set('autoPlanning', v)));
-  general.appendChild(toggle('Auto-focus the newest agent', s.autoFocus, (v) => set('autoFocus', v)));
-  general.appendChild(toggle('Desktop notifications', s.notifications, (v) => set('notifications', v)));
-  general.appendChild(toggle('Attention sound', s.sound, (v) => set('sound', v)));
-  general.appendChild(
-    toggle('OLED / dim mono mode', localStorage.getItem('tt.oled') === '1', (v) => {
-      localStorage.setItem('tt.oled', v ? '1' : '0');
-      document.body.classList.toggle('oled', v);
-    }),
-  );
-  general.appendChild(
-    toggle('Show shortcut keys on buttons', localStorage.getItem('tt.hideBtnKbd') !== '1', (v) => {
-      localStorage.setItem('tt.hideBtnKbd', v ? '0' : '1');
-      document.body.classList.toggle('hide-btn-kbd', !v);
-    }),
-  );
-  box.appendChild(general);
+  body.append(general);
 
   const claude = section('Claude');
-  claude.appendChild(
-    choice('Permission mode', ['auto', 'plan', 'default'], s.claudeMode, (v) =>
-      set('claudeMode', v as Settings['claudeMode']),
-    ),
+  claude.append(
+    choice('Permission mode', 'Passed as claude --permission-mode.',
+      ['auto', 'plan', 'default'], s.claudeMode, (v) => set('claudeMode', v as Settings['claudeMode'])),
   );
-  box.appendChild(claude);
+  body.append(claude);
 
   const provs = section('Agent providers');
+  provs.append(el('settings-section-desc', 'Show or hide agents in the spawn menu.'));
   for (const id of PROVIDERS) {
-    provs.appendChild(toggle(id, !isProviderHidden(id), (v) => setProviderHidden(id, !v)));
+    provs.append(toggle(id, undefined, !isProviderHidden(id), (v) => setProviderHidden(id, !v)));
   }
-  const tm = document.createElement('div');
-  tm.className = 'settings-note';
-  tm.textContent =
-    'Claude, Codex, Cursor, Gemini, opencode and Antigravity are trademarks of their respective owners. tt is an independent tool, not affiliated with, endorsed by, or sponsored by any of them.';
-  provs.appendChild(tm);
-  box.appendChild(provs);
+  provs.append(el('settings-note',
+    'Claude, Codex, Cursor, Gemini, opencode and Antigravity are trademarks of their respective owners. tt is an independent tool, not affiliated with, endorsed by, or sponsored by any of them.'));
+  body.append(provs);
 
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
+  box.append(body);
+  overlay.append(box);
+  document.body.append(overlay);
   overlay.onmousedown = (e) => {
     if (e.target === overlay) closeSettings();
   };
@@ -116,48 +124,43 @@ export function openSettings() {
 }
 
 function section(name: string): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'settings-section';
-  const h = document.createElement('div');
-  h.className = 'settings-section-title';
-  h.textContent = name;
-  el.appendChild(h);
-  return el;
+  const sec = el('settings-section');
+  sec.append(el('settings-section-title', name));
+  return sec;
 }
 
-function toggle(label: string, val: boolean, onChange: (v: boolean) => void): HTMLElement {
+// Left text block (label + optional muted description) shared by rows.
+function rowText(label: string, desc?: string): HTMLElement {
+  const text = el('set-text');
+  text.append(el('set-label', label));
+  if (desc) text.append(el('set-desc', desc));
+  return text;
+}
+
+function toggle(label: string, desc: string | undefined, val: boolean, onChange: (v: boolean) => void): HTMLElement {
   const row = document.createElement('label');
-  row.className = 'settings-row';
-  const t = document.createElement('span');
-  t.textContent = label;
+  row.className = 'set-row';
+  const sw = el('switch' + (val ? ' on' : ''));
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.checked = val;
-  cb.onchange = () => onChange(cb.checked);
-  row.append(t, cb);
+  cb.onchange = () => {
+    sw.classList.toggle('on', cb.checked);
+    onChange(cb.checked);
+  };
+  sw.append(cb, el('switch-thumb'));
+  row.append(rowText(label, desc), sw);
   return row;
 }
 
 function choice(
   label: string,
+  desc: string | undefined,
   opts: string[],
   val: string,
   onChange: (v: string) => void,
 ): HTMLElement {
-  const row = document.createElement('div');
-  row.className = 'settings-row';
-  const t = document.createElement('span');
-  t.textContent = label;
-  const sel = document.createElement('select');
-  sel.className = 'settings-select';
-  for (const o of opts) {
-    const opt = document.createElement('option');
-    opt.value = o;
-    opt.textContent = o;
-    if (o === val) opt.selected = true;
-    sel.appendChild(opt);
-  }
-  sel.onchange = () => onChange(sel.value);
-  row.append(t, sel);
+  const row = el('set-row');
+  row.append(rowText(label, desc), scSelect(opts, val, onChange));
   return row;
 }

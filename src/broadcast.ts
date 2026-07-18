@@ -462,7 +462,8 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
 export function updateBroadcast(agents: Agent[]) {
   currentAgents = agents;
   if (!rootEl) return;
-  rootEl.style.display = agents.length ? 'flex' : 'none';
+  // stay in flow (visibility, not display) so #tb-right keeps its right-edge position
+  rootEl.style.visibility = agents.length ? 'visible' : 'hidden';
   if (!agents.length) {
     closePop();
     closeSlash();
