@@ -95,7 +95,10 @@ function broadcast(ids: string[], text: string, numbered: boolean) {
     markInput(id);
     const num = all.findIndex((a) => a.id === id) + 1; // same number shown on the tile/rail
     const msg = numbered ? `You are agent ${num} of ${total}. ${text}` : text;
-    void invoke('write_agent', { id, data: `${msg}\r` });
+    void invoke('write_agent', { id, data: msg });
+    // Send Enter as a SEPARATE write a beat later so TUIs (claude/codex) submit
+    // instead of treating the \r as a newline inside the input box.
+    setTimeout(() => void invoke('write_agent', { id, data: '\r' }), 90);
   }
 }
 
