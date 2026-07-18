@@ -1,4 +1,5 @@
 import type { Agent, WorkflowLabel } from './agents';
+import { placeMenu } from './menu';
 
 const LABELS: { key: WorkflowLabel; text: string; color: string }[] = [
   { key: 'planning', text: 'Planning', color: '#bc8cff' },
@@ -65,9 +66,7 @@ function openMenu(anchor: HTMLElement, onSet: (l: WorkflowLabel | undefined) => 
   menu.appendChild(clear);
 
   document.body.appendChild(menu);
-  const r = anchor.getBoundingClientRect();
-  menu.style.left = `${Math.round(r.left)}px`;
-  menu.style.top = `${Math.round(r.bottom + 4)}px`;
+  placeMenu(menu, anchor.getBoundingClientRect());
 
   function onDown(ev: MouseEvent) {
     if (!menu.contains(ev.target as Node)) cleanup();

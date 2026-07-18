@@ -10,6 +10,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init()) // keep: capabilities/default.json lists opener:default
         .plugin(tauri_plugin_dialog::init()) // native folder picker (dialog:default)
+        .plugin(tauri_plugin_notification::init()) // native notifications (notification:default)
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::spawn_agent,

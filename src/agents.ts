@@ -8,6 +8,7 @@ export interface Agent {
   dir: string;
   status: Status;
   label?: WorkflowLabel;
+  attention?: boolean; // finished a turn, waiting on the user
   title?: string;
   tokens?: number;
 }
@@ -47,8 +48,9 @@ export function add(a: Agent) {
 export function markOutput(id: string) {
   const a = agents.get(id);
   if (!a || a.status === 'exited') return;
-  const changed = a.status !== 'working'; // only notify on transition — avoids a UI render per output chunk
+  const changed = a.status !== 'working' || a.attention === true;
   a.status = 'working';
+  a.attention = false; // actively working — nothing to attend to
   const prev = timers.get(id);
   if (prev) clearTimeout(prev);
   timers.set(
@@ -57,6 +59,7 @@ export function markOutput(id: string) {
       const cur = agents.get(id);
       if (cur && cur.status !== 'exited') {
         cur.status = 'idle';
+        cur.attention = true; // finished a turn -> waiting on you
         emit();
       }
     }, 2000),
@@ -68,9 +71,23 @@ export function markExit(id: string) {
   const a = agents.get(id);
   if (!a) return;
   a.status = 'exited';
+  a.attention = false;
   const prev = timers.get(id);
   if (prev) clearTimeout(prev);
   emit();
+}
+
+export function clearAttention(id: string) {
+  const a = agents.get(id);
+  if (!a || !a.attention) return;
+  a.attention = false;
+  emit();
+}
+
+export function attentionCount(): number {
+  let n = 0;
+  for (const a of agents.values()) if (a.attention) n++;
+  return n;
 }
 
 export function markClaude(id: string, title?: string, tokens?: number) {

@@ -24,6 +24,7 @@ interface TileEls {
   header: HTMLElement;
   name: HTMLElement;
   dot: HTMLElement;
+  star: HTMLElement;
   meta: HTMLElement;
   pill: HTMLElement;
   term: AgentTerminal;
@@ -81,6 +82,10 @@ export function syncTiles(
 
     const dot = document.createElement('span');
     dot.className = 'dot';
+    const star = document.createElement('span');
+    star.className = 'attn';
+    star.title = 'waiting for you';
+    star.appendChild(icon('star'));
     const name = editableName(a, (nm) => h.onRename(a.id, nm));
     const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
     const meta = document.createElement('span');
@@ -109,7 +114,7 @@ export function syncTiles(
       ev.stopPropagation();
       h.onClose(a.id);
     };
-    header.append(dot, name, pill, meta, zoomOut, zoomIn, close);
+    header.append(dot, star, name, pill, meta, zoomOut, zoomIn, close);
 
     const body = document.createElement('div');
     body.className = 'tile-body';
@@ -117,7 +122,7 @@ export function syncTiles(
 
     root.append(header, body);
     stage.appendChild(root);
-    tiles.set(a.id, { root, header, name, dot, meta, pill, term });
+    tiles.set(a.id, { root, header, name, dot, star, meta, pill, term });
     term.open();
   }
 
@@ -153,6 +158,8 @@ export function syncTiles(
     const visible = !focusMode || a.id === focusedId;
     t.root.style.display = visible ? 'flex' : 'none';
     t.dot.style.background = DOT[a.status];
+    t.root.classList.toggle('attention', !!a.attention);
+    t.star.style.display = a.attention ? 'inline-flex' : 'none';
     if (t.name.isConnected) t.name.textContent = a.name;
 
     // Workflow status drives the title color + a subtle banner tint (no per-agent rainbow).

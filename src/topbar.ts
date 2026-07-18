@@ -1,11 +1,14 @@
 import { open } from '@tauri-apps/plugin-dialog';
 import { listProjects, current, addProject, selectProject, type Project } from './projects';
 import { icon } from './icon';
+import { placeMenu } from './menu';
 
 export interface TopbarHandlers {
   onSpawn: (agentId: string) => void;
   onToggleLeft: () => void;
   onToggleRight: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
 }
 
 // shadcn-style Select: a trigger button + a popover list (accent hover, check on
@@ -46,11 +49,10 @@ function openContent(trigger: HTMLElement, projs: Project[], curPath: string | n
     };
     content.appendChild(item);
   }
-  document.body.appendChild(content);
   const r = trigger.getBoundingClientRect();
-  content.style.left = `${Math.round(r.left)}px`;
-  content.style.top = `${Math.round(r.bottom + 6)}px`;
   content.style.minWidth = `${Math.round(r.width)}px`;
+  document.body.appendChild(content);
+  placeMenu(content, r);
 
   function onDown(ev: MouseEvent) {
     if (!content.contains(ev.target as Node) && ev.target !== trigger) cleanup();
@@ -110,11 +112,22 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   const spacer = document.createElement('div');
   spacer.className = 'topbar-spacer';
 
+  const zoomOut = document.createElement('button');
+  zoomOut.className = 'icobtn';
+  zoomOut.title = 'zoom all terminals out';
+  zoomOut.appendChild(icon('minus'));
+  zoomOut.onclick = () => h.onZoomOut();
+  const zoomIn = document.createElement('button');
+  zoomIn.className = 'icobtn';
+  zoomIn.title = 'zoom all terminals in';
+  zoomIn.appendChild(icon('plus'));
+  zoomIn.onclick = () => h.onZoomIn();
+
   const right = document.createElement('button');
   right.className = 'icobtn';
   right.title = 'toggle tree panel';
   right.appendChild(icon('sidebar-simple', 'flip'));
   right.onclick = () => h.onToggleRight();
 
-  root.append(left, brand, wrap, spacer, right);
+  root.append(left, brand, wrap, spacer, zoomOut, zoomIn, right);
 }

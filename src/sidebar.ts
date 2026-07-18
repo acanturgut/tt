@@ -1,4 +1,4 @@
-import { list, focused, type Agent, type WorkflowLabel } from './agents';
+import { list, focused, attentionCount, type Agent, type WorkflowLabel } from './agents';
 import { statusPill, labelColor } from './statuspill';
 import { icon } from './icon';
 
@@ -20,14 +20,16 @@ function fmtTokens(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
 }
 
-// Rebuilt fully per store change — no persistent input to preserve.
 export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   root.innerHTML = '';
 
   const head = document.createElement('div');
   head.className = 'rail-head';
   const title = document.createElement('span');
-  title.textContent = 'Agents';
+  title.className = 'rail-title';
+  const attn = attentionCount();
+  title.textContent = attn ? `Agents · ${attn} need you` : 'Agents';
+  if (attn) title.classList.add('has-attn');
   const grid = document.createElement('button');
   grid.className = 'gridbtn';
   grid.append(icon(focused() ? 'arrows-out' : 'squares-four'));
@@ -39,7 +41,7 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
 
   const cur = focused();
   const agents = list();
-  if (agents.length === 0) {
+  if (!agents.length) {
     const empty = document.createElement('div');
     empty.className = 'rail-empty';
     empty.textContent = 'Open an agent from the tree →';
@@ -49,10 +51,10 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
 
   for (const a of agents) {
     const row = document.createElement('div');
-    row.className = 'agentrow' + (a.id === cur ? ' active' : '');
+    row.className =
+      'agentrow' + (a.id === cur ? ' active' : '') + (a.attention ? ' attention' : '');
     row.onclick = () => h.onFocusToggle(a.id);
 
-    // Drag to reorder (reorders the tile grid too, since it follows agent order).
     row.draggable = true;
     row.ondragstart = (ev) => {
       ev.dataTransfer?.setData('text/plain', a.id);
@@ -88,7 +90,14 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
       ev.stopPropagation();
       h.onClose(a.id);
     };
-    top.append(dot, label, close);
+    if (a.attention) {
+      const star = document.createElement('span');
+      star.className = 'attn';
+      star.appendChild(icon('star'));
+      top.append(dot, star, label, close);
+    } else {
+      top.append(dot, label, close);
+    }
 
     const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
     row.append(top, pill);

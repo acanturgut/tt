@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { icon } from './icon';
+import { placeMenu } from './menu';
 
 interface DirEntry {
   name: string;
@@ -172,9 +173,7 @@ function openAgentMenu(path: string, h: TreeHandlers, anchor: HTMLElement) {
     menu.appendChild(item);
   }
   document.body.appendChild(menu);
-  const r = anchor.getBoundingClientRect();
-  menu.style.left = `${Math.round(r.left)}px`;
-  menu.style.top = `${Math.round(r.bottom + 4)}px`;
+  placeMenu(menu, anchor.getBoundingClientRect());
   function onDown(ev: MouseEvent) {
     if (!menu.contains(ev.target as Node)) cleanup();
   }

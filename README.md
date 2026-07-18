@@ -2,17 +2,17 @@
 
 Every coding-agent CLI in one place. A desktop app (Tauri + xterm.js): add a
 project folder, then spawn **Claude Code, Codex, Cursor, or a plain terminal**
-in any directory — tiled side-by-side, each with a live activity dot and a
+in any directory - tiled side-by-side, each with a live activity dot and a
 workflow status you set.
 
 ## Features
 
-- **Projects** — add a folder via the native picker; switch via the top-bar
+- **Projects** - add a folder via the native picker; switch via the top-bar
   dropdown (persisted).
-- **Directory tree** (right panel) — browse, create folders, and open an agent
+- **Directory tree** (right panel) - browse, create folders, and open an agent
   in any folder.
 - **Auto-grid tiling** of all running agents; click a tile to zoom (focus mode).
-- **Status** — a live dot (working / idle / exited) plus a workflow tag you set:
+- **Status** - a live dot (working / idle / exited) plus a workflow tag you set:
   Planning · In progress · In review · Done (it colors the tile).
 - **Rename** agents (double-click the title); **collapse** the left/right panels.
 - **× kill** an agent from its tile or the rail.
@@ -21,10 +21,10 @@ workflow status you set.
 
 - **Rust** (rustup) and **Node 20+**
 - The agent CLIs you want to use, on your `PATH`:
-  - `claude` — Claude Code
-  - `codex` — Codex CLI
-  - `cursor-agent` — Cursor CLI
-  - `gemini` — Gemini CLI
+  - `claude` - Claude Code
+  - `codex` - Codex CLI
+  - `cursor-agent` - Cursor CLI
+  - `gemini` - Gemini CLI
   - a shell for the plain terminal (uses `$SHELL`)
 
 ## Develop / Run

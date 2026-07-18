@@ -2,7 +2,13 @@ import '@phosphor-icons/web/regular';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from '@tauri-apps/plugin-notification';
+import {
   add,
+  clearAttention,
   focus,
   focused,
   list,
@@ -39,7 +45,29 @@ function fitAll() {
 }
 
 function toggleFocus(id: string) {
+  clearAttention(id); // you're looking at it now
   focus(focused() === id ? null : id);
+}
+
+// Native notification when an agent finishes a turn (unless you're watching it).
+let notifOk = false;
+isPermissionGranted().then((g) => {
+  if (g) notifOk = true;
+  else void requestPermission().then((p) => (notifOk = p === 'granted'));
+});
+const notified = new Set<string>();
+function syncNotifications() {
+  const cur = focused();
+  for (const a of list()) {
+    if (a.attention && !notified.has(a.id)) {
+      notified.add(a.id);
+      if (a.id !== cur && notifOk) {
+        sendNotification({ title: `${a.name} needs you`, body: a.title ?? a.dir });
+      }
+    } else if (!a.attention) {
+      notified.delete(a.id);
+    }
+  }
 }
 
 function closeAgent(id: string) {
@@ -53,6 +81,10 @@ function closeAgent(id: string) {
 // Broadcast: write the text + Enter to every selected agent's PTY.
 function broadcast(ids: string[], text: string) {
   for (const id of ids) void invoke('write_agent', { id, data: `${text}\r` });
+}
+
+function globalZoom(delta: number) {
+  for (const t of terms.values()) (delta > 0 ? t.zoomIn() : t.zoomOut());
 }
 
 function applyCollapse() {
@@ -83,6 +115,7 @@ function renderAgents() {
     onReorder: reorder,
   });
   updateBroadcast(list());
+  syncNotifications();
 }
 
 // Project-driven UI — topbar + tree, only re-renders on project change.
@@ -94,6 +127,8 @@ function renderProject() {
     },
     onToggleLeft: () => toggleSide('tt.left'),
     onToggleRight: () => toggleSide('tt.right'),
+    onZoomIn: () => globalZoom(1),
+    onZoomOut: () => globalZoom(-1),
   });
   void renderTree(treeEl, currentProject()?.path ?? null, {
     onOpenAgent: (folder, agentId) => void spawn(agentId, folder),
@@ -137,6 +172,34 @@ listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
 subscribe(renderAgents);
 subscribeProjects(renderProject);
 window.addEventListener('resize', fitAll);
+
+// Keyboard shortcuts (⌘): 1-9 focus agent, 0 grid, +/- zoom all, B/\ panels.
+window.addEventListener('keydown', (e) => {
+  if (!e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key >= '1' && e.key <= '9') {
+    const a = list()[Number(e.key) - 1];
+    if (a) {
+      clearAttention(a.id);
+      focus(a.id);
+      e.preventDefault();
+    }
+  } else if (e.key === '0') {
+    focus(null);
+    e.preventDefault();
+  } else if (e.key === '=' || e.key === '+') {
+    globalZoom(1);
+    e.preventDefault();
+  } else if (e.key === '-' || e.key === '_') {
+    globalZoom(-1);
+    e.preventDefault();
+  } else if (e.key.toLowerCase() === 'b') {
+    toggleSide('tt.left');
+    e.preventDefault();
+  } else if (e.key === '\\') {
+    toggleSide('tt.right');
+    e.preventDefault();
+  }
+});
 
 applyCollapse();
 mountBroadcast(broadcastEl, { onSend: broadcast });
