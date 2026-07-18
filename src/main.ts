@@ -497,6 +497,12 @@ window.addEventListener('resize', fitAll);
 
 // Keyboard shortcuts (⌘): 1-9 focus agent, 0 grid, +/- zoom all, B/\ panels.
 window.addEventListener('keydown', (e) => {
+  // ⌘⌥B toggles the right (agents) panel — VS Code's secondary-sidebar shortcut.
+  if (e.metaKey && e.altKey && !e.ctrlKey && e.key.toLowerCase() === 'b') {
+    toggleSide('tt.left'); // agents rail (right panel)
+    e.preventDefault();
+    return;
+  }
   if (!e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key >= '1' && e.key <= '9') {
     const a = visibleAgents()[Number(e.key) - 1];

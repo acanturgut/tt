@@ -173,7 +173,7 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
   right.innerHTML = '';
 
   const treeToggle = iconBtn('folders', 'toggle folder tree (⌘B)', () => h.onToggleRight());
-  const agentsToggle = iconBtn('brain', 'toggle agents (⌘\\)', () => h.onToggleLeft());
+  const agentsToggle = iconBtn('brain', 'toggle agents (⌘⌥B or ⌘\\)', () => h.onToggleLeft());
 
   const wrap = document.createElement('div');
   wrap.className = 'proj-wrap';
