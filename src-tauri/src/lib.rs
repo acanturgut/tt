@@ -24,6 +24,7 @@ pub fn run() {
             commands::kill_agent,
             commands::list_dir,
             commands::read_file,
+            commands::read_image_data_url,
             commands::make_dir,
             commands::search_dirs,
             commands::search_paths,

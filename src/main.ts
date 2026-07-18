@@ -29,7 +29,7 @@ import { syncTiles } from './tiles';
 import { renderSidebar } from './sidebar';
 import { renderTopbar, renderProjectTabs } from './topbar';
 import { renderTree, revealInTree } from './tree';
-import { mountBroadcast, updateBroadcast } from './broadcast';
+import { mountBroadcast, updateBroadcast, openComposer } from './broadcast';
 import { openPalette, type Command } from './palette';
 import { mountBoard, openBoard, closeBoard, isBoardOpen } from './board';
 import { mountViewer, openViewer, closeViewer, isViewerOpen } from './viewer';
@@ -230,6 +230,7 @@ function toggleSide(key: 'tt.left' | 'tt.right') {
 
 function applyOled() {
   document.body.classList.toggle('oled', localStorage.getItem('tt.oled') === '1');
+  document.body.classList.toggle('hide-btn-kbd', localStorage.getItem('tt.hideBtnKbd') === '1');
 }
 function toggleOled() {
   localStorage.setItem('tt.oled', localStorage.getItem('tt.oled') === '1' ? '0' : '1');
@@ -540,10 +541,9 @@ window.addEventListener('keydown', (e) => {
   }
   if (!e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key >= '1' && e.key <= '9') {
-    const a = visibleAgents()[Number(e.key) - 1];
-    if (a) {
-      clearAttention(a.id);
-      focus(a.id);
+    const pr = listProjects()[Number(e.key) - 1];
+    if (pr) {
+      selectProject(pr.path);
       e.preventDefault();
     }
   } else if (e.key === '0') {
@@ -568,6 +568,9 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key.toLowerCase() === 'k') {
     openPalette(buildCommands(), fileSearchProvider);
     e.preventDefault();
+  } else if (e.key.toLowerCase() === 'l') {
+    openComposer();
+    e.preventDefault();
   } else if (e.key === ',') {
     openSettings();
     e.preventDefault();
@@ -590,7 +593,10 @@ applyCollapse();
 applyOled();
 mountBroadcast(broadcastEl, { onSend: broadcast });
 mountBoard(boardMountEl, () => curProjPath());
-mountViewer(viewerEl, () => curProjPath());
+mountViewer(viewerEl, () => curProjPath(), {
+  agents: () => agentTree(visibleAgents()).map((n) => ({ id: n.agent.id, label: n.label, name: n.agent.name })),
+  to: (id, text) => broadcast([id], text, false),
+});
 // Escape closes the code viewer (matches settings/palette/etc.).
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && isViewerOpen()) closeViewer();

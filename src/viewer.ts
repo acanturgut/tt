@@ -3,8 +3,15 @@ import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import { marked } from 'marked';
 
+export interface AgentTarget { id: string; label: string; name: string; }
+export interface ViewerSend {
+  agents: () => AgentTarget[];
+  to: (id: string, text: string) => void;
+}
+
 let viewerEl: HTMLElement | null = null;
 let getRoot: () => string | null = () => null;
+let sendCfg: ViewerSend | null = null;
 let open = false;
 let curRel = '';
 let reqId = 0;
@@ -15,6 +22,8 @@ let curContent = '';
 let mdRaw = false;
 // The highlighted <code> block in code mode — selection→line math reads from it.
 let curCodeEl: HTMLElement | null = null;
+// The rendered-markdown container — selections here copy/send as plain prose (no line numbers).
+let curTextEl: HTMLElement | null = null;
 
 export function isViewerOpen(): boolean {
   return open;
@@ -44,11 +53,33 @@ export function formatForAgent(
   return `${loc}\n\n\`\`\`\n${code}\n\`\`\``;
 }
 
-export function mountViewer(root: HTMLElement, getProjectRoot: () => string | null): void {
+// Rendered prose has no line numbers — send the file + the selected text as a quote.
+export function formatTextForAgent(relPath: string, text: string): string {
+  return `${relPath}\n\n> ${text.trim().replace(/\n/g, '\n> ')}`;
+}
+
+export function mountViewer(
+  root: HTMLElement,
+  getProjectRoot: () => string | null,
+  send?: ViewerSend,
+): void {
   viewerEl = root;
   getRoot = getProjectRoot;
+  sendCfg = send ?? null;
   document.addEventListener('selectionchange', () => {
     if (open) onSelect(curRel);
+  });
+  // Shortcuts for the selection toolbar (only while it's showing).
+  document.addEventListener('keydown', (e) => {
+    if (!selBar || !e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key.toLowerCase() === 'c') {
+      copy(curPayload);
+      hideCopyBtn();
+      e.preventDefault();
+    } else if (e.key === 'Enter' && sendCfg && sendBtnEl) {
+      openAgentMenu(sendBtnEl, curPayload);
+      e.preventDefault();
+    }
   });
 }
 
@@ -57,9 +88,10 @@ export async function openViewer(path: string): Promise<void> {
   mdRaw = false; // new file opens rendered (for markdown)
   document.body.classList.add('viewer-open');
   const myReq = ++reqId;
+  const cmd = isImage(path) ? 'read_image_data_url' : 'read_file';
   let text: string;
   try {
-    text = await invoke<string>('read_file', { path });
+    text = await invoke<string>(cmd, { path });
   } catch (e) {
     if (myReq !== reqId) return;
     render(path, String(e), true);
@@ -71,6 +103,9 @@ export async function openViewer(path: string): Promise<void> {
 
 function isMarkdown(path: string): boolean {
   return /\.(md|markdown)$/i.test(path);
+}
+function isImage(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp)$/i.test(path);
 }
 
 // Extension → highlight.js language; unknown falls back to auto-detect.
@@ -106,6 +141,7 @@ function render(path: string, content: string, isError: boolean): void {
   curPath = path;
   curContent = content;
   curCodeEl = null;
+  curTextEl = null;
   const rel = relPathOf(getRoot(), path);
   curRel = rel;
   viewerEl.innerHTML = '';
@@ -115,7 +151,8 @@ function render(path: string, content: string, isError: boolean): void {
   header.className = 'viewer-header';
   const back = document.createElement('button');
   back.className = 'viewer-back';
-  back.textContent = '← Back';
+  back.textContent = '✕ Close';
+  back.title = 'close viewer (Esc)';
   back.onclick = closeViewer;
   const title = document.createElement('span');
   title.className = 'viewer-path';
@@ -153,7 +190,13 @@ function render(path: string, content: string, isError: boolean): void {
     return;
   }
 
-  if (isMarkdown(path) && !mdRaw) {
+  if (isImage(path)) {
+    const img = document.createElement('img');
+    img.className = 'viewer-img';
+    img.src = content; // data: URL from read_image_data_url
+    img.alt = rel;
+    body.appendChild(img);
+  } else if (isMarkdown(path) && !mdRaw) {
     renderMarkdown(body, content);
   } else {
     renderCode(body, path, content);
@@ -169,6 +212,7 @@ function renderMarkdown(body: HTMLElement, content: string): void {
   md.innerHTML = marked.parse(content, { async: false }) as string;
   md.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el as HTMLElement));
   body.appendChild(md);
+  curTextEl = md; // selections in rendered prose copy/send as plain text
 }
 
 function renderCode(body: HTMLElement, path: string, content: string): void {
@@ -197,10 +241,55 @@ function renderCode(body: HTMLElement, path: string, content: string): void {
   body.appendChild(wrap);
 }
 
-let copyBtn: HTMLButtonElement | null = null;
+let selBar: HTMLElement | null = null;
+let agentMenu: HTMLElement | null = null;
+let sendBtnEl: HTMLElement | null = null;
+let curPayload = ''; // formatted snippet for the current selection (⌘C / send)
 function hideCopyBtn(): void {
-  copyBtn?.remove();
-  copyBtn = null;
+  agentMenu?.remove();
+  agentMenu = null;
+  selBar?.remove();
+  selBar = null;
+  sendBtnEl = null;
+  curPayload = '';
+}
+
+// A compact "⌘C" chip shown inline on a selection button.
+function selKbd(keys: string): HTMLElement {
+  const kb = document.createElement('kbd');
+  kb.className = 'sel-kbd';
+  kb.textContent = keys;
+  return kb;
+}
+
+// Popover listing agents; picking one sends the snippet to its terminal.
+function openAgentMenu(anchor: HTMLElement, payload: string): void {
+  agentMenu?.remove();
+  const agents = sendCfg?.agents() ?? [];
+  agentMenu = document.createElement('div');
+  agentMenu.className = 'viewer-agentmenu';
+  if (!agents.length) {
+    const empty = document.createElement('div');
+    empty.className = 'viewer-agentmenu-empty';
+    empty.textContent = 'No agents running';
+    agentMenu.appendChild(empty);
+  } else {
+    for (const a of agents) {
+      const row = document.createElement('button');
+      row.className = 'viewer-agentmenu-row';
+      row.innerHTML = `<span class="am-num">${escapeHtml(a.label)}</span><span class="am-name">${escapeHtml(a.name)}</span>`;
+      row.onclick = () => {
+        sendCfg?.to(a.id, payload);
+        toast(`Sent to ${a.name}`);
+        hideCopyBtn();
+      };
+      agentMenu.appendChild(row);
+    }
+  }
+  const r = anchor.getBoundingClientRect();
+  agentMenu.style.top = `${r.bottom + window.scrollY + 4}px`;
+  agentMenu.style.left = `${r.left + window.scrollX}px`;
+  document.body.appendChild(agentMenu);
 }
 
 // Character offset of (node, offset) within the highlighted code block's text.
@@ -218,38 +307,61 @@ function lineAt(text: string, charOffset: number): number {
 }
 
 function onSelect(relPath: string): void {
-  // Copy-for-agent only applies to code view (rendered markdown has no line numbers).
-  if (!curCodeEl) {
-    hideCopyBtn();
-    return;
-  }
   const sel = window.getSelection();
   const text = sel?.toString() ?? '';
   if (!sel || sel.isCollapsed || !text.trim() || !sel.anchorNode || !sel.focusNode) {
     hideCopyBtn();
     return;
   }
-  if (!curCodeEl.contains(sel.anchorNode) || !curCodeEl.contains(sel.focusNode)) {
+  // Code view formats with line numbers; rendered prose sends the selected text as a quote.
+  let payload: string;
+  if (curCodeEl && curCodeEl.contains(sel.anchorNode) && curCodeEl.contains(sel.focusNode)) {
+    const oa = offsetInCode(sel.anchorNode, sel.anchorOffset);
+    const ob = offsetInCode(sel.focusNode, sel.focusOffset);
+    const start = lineAt(curContent, Math.min(oa, ob));
+    const end = lineAt(curContent, Math.max(oa, ob));
+    payload = formatForAgent(relPath, start, end, text);
+  } else if (curTextEl && curTextEl.contains(sel.anchorNode) && curTextEl.contains(sel.focusNode)) {
+    payload = formatTextForAgent(relPath, text);
+  } else {
     hideCopyBtn();
     return;
   }
-  const oa = offsetInCode(sel.anchorNode, sel.anchorOffset);
-  const ob = offsetInCode(sel.focusNode, sel.focusOffset);
-  const start = lineAt(curContent, Math.min(oa, ob));
-  const end = lineAt(curContent, Math.max(oa, ob));
   const rect = sel.getRangeAt(0).getBoundingClientRect();
 
   hideCopyBtn();
-  copyBtn = document.createElement('button');
-  copyBtn.className = 'viewer-copybtn';
-  copyBtn.textContent = 'Copy for agent ⧉';
-  copyBtn.style.top = `${rect.bottom + window.scrollY + 4}px`;
-  copyBtn.style.left = `${rect.left + window.scrollX}px`;
+  curPayload = payload;
+  selBar = document.createElement('div');
+  selBar.className = 'viewer-selbar';
+  selBar.style.top = `${rect.bottom + window.scrollY + 4}px`;
+  selBar.style.left = `${rect.left + window.scrollX}px`;
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'viewer-selbtn';
+  copyBtn.append('Copy ⧉', selKbd('⌘C'));
   copyBtn.onclick = () => {
-    copy(formatForAgent(relPath, start, end, text));
+    copy(payload);
     hideCopyBtn();
   };
-  document.body.appendChild(copyBtn);
+  selBar.appendChild(copyBtn);
+
+  if (sendCfg) {
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'viewer-selbtn';
+    sendBtn.append('Send to agent ➤', selKbd('⌘⏎'));
+    sendBtn.onclick = () => {
+      if (agentMenu) hideMenuOnly();
+      else openAgentMenu(sendBtn, payload);
+    };
+    selBar.appendChild(sendBtn);
+    sendBtnEl = sendBtn;
+  }
+  document.body.appendChild(selBar);
+}
+
+function hideMenuOnly(): void {
+  agentMenu?.remove();
+  agentMenu = null;
 }
 
 function copy(s: string): void {

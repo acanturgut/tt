@@ -80,6 +80,12 @@ export function openSettings() {
       document.body.classList.toggle('oled', v);
     }),
   );
+  general.appendChild(
+    toggle('Show shortcut keys on buttons', localStorage.getItem('tt.hideBtnKbd') !== '1', (v) => {
+      localStorage.setItem('tt.hideBtnKbd', v ? '0' : '1');
+      document.body.classList.toggle('hide-btn-kbd', !v);
+    }),
+  );
   box.appendChild(general);
 
   const claude = section('Claude');
@@ -97,7 +103,7 @@ export function openSettings() {
   const tm = document.createElement('div');
   tm.className = 'settings-note';
   tm.textContent =
-    'Claude, Codex, Cursor, Gemini, opencode and Antigravity are trademarks of their respective owners. tt is an independent tool — not affiliated with, endorsed by, or sponsored by any of them.';
+    'Claude, Codex, Cursor, Gemini, opencode and Antigravity are trademarks of their respective owners. tt is an independent tool, not affiliated with, endorsed by, or sponsored by any of them.';
   provs.appendChild(tm);
   box.appendChild(provs);
 

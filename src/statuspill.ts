@@ -20,12 +20,10 @@ export function updatePill(pill: HTMLElement, agent: Agent) {
   pill.classList.toggle('pill-empty', !cur);
   if (cur) {
     pill.textContent = cur.text;
-    pill.style.color = cur.color;
-    pill.style.borderColor = cur.color;
+    pill.style.color = cur.color; // filled chip; status carried by text color
   } else {
     pill.textContent = 'status';
     pill.style.color = '';
-    pill.style.borderColor = '';
   }
 }
 

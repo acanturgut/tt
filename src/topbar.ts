@@ -11,7 +11,9 @@ import {
 import { icon } from './icon';
 import { placeMenu } from './menu';
 import { visibleProviders, providerIcon } from './providers';
-import { openSettings } from './settings';
+import { openSettings, getSettings } from './settings';
+import { openShortcuts } from './shortcuts';
+import { tip } from './tooltip';
 
 export interface TopbarHandlers {
   onSpawn: (agentId: string) => void;
@@ -21,12 +23,22 @@ export interface TopbarHandlers {
   onBoard: () => void;
 }
 
-function iconBtn(name: string, title: string, onClick: () => void, extra = ''): HTMLElement {
+// Inline shortcut chip (always visible, not just in the hover tooltip). `keys`
+// like "⌘ B" collapses to a single "⌘B" chip.
+function kbdChip(keys: string, cls = 'ico-kbd'): HTMLElement {
+  const kb = document.createElement('kbd');
+  kb.className = cls;
+  kb.textContent = keys.replace(/\s+/g, '');
+  return kb;
+}
+
+function iconBtn(name: string, label: string, onClick: () => void, keys?: string, extra = ''): HTMLElement {
   const b = document.createElement('button');
   b.className = 'icobtn';
-  b.title = title;
   b.appendChild(icon(name, extra));
+  if (keys) b.appendChild(kbdChip(keys));
   b.onclick = onClick;
+  tip(b, label, keys);
   return b;
 }
 
@@ -108,12 +120,13 @@ function openStylePicker(path: string, anchor: HTMLElement) {
   setTimeout(() => document.addEventListener('mousedown', onPickerDown), 0);
 }
 
-function toolBtn(name: string, title: string, onClick: () => void): HTMLElement {
+function toolBtn(name: string, label: string, onClick: () => void, keys?: string): HTMLElement {
   const b = document.createElement('button');
   b.className = 'proj-tool';
-  b.title = title;
   b.appendChild(icon(name));
+  if (keys) b.appendChild(kbdChip(keys));
   b.onclick = onClick;
+  tip(b, label, keys);
   return b;
 }
 
@@ -127,13 +140,13 @@ export function renderProjectTabs(
   const cur = current();
   // Current project's color drives the selected tab + toolbar (via a CSS var).
   document.documentElement.style.setProperty('--tab-accent', cur?.color ?? DEFAULT_COLOR);
-  for (const p of projs) {
+  projs.forEach((p, i) => {
     const tab = document.createElement('button');
     tab.className = 'proj-tab' + (cur && p.path === cur.path ? ' active' : '');
     tab.title = p.path;
     const ic = icon(p.icon ?? 'folder');
     ic.classList.add('proj-tab-ic');
-    ic.title = 'change project icon & color';
+    tip(ic, 'Project icon & color');
     ic.onclick = (e) => {
       e.stopPropagation();
       openStylePicker(p.path, tab);
@@ -142,9 +155,10 @@ export function renderProjectTabs(
     nm.className = 'proj-tab-name';
     nm.textContent = p.name;
     tab.append(ic, nm);
+    if (i < 9) tab.append(kbdChip(`⌘${i + 1}`, 'proj-tab-kbd')); // ⌘1–9 switch projects
     tab.onclick = () => selectProject(p.path);
     root.appendChild(tab);
-  }
+  });
   const add = document.createElement('button');
   add.className = 'addproj-tab';
   add.append(icon('plus'), document.createTextNode(' Add project'));
@@ -161,9 +175,10 @@ export function renderProjectTabs(
   const tools = document.createElement('div');
   tools.className = 'proj-tools';
   tools.append(
-    toolBtn('minus', 'zoom out (⌘-)', h.onZoomOut),
-    toolBtn('plus', 'zoom in (⌘+)', h.onZoomIn),
-    toolBtn('gear-six', 'Settings (⌘,)', () => openSettings()),
+    toolBtn('keyboard', 'Keyboard shortcuts', () => openShortcuts()),
+    toolBtn('minus', 'Zoom out', h.onZoomOut, '⌘ -'),
+    toolBtn('plus', 'Zoom in', h.onZoomIn, '⌘ +'),
+    toolBtn('gear-six', 'Settings', () => openSettings(), '⌘ ,'),
   );
   root.appendChild(tools);
 }
@@ -172,26 +187,29 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
   left.innerHTML = '';
   right.innerHTML = '';
 
-  const treeToggle = iconBtn('folders', 'toggle folder tree (⌘B)', () => h.onToggleRight());
-  const agentsToggle = iconBtn('brain', 'toggle agents (⌘⌥B or ⌘\\)', () => h.onToggleLeft());
+  const treeToggle = iconBtn('folders', 'Toggle file tree', () => h.onToggleRight(), '⌘ B');
+  const agentsToggle = iconBtn('brain', 'Toggle agents', () => h.onToggleLeft(), '⌘ \\');
 
   const wrap = document.createElement('div');
   wrap.className = 'proj-wrap';
 
   const cur = current();
   const hasProj = !!cur;
+  const def = getSettings().defaultAgent;
   for (const agent of visibleProviders()) {
     const b = document.createElement('button');
     b.className = 'spawnbtn';
     b.disabled = !hasProj;
-    b.append(providerIcon(agent)); // icon-only; the CLI name is in the tooltip
-    b.title = hasProj ? `New ${agent} in ${cur!.name}` : 'add a project first';
+    b.append(providerIcon(agent)); // icon; shortcut chip added inline when one exists
+    const keys = agent === 'terminal' ? '⌘ T' : agent === def ? '⌘ N' : undefined;
+    if (keys) b.appendChild(kbdChip(keys));
+    tip(b, hasProj ? `New ${agent}` : `New ${agent} (add a project first)`, keys);
     b.onclick = () => h.onSpawn(agent);
     wrap.append(b);
   }
 
   const tmplBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates());
-  const boardBtn = iconBtn('kanban', 'Task board', () => h.onBoard());
+  const boardBtn = iconBtn('kanban', 'Task board', () => h.onBoard(), '⌘ J');
 
   left.append(treeToggle, wrap);
   right.append(tmplBtn, boardBtn, agentsToggle);

@@ -1,5 +1,7 @@
+import gsap from 'gsap';
 import { agentTree, type Agent } from './agents';
 import { icon } from './icon';
+import { tip } from './tooltip';
 
 export interface BroadcastHandlers {
   onSend: (ids: string[], text: string, numbered: boolean) => void;
@@ -9,18 +11,29 @@ export interface BroadcastHandlers {
 const excluded = new Set<string>();
 // When on, each agent is prefixed with "You are agent N of M".
 let numbered = localStorage.getItem('tt.bcNumbered') === '1';
+// Draft survives closing the composer, so a half-written message isn't lost.
+let draft = '';
 
 let handlers: BroadcastHandlers | null = null;
 let currentAgents: Agent[] = [];
 
 let rootEl: HTMLElement | null = null;
-let input: HTMLInputElement | null = null;
-let targetBtn: HTMLButtonElement | null = null;
+let triggerText: HTMLElement | null = null; // collapsed bar: draft/placeholder
+let triggerCount: HTMLElement | null = null; // collapsed bar: "All N"
+
+// composer overlay (the expanded editor)
+let composer: HTMLElement | null = null;
+let scrim: HTMLElement | null = null;
+let field: HTMLTextAreaElement | null = null; // the editing surface (only exists while open)
+let targetBtn: HTMLButtonElement | null = null; // target anchor inside the open composer
 let numBtn: HTMLButtonElement | null = null;
 let pop: HTMLElement | null = null; // target multi-select popover
 let slash: HTMLElement | null = null; // slash-command menu
 let slashCmds: Slash[] = [];
 let slashIdx = 0;
+
+const reduceMotion = () =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function selectedIds(): string[] {
   return currentAgents.filter((a) => !excluded.has(a.id)).map((a) => a.id);
@@ -51,7 +64,7 @@ function slashCommands(): Slash[] {
       desc: `${numbered ? 'disable' : 'enable'} "You are agent N of M" prefix`,
       run: () => setNumbered(!numbered),
     },
-    { cmd: '/clear', desc: 'clear the message box', run: () => { if (input) input.value = ''; } },
+    { cmd: '/clear', desc: 'clear the message box', run: () => { if (field) field.value = ''; autoGrow(); } },
   ];
 }
 
@@ -73,8 +86,8 @@ function parseTargets(text: string): { ids: string[]; clean: string } | null {
 }
 
 function doSend() {
-  if (!input || !handlers) return;
-  let text = input.value.trim();
+  if (!field || !handlers) return;
+  let text = field.value.trim();
   if (!text) return;
   // A leading tt slash command runs its effect and is stripped — never sent to
   // agents. An unrecognized "/…" is left as-is (it may be the agent's own command).
@@ -84,8 +97,9 @@ function doSend() {
     if (cmd) {
       cmd.run();
       text = text.slice(m[0].length).trim();
-      input.value = '';
+      field.value = '';
       closeSlash();
+      autoGrow();
       if (!text) return; // command only — nothing left to send
     }
   }
@@ -94,9 +108,16 @@ function doSend() {
   const msg = parsed ? parsed.clean : text;
   if (!ids.length || !msg) return;
   handlers.onSend(ids, msg, numbered);
-  input.value = '';
-  input.focus();
+  field.value = '';
+  autoGrow();
+  field.focus();
   closeSlash();
+}
+
+function autoGrow() {
+  if (!field) return;
+  field.style.height = 'auto';
+  field.style.height = `${Math.min(field.scrollHeight, 220)}px`;
 }
 
 function positionBelow(menu: HTMLElement, anchor: HTMLElement) {
@@ -106,6 +127,7 @@ function positionBelow(menu: HTMLElement, anchor: HTMLElement) {
   menu.style.top = `${r.bottom + 6}px`;
 }
 
+// ---- slash menu -----------------------------------------------------------
 function closeSlash() {
   slash?.remove();
   slash = null;
@@ -121,14 +143,15 @@ function runSlash(i: number) {
   const c = slashCmds[i];
   if (!c) return;
   c.run();
-  if (input) input.value = '';
+  if (field) field.value = '';
   closeSlash();
-  input?.focus();
+  autoGrow();
+  field?.focus();
 }
 function openSlash(prefix: string) {
   closeSlash();
   const cmds = slashCommands().filter((c) => c.cmd.startsWith(prefix));
-  if (!cmds.length || !input) return;
+  if (!cmds.length || !field) return;
   slashCmds = cmds;
   slashIdx = 0;
   slash = document.createElement('div');
@@ -143,18 +166,12 @@ function openSlash(prefix: string) {
     desc.className = 'bc-slash-desc';
     desc.textContent = c.desc;
     it.append(name, desc);
-    it.onmouseenter = () => {
-      slashIdx = i;
-      highlightSlash();
-    };
-    it.onmousedown = (e) => {
-      e.preventDefault();
-      runSlash(i);
-    };
+    it.onmouseenter = () => { slashIdx = i; highlightSlash(); };
+    it.onmousedown = (e) => { e.preventDefault(); runSlash(i); };
     slash!.appendChild(it);
   });
   document.body.appendChild(slash);
-  positionBelow(slash, input);
+  positionBelow(slash, field);
   highlightSlash();
 }
 
@@ -168,10 +185,7 @@ function closePop() {
   document.removeEventListener('mousedown', onPopDown);
 }
 function togglePop() {
-  if (pop) {
-    closePop();
-    return;
-  }
+  if (pop) { closePop(); return; }
   pop = document.createElement('div');
   pop.className = 'bc-pop';
   renderPop();
@@ -230,88 +244,221 @@ function renderPop() {
   pop.appendChild(list);
 }
 
-function syncTargetBtn() {
-  if (!targetBtn) return;
+function targetSummary(): string {
   const total = currentAgents.length;
   const sel = selectedIds().length;
-  const label = targetBtn.querySelector('.bc-target-label');
-  if (label) label.textContent = sel === total ? `All ${total}` : `${sel} of ${total}`;
+  return sel === total ? `All ${total}` : `${sel} of ${total}`;
+}
+function syncTargetBtn() {
+  const label = targetBtn?.querySelector('.bc-target-label');
+  if (label) label.textContent = targetSummary();
+  if (triggerCount) triggerCount.textContent = currentAgents.length ? targetSummary() : '';
 }
 
-// Built once so the input keeps its value/focus across store re-renders.
+// ---- key handling on the composer field ----------------------------------
+function onFieldKey(e: KeyboardEvent) {
+  if (slash && slashCmds.length) {
+    if (e.key === 'ArrowDown') { slashIdx = Math.min(slashCmds.length - 1, slashIdx + 1); highlightSlash(); e.preventDefault(); return; }
+    if (e.key === 'ArrowUp') { slashIdx = Math.max(0, slashIdx - 1); highlightSlash(); e.preventDefault(); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); runSlash(slashIdx); return; }
+    if (e.key === 'Escape') { closeSlash(); return; }
+  }
+  // Enter sends; Shift+Enter inserts a newline (default textarea behaviour).
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+  else if (e.key === 'Escape') { if (pop) closePop(); else closeComposer(); }
+}
+
+// ---- composer open / close -----------------------------------------------
+function hint(keys: string[], label: string): HTMLElement {
+  const h = document.createElement('span');
+  h.className = 'bc-hint';
+  for (const k of keys) {
+    const kb = document.createElement('kbd');
+    kb.textContent = k;
+    h.appendChild(kb);
+  }
+  h.appendChild(document.createTextNode(label));
+  return h;
+}
+
+export function openComposer() {
+  if (!currentAgents.length) return;
+  if (composer) { field?.focus(); return; }
+
+  scrim = document.createElement('div');
+  scrim.className = 'bc-scrim';
+  scrim.onmousedown = (e) => { if (e.target === scrim) closeComposer(); };
+
+  composer = document.createElement('div');
+  composer.className = 'bc-composer';
+  composer.setAttribute('role', 'dialog');
+  composer.setAttribute('aria-label', 'Broadcast to agents');
+
+  // head: target selector · number toggle · close
+  const head = document.createElement('div');
+  head.className = 'bc-comp-head';
+  targetBtn = document.createElement('button');
+  targetBtn.className = 'bc-target';
+  targetBtn.append(icon('broadcast'));
+  const tl = document.createElement('span');
+  tl.className = 'bc-target-label';
+  tl.textContent = targetSummary();
+  targetBtn.append(tl, icon('caret-down'));
+  targetBtn.onclick = (e) => { e.stopPropagation(); togglePop(); };
+  tip(targetBtn, 'Choose which agents receive this');
+
+  numBtn = document.createElement('button');
+  numBtn.className = 'bc-num' + (numbered ? ' on' : '');
+  numBtn.append(icon('hash'), document.createTextNode(' number'));
+  numBtn.onclick = () => setNumbered(!numbered);
+  tip(numBtn, 'Prefix each agent with "You are agent N of M"');
+
+  const spacer = document.createElement('div');
+  spacer.className = 'bc-comp-spacer';
+  const closeB = document.createElement('button');
+  closeB.className = 'bc-comp-close';
+  closeB.append(icon('x'));
+  closeB.onclick = closeComposer;
+  tip(closeB, 'Close', 'esc');
+  head.append(targetBtn, spacer, numBtn, closeB);
+
+  // body: the textarea
+  const body = document.createElement('div');
+  body.className = 'bc-comp-body';
+  field = document.createElement('textarea');
+  field.className = 'bc-field';
+  field.rows = 1;
+  field.value = draft;
+  field.placeholder = 'Message agents…';
+  field.oninput = () => {
+    autoGrow();
+    const v = field!.value;
+    if (/^\/\S*$/.test(v)) openSlash(v);
+    else closeSlash();
+  };
+  field.onkeydown = onFieldKey;
+  body.appendChild(field);
+
+  // foot: kbd hints + syntax legend + Send
+  const foot = document.createElement('div');
+  foot.className = 'bc-comp-foot';
+  const hints = document.createElement('div');
+  hints.className = 'bc-comp-hints';
+  hints.append(
+    hint(['↵'], 'Send'),
+    hint(['⇧', '↵'], 'New line'),
+    hint(['/'], 'Commands'),
+    hint(['#'], 'Target one'),
+  );
+  const foSpacer = document.createElement('div');
+  foSpacer.className = 'bc-comp-spacer';
+  const sendB = document.createElement('button');
+  sendB.className = 'bc-send';
+  sendB.append(document.createTextNode('Send'));
+  const sendKbd = document.createElement('kbd');
+  sendKbd.textContent = '↵';
+  sendB.appendChild(sendKbd);
+  sendB.onclick = doSend;
+  foot.append(hints, foSpacer, sendB);
+
+  composer.append(head, body, foot);
+  document.body.append(scrim, composer);
+  autoGrow(); // settle the field height before measuring the target rect
+  syncTargetBtn();
+
+  // The actual omnibox hands off to the composer: hide it, and start the composer
+  // exactly on the bar's rect wearing the bar's translucent look, then morph to the
+  // full panel — so it reads as the search bar itself expanding, not a new box.
+  if (rootEl) rootEl.style.opacity = '0';
+  if (!reduceMotion() && rootEl) {
+    const kids = Array.from(composer.children);
+    const bar = rootEl.getBoundingClientRect();
+    const cr = composer.getBoundingClientRect();
+    const dx = bar.left + bar.width / 2 - (cr.left + cr.width / 2);
+    const dy = bar.top - cr.top;
+    const panelBg = getComputedStyle(composer).backgroundColor;
+    gsap.to(scrim, { opacity: 1, duration: 0.3, ease: 'power2.out' });
+    gsap.fromTo(
+      composer,
+      { x: dx, y: dy, scaleX: bar.width / cr.width, scaleY: bar.height / cr.height, transformOrigin: 'center top', backgroundColor: 'rgba(255,255,255,0.055)' },
+      { x: 0, y: 0, scaleX: 1, scaleY: 1, backgroundColor: panelBg, duration: 0.5, ease: 'expo.out', clearProps: 'transform,backgroundColor',
+        onComplete: () => composer?.classList.add('glass') }, // frost only once the transform is done
+    );
+    gsap.fromTo(kids, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: 'power2.out', delay: 0.14, stagger: 0.035 });
+  } else if (scrim) {
+    scrim.style.opacity = '1';
+    composer.classList.add('glass');
+  }
+
+  field.focus();
+  const end = field.value.length;
+  field.setSelectionRange(end, end);
+}
+
+export function closeComposer() {
+  if (!composer) return;
+  draft = field?.value ?? draft;
+  updateTrigger();
+  closeSlash();
+  closePop();
+  const c = composer;
+  const s = scrim;
+  composer = null;
+  scrim = null;
+  field = null;
+  targetBtn = null;
+  numBtn = null;
+  // reverse the morph, then reveal the real omnibox again exactly as the composer vanishes
+  const done = () => { c.remove(); s?.remove(); if (rootEl) rootEl.style.opacity = ''; };
+  if (reduceMotion() || !rootEl) { done(); return; }
+  c.classList.remove('glass'); // drop backdrop-filter before scaling, else it flashes white
+  const bar = rootEl.getBoundingClientRect();
+  const cr = c.getBoundingClientRect();
+  const dx = bar.left + bar.width / 2 - (cr.left + cr.width / 2);
+  const dy = bar.top - cr.top;
+  if (s) gsap.to(s, { opacity: 0, duration: 0.24, ease: 'power2.in' });
+  gsap.to(Array.from(c.children), { opacity: 0, duration: 0.16, ease: 'power2.in' });
+  gsap.to(c, {
+    x: dx,
+    y: dy,
+    scaleX: bar.width / cr.width,
+    scaleY: bar.height / cr.height,
+    transformOrigin: 'center top',
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    duration: 0.32,
+    ease: 'power3.inOut',
+    onComplete: done,
+  });
+}
+
+function updateTrigger() {
+  if (!triggerText) return;
+  triggerText.textContent = draft.trim() || 'Message agents…';
+  triggerText.classList.toggle('has-draft', !!draft.trim());
+}
+
+// ---- collapsed bar (the trigger) ------------------------------------------
 export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
   handlers = h;
   rootEl = root;
   root.innerHTML = '';
 
-  targetBtn = document.createElement('button');
-  targetBtn.className = 'bc-target';
-  targetBtn.title = 'choose which agents receive the broadcast';
-  targetBtn.append(icon('broadcast'));
-  const tl = document.createElement('span');
-  tl.className = 'bc-target-label';
-  tl.textContent = '0 of 0';
-  targetBtn.append(tl, icon('caret-down'));
-  targetBtn.onclick = (e) => {
-    e.stopPropagation();
-    togglePop();
-  };
+  const trigger = document.createElement('button');
+  trigger.className = 'bc-trigger';
+  trigger.append(icon('broadcast'));
+  triggerText = document.createElement('span');
+  triggerText.className = 'bc-trigger-text';
+  triggerCount = document.createElement('span');
+  triggerCount.className = 'bc-trigger-count';
+  trigger.append(triggerText, triggerCount);
+  trigger.onclick = openComposer;
+  tip(trigger, 'Broadcast to agents', '⌘ L');
+  updateTrigger();
 
-  const inputWrap = document.createElement('div');
-  inputWrap.className = 'bc-input';
-  input = document.createElement('input');
-  input.type = 'text';
-  input.placeholder = 'Message agents…   /commands · #2 to target · Enter';
-  input.oninput = () => {
-    const v = input!.value;
-    // Show the menu only while typing the command itself (no space yet).
-    if (/^\/\S*$/.test(v)) openSlash(v);
-    else closeSlash();
-  };
-  input.onkeydown = (e) => {
-    if (slash && slashCmds.length) {
-      if (e.key === 'ArrowDown') {
-        slashIdx = Math.min(slashCmds.length - 1, slashIdx + 1);
-        highlightSlash();
-        e.preventDefault();
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        slashIdx = Math.max(0, slashIdx - 1);
-        highlightSlash();
-        e.preventDefault();
-        return;
-      }
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault();
-        runSlash(slashIdx);
-        return;
-      }
-      if (e.key === 'Escape') {
-        closeSlash();
-        return;
-      }
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      doSend();
-    } else if (e.key === 'Escape') {
-      closeSlash();
-    }
-  };
-  input.onblur = () => setTimeout(closeSlash, 120);
-  inputWrap.append(input);
-
-  numBtn = document.createElement('button');
-  numBtn.className = 'bc-num' + (numbered ? ' on' : '');
-  numBtn.title = 'prefix each agent with "You are agent N of M" — one message can address each differently';
-  numBtn.append(icon('hash'), document.createTextNode(' number'));
-  numBtn.onclick = () => setNumbered(!numbered);
-
-  root.append(targetBtn, inputWrap, numBtn);
+  root.appendChild(trigger);
 }
 
-// Refresh only the target button + open popover on agent changes (never the input).
+// Refresh target counts on agent changes (never disturbs an open composer's text).
 export function updateBroadcast(agents: Agent[]) {
   currentAgents = agents;
   if (!rootEl) return;
@@ -319,7 +466,7 @@ export function updateBroadcast(agents: Agent[]) {
   if (!agents.length) {
     closePop();
     closeSlash();
-    return;
+    if (composer) closeComposer();
   }
   syncTargetBtn();
   if (pop) renderPop();

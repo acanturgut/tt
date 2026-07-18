@@ -3,11 +3,12 @@ import { subscribeProjects } from './projects';
 import { labelColor } from './statuspill';
 import { icon } from './icon';
 
+// "Needs you" sits right after "In progress" — it's the board's highest-priority state.
 const COLUMNS: { key: TaskStatus; text: string }[] = [
   { key: 'planning', text: 'Planning' },
   { key: 'in-progress', text: 'In progress' },
-  { key: 'in-review', text: 'In review' },
   { key: 'needs-human', text: 'Needs you' },
+  { key: 'in-review', text: 'In review' },
   { key: 'done', text: 'Done' },
 ];
 
@@ -69,7 +70,11 @@ function render(): void {
     const head = document.createElement('div');
     head.className = 'board-col-head';
     const lbl = document.createElement('span');
-    lbl.textContent = `${col.text} (${colTasks.length})`;
+    lbl.append(document.createTextNode(col.text + ' '));
+    const cnt = document.createElement('span');
+    cnt.className = 'col-count';
+    cnt.textContent = String(colTasks.length);
+    lbl.appendChild(cnt);
     head.appendChild(lbl);
     if (colTasks.length) {
       const del = document.createElement('button');
@@ -108,6 +113,13 @@ function render(): void {
       }
 
       c.appendChild(card);
+    }
+
+    if (!colTasks.length) {
+      const empty = document.createElement('div');
+      empty.className = 'board-empty';
+      empty.textContent = 'No tasks';
+      c.appendChild(empty);
     }
 
     cols.appendChild(c);

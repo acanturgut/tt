@@ -112,7 +112,7 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
     const num = document.createElement('span');
     num.className = 'rnum';
     num.textContent = `#${node.label}`;
-    num.title = `Agent ${node.label} — type #${node.label} in the broadcast bar to message only this agent`;
+    num.title = `Agent ${node.label}. Type #${node.label} in the broadcast bar to message only this agent`;
     const lead: HTMLElement[] = [];
     if (node.depth > 0) {
       const arrow = icon('arrow-bend-down-right');

@@ -24,7 +24,7 @@ export async function renderTree(container: HTMLElement, rootPath: string | null
     container.innerHTML = '';
     const empty = document.createElement('div');
     empty.className = 'tree-empty';
-    empty.textContent = 'No project yet — use “+ Add project” above.';
+    empty.textContent = 'No project yet. Use “+ Add project” above.';
     container.appendChild(empty);
     return;
   }

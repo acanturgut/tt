@@ -53,5 +53,5 @@ export function renderTaskStrip(): void {
   stripEl.append(label, bar, openHint);
 
   // Status line: agents + task count, compact.
-  statusEl.textContent = `${working} working · ${idle} idle — ${s.done}/${s.total} tasks`;
+  statusEl.textContent = `${working} working · ${idle} idle · ${s.done}/${s.total} tasks`;
 }

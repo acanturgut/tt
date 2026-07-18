@@ -336,6 +336,30 @@ pub fn read_file(path: String) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| "error: not a text file".into())
 }
 
+// Read an image file for the viewer as a data: URL (CSP is disabled, so it renders
+// straight into <img src>). Rejects oversized files.
+#[tauri::command]
+pub fn read_image_data_url(path: String) -> Result<String, String> {
+    use base64::Engine;
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    if !meta.is_file() {
+        return Err("error: not a regular file".into());
+    }
+    if meta.len() > 20_000_000 {
+        return Err("error: image too large to view".into());
+    }
+    let mime = match path.rsplit('.').next().map(|e| e.to_lowercase()).as_deref() {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
+    };
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{b64}"))
+}
+
 #[tauri::command]
 pub fn make_dir(path: String) -> Result<(), String> {
     std::fs::create_dir_all(&path).map_err(|e| e.to_string())

@@ -161,7 +161,7 @@ export function syncTiles(
     if (!t) continue;
     const lbl = labels.get(a.id) ?? '';
     t.num.textContent = lbl;
-    t.num.title = `Agent ${lbl} — type #${lbl} in the broadcast bar to message only this agent`;
+    t.num.title = `Agent ${lbl}. Type #${lbl} in the broadcast bar to message only this agent`;
     const visible = !focusMode || a.id === focusedId;
     t.root.style.display = visible ? 'flex' : 'none';
     t.dot.style.background = DOT[a.status];
@@ -172,7 +172,6 @@ export function syncTiles(
     // Workflow status drives the title color + a subtle banner tint (no per-agent rainbow).
     const col = labelColor(a.label);
     t.name.style.color = col ?? '';
-    t.header.style.borderTopColor = col ?? '';
     t.header.style.background = col ? tint(col, 0.16) : '';
 
     const parts: string[] = [];
