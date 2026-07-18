@@ -344,10 +344,10 @@ window.addEventListener('keydown', (e) => {
     globalZoom(-1);
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'b') {
-    toggleSide('tt.left');
+    toggleSide('tt.right'); // folder tree
     e.preventDefault();
   } else if (e.key === '\\') {
-    toggleSide('tt.right');
+    toggleSide('tt.left'); // agents rail
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'k') {
     openPalette(buildCommands());
