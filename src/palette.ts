@@ -37,7 +37,7 @@ export function closePalette() {
   overlay = null;
 }
 
-export function openPalette(commands: Command[]) {
+export function openPalette(commands: Command[], provider?: (q: string) => Promise<Command[]>) {
   closePalette();
   overlay = document.createElement('div');
   overlay.className = 'palette-overlay';
@@ -83,15 +83,26 @@ export function openPalette(commands: Command[]) {
     c?.run();
   };
 
+  let token = 0;
   input.oninput = () => {
     const q = input.value.trim();
-    filtered = commands
+    const cmds = commands
       .map((c) => ({ c, s: fuzzyScore(`${c.label} ${c.hint ?? ''}`, q) }))
       .filter((x): x is { c: Command; s: number } => x.s !== null)
       .sort((a, b) => b.s - a.s)
       .map((x) => x.c);
+    filtered = cmds;
     sel = 0;
     render();
+    // Async file/folder results (fzf), appended when they arrive if still current.
+    if (provider && q) {
+      const my = ++token;
+      void provider(q).then((extra) => {
+        if (my !== token) return;
+        filtered = [...cmds, ...extra];
+        render();
+      });
+    }
   };
   input.onkeydown = (e) => {
     if (e.key === 'ArrowDown') {

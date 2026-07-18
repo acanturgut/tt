@@ -182,6 +182,8 @@ body.right-collapsed #tree { display: none; }
 .tree-row .fico { color: var(--accent-hi); flex: 0 0 auto; font-size: 14px; }
 .ficon { width: 16px; height: 16px; flex: 0 0 auto; object-fit: contain; }
 .tree-file .ficon { margin-left: 14px; } /* files have no chevron; align with folder rows */
+.tree-flash { animation: treeflash 1.2s ease; }
+@keyframes treeflash { from { background: rgba(88, 166, 255, .35); } to { background: transparent; } }
 .tree-file { cursor: pointer; }
 .tree-file:focus-visible { outline: 1px solid var(--tab-accent, #2563eb); outline-offset: -1px; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }

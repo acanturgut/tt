@@ -135,6 +135,7 @@ async function buildNode(
 
   const row = document.createElement('div');
   row.className = 'tree-row';
+  row.dataset.path = path;
   row.style.paddingLeft = `${depth * 12 + 6}px`;
 
   const chev = document.createElement('i');
@@ -257,9 +258,35 @@ async function buildNode(
 
 // A file leaf: file icon + name, click opens the read-only viewer. No chevron,
 // no folder actions.
+// Expand every ancestor of `target` and scroll it into view (⌘K "go to file/folder").
+export async function revealInTree(
+  container: HTMLElement,
+  rootPath: string,
+  h: TreeHandlers,
+  target: string,
+): Promise<void> {
+  const base = rootPath.replace(/\/$/, '');
+  if (target !== base && !target.startsWith(base + '/')) return;
+  const rest = target.slice(base.length + 1).split('/').filter(Boolean);
+  let cur = base;
+  for (let i = 0; i < rest.length - 1; i++) {
+    cur += '/' + rest[i];
+    expanded.add(cur);
+  }
+  expanded.add(target); // if it's a folder, open it too (harmless for a file)
+  await renderTree(container, rootPath, h);
+  const el = container.querySelector(`[data-path="${CSS.escape(target)}"]`) as HTMLElement | null;
+  if (el) {
+    el.scrollIntoView({ block: 'center' });
+    el.classList.add('tree-flash');
+    setTimeout(() => el.classList.remove('tree-flash'), 1200);
+  }
+}
+
 function fileRow(path: string, name: string, depth: number, h: TreeHandlers): HTMLElement {
   const row = document.createElement('div');
   row.className = 'tree-row tree-file';
+  row.dataset.path = path;
   row.style.paddingLeft = `${depth * 12 + 6}px`;
   const fico = iconImg(fileIconUrl(name));
   const label = document.createElement('span');

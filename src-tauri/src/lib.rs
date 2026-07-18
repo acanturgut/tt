@@ -26,6 +26,7 @@ pub fn run() {
             commands::read_file,
             commands::make_dir,
             commands::search_dirs,
+            commands::search_paths,
             commands::session_alive,
             commands::mcp_set_agents,
             commands::mcp_set_tasks

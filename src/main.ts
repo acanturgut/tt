@@ -28,7 +28,7 @@ import { AgentTerminal } from './terminal';
 import { syncTiles } from './tiles';
 import { renderSidebar } from './sidebar';
 import { renderTopbar, renderProjectTabs } from './topbar';
-import { renderTree } from './tree';
+import { renderTree, revealInTree } from './tree';
 import { mountBroadcast, updateBroadcast } from './broadcast';
 import { openPalette, type Command } from './palette';
 import { mountBoard, openBoard, closeBoard, isBoardOpen } from './board';
@@ -273,6 +273,40 @@ function renderAgents() {
   renderTaskStrip();
 }
 
+function treeHandlers() {
+  return {
+    onOpenAgent: (folder: string, agentId: string) => void spawn(agentId, folder),
+    onOpenFile: (p: string) => {
+      closeBoard();
+      void openViewer(p);
+    },
+  };
+}
+
+// ⌘K fzf: search the active project's files+folders; open a file, or reveal a folder.
+async function fileSearchProvider(q: string): Promise<Command[]> {
+  const p = currentProject();
+  if (!p) return [];
+  let entries: { name: string; path: string; dir: boolean }[] = [];
+  try {
+    entries = await invoke('search_paths', { root: p.path, query: q, limit: 60 });
+  } catch {
+    entries = [];
+  }
+  const base = p.path.replace(/\/$/, '');
+  return entries.map((e) => ({
+    label: e.name,
+    hint: e.path.startsWith(base + '/') ? e.path.slice(base.length + 1) : e.path,
+    run: () => {
+      if (e.dir) void revealInTree(treeEl, p.path, treeHandlers(), e.path);
+      else {
+        closeBoard();
+        void openViewer(e.path);
+      }
+    },
+  }));
+}
+
 // Project-driven UI — topbar + tree, only re-renders on project change.
 function renderProject() {
   // No projects yet → show the centered welcome/onboarding screen.
@@ -291,10 +325,7 @@ function renderProject() {
     onTemplates: showTemplates,
     onBoard: () => { closeViewer(); openBoard(); },
   });
-  void renderTree(treeEl, currentProject()?.path ?? null, {
-    onOpenAgent: (folder, agentId) => void spawn(agentId, folder),
-    onOpenFile: (p) => { closeBoard(); openViewer(p); },
-  });
+  void renderTree(treeEl, currentProject()?.path ?? null, treeHandlers());
   pushTasks();
 }
 
@@ -535,7 +566,7 @@ window.addEventListener('keydown', (e) => {
     else { closeViewer(); openBoard(); }
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'k') {
-    openPalette(buildCommands());
+    openPalette(buildCommands(), fileSearchProvider);
     e.preventDefault();
   } else if (e.key === ',') {
     openSettings();
