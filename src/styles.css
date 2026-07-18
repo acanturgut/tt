@@ -112,9 +112,9 @@ body.left-collapsed #sidebar { display: none; }
 .agentrow.drop-target { outline: 2px solid var(--accent-hi); outline-offset: -2px; }
 .rail-meta { color: var(--muted); font-size: 11px; margin-top: 7px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; }
 .attn { display: inline-flex; color: var(--amber); flex: 0 0 auto; }
-.tnum, .rnum { flex: 0 0 auto; min-width: 17px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; border-radius: 5px; background: var(--elev-2); color: var(--muted); padding: 0 4px; }
-.rnum { min-width: 0; height: auto; font-size: 12.5px; font-weight: 800; border-radius: 0; background: none; color: var(--muted); padding: 0; }
-.agentrow.active .rnum { background: none; color: rgba(255, 255, 255, .85); }
+.tnum, .rnum { flex: 0 0 auto; min-width: 17px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; border-radius: 5px; background: none; color: #5f6773; padding: 0 4px; }
+.rnum { min-width: 0; height: auto; font-size: 11.5px; font-weight: 600; border-radius: 0; background: none; color: #6b7480; padding: 0; }
+.agentrow.active .rnum { background: none; color: rgba(255, 255, 255, .55); }
 /* MCP-spawned sub-agents: indented + marked with a ↳ (flat, no card) */
 .sub-arrow { color: var(--accent-hi); font-size: 14px; flex: 0 0 auto; margin-right: -3px; }
 .agentrow.active .attn { color: #fff; }
@@ -236,7 +236,7 @@ body.right-collapsed #tree { display: none; }
 /* ── broadcast bar ───────────────────────────────────── */
 /* Broadcast is a top "address bar" under the toolbar, spanning the full width. */
 /* Broadcast omnibox — a centered address-bar pill inside the toolbar. */
-#broadcast { flex: 1 1 auto; min-width: 0; max-width: 620px; margin: 0 auto; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 5px 0 8px; background: rgba(0, 0, 0, .24); border: 1px solid rgba(255, 255, 255, .13); border-radius: 9px; }
+#broadcast { flex: 1 1 auto; min-width: 0; max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 7px 0 13px; background: rgba(0, 0, 0, .24); border: 1px solid rgba(255, 255, 255, .13); border-radius: 11px; }
 #broadcast:focus-within { border-color: var(--accent); background: rgba(0, 0, 0, .38); }
 .proj-tools { margin-left: auto; align-self: center; display: flex; align-items: center; gap: 1px; }
 .proj-tool { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: none; border: none; color: var(--muted); border-radius: 7px; cursor: pointer; font-size: 15px; }
@@ -250,7 +250,7 @@ body.right-collapsed #tree { display: none; }
 .bc-num.on { background: var(--accent); color: #fff; }
 .bc-num:hover:not(.on) { background: rgba(255, 255, 255, .1); }
 .bc-input { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.bc-input input { flex: 1; min-width: 0; background: transparent; color: #fff; border: none; padding: 6px 4px; font: inherit; font-size: 13px; }
+.bc-input input { flex: 1; min-width: 0; background: transparent; color: #fff; border: none; padding: 8px 4px; font: inherit; font-size: 14px; }
 .bc-input input::placeholder { color: rgba(255, 255, 255, .45); }
 .bc-input input:focus { outline: none; }
 /* target multi-select popover (opens upward from the bar) */
@@ -270,6 +270,6 @@ body.right-collapsed #tree { display: none; }
 /* slash-command menu */
 .bc-slash { position: fixed; z-index: 120; background: var(--elev); border: 1px solid #2a2f3a; border-radius: 10px; box-shadow: 0 16px 44px rgba(0, 0, 0, .6); padding: 6px; min-width: 260px; }
 .bc-slash-item { display: flex; align-items: baseline; gap: 10px; padding: 7px 9px; border-radius: 7px; cursor: pointer; }
-.bc-slash-item:hover { background: var(--elev-2); }
+.bc-slash-item:hover, .bc-slash-item.sel { background: var(--elev-2); }
 .bc-slash-cmd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: var(--accent-hi); font-size: 12.5px; }
 .bc-slash-desc { color: var(--muted); font-size: 11.5px; }

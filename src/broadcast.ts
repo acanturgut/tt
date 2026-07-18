@@ -19,6 +19,8 @@ let targetBtn: HTMLButtonElement | null = null;
 let numBtn: HTMLButtonElement | null = null;
 let pop: HTMLElement | null = null; // target multi-select popover
 let slash: HTMLElement | null = null; // slash-command menu
+let slashCmds: Slash[] = [];
+let slashIdx = 0;
 
 function selectedIds(): string[] {
   return currentAgents.filter((a) => !excluded.has(a.id)).map((a) => a.id);
@@ -107,14 +109,31 @@ function positionBelow(menu: HTMLElement, anchor: HTMLElement) {
 function closeSlash() {
   slash?.remove();
   slash = null;
+  slashCmds = [];
+}
+function highlightSlash() {
+  if (!slash) return;
+  Array.from(slash.children).forEach((el, i) =>
+    (el as HTMLElement).classList.toggle('sel', i === slashIdx),
+  );
+}
+function runSlash(i: number) {
+  const c = slashCmds[i];
+  if (!c) return;
+  c.run();
+  if (input) input.value = '';
+  closeSlash();
+  input?.focus();
 }
 function openSlash(prefix: string) {
   closeSlash();
   const cmds = slashCommands().filter((c) => c.cmd.startsWith(prefix));
   if (!cmds.length || !input) return;
+  slashCmds = cmds;
+  slashIdx = 0;
   slash = document.createElement('div');
   slash.className = 'bc-slash';
-  for (const c of cmds) {
+  cmds.forEach((c, i) => {
     const it = document.createElement('div');
     it.className = 'bc-slash-item';
     const name = document.createElement('span');
@@ -124,17 +143,19 @@ function openSlash(prefix: string) {
     desc.className = 'bc-slash-desc';
     desc.textContent = c.desc;
     it.append(name, desc);
+    it.onmouseenter = () => {
+      slashIdx = i;
+      highlightSlash();
+    };
     it.onmousedown = (e) => {
       e.preventDefault();
-      c.run();
-      if (input) input.value = '';
-      closeSlash();
-      input?.focus();
+      runSlash(i);
     };
-    slash.appendChild(it);
-  }
+    slash!.appendChild(it);
+  });
   document.body.appendChild(slash);
   positionBelow(slash, input);
+  highlightSlash();
 }
 
 // ---- target multi-select popover -----------------------------------------
@@ -243,10 +264,34 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
   input.placeholder = 'Message agents…   /commands · #2 to target · Enter';
   input.oninput = () => {
     const v = input!.value;
-    if (v.startsWith('/')) openSlash(v.trim().split(/\s+/)[0]);
+    // Show the menu only while typing the command itself (no space yet).
+    if (/^\/\S*$/.test(v)) openSlash(v);
     else closeSlash();
   };
   input.onkeydown = (e) => {
+    if (slash && slashCmds.length) {
+      if (e.key === 'ArrowDown') {
+        slashIdx = Math.min(slashCmds.length - 1, slashIdx + 1);
+        highlightSlash();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        slashIdx = Math.max(0, slashIdx - 1);
+        highlightSlash();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        runSlash(slashIdx);
+        return;
+      }
+      if (e.key === 'Escape') {
+        closeSlash();
+        return;
+      }
+    }
     if (e.key === 'Enter') {
       e.preventDefault();
       doSend();
