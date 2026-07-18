@@ -6,6 +6,7 @@ import {
   selectProject,
   setProjectIcon,
   setProjectColor,
+  removeProject,
 } from './projects';
 import { icon } from './icon';
 import { placeMenu } from './menu';
@@ -91,7 +92,18 @@ function openStylePicker(path: string, anchor: HTMLElement) {
     grid.appendChild(b);
   }
 
-  stylePicker.append(colors, grid);
+  const remove = document.createElement('button');
+  remove.className = 'style-remove';
+  remove.append(icon('trash'), document.createTextNode(' Remove project'));
+  remove.onmousedown = (e) => {
+    e.preventDefault();
+    if (confirm(`Remove "${proj?.name ?? path}" from tt? Its running agents keep running.`)) {
+      removeProject(path);
+      closeStylePicker();
+    }
+  };
+
+  stylePicker.append(colors, grid, remove);
   document.body.appendChild(stylePicker);
   placeMenu(stylePicker, anchor.getBoundingClientRect());
   setTimeout(() => document.addEventListener('mousedown', onPickerDown), 0);
@@ -159,6 +171,7 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
 
   const spacer = document.createElement('div');
   spacer.className = 'topbar-spacer';
+  spacer.setAttribute('data-tauri-drag-region', ''); // extra grab area to move the window
 
   const zoomOut = iconBtn('minus', 'zoom all terminals out', () => h.onZoomOut());
   const zoomIn = iconBtn('plus', 'zoom all terminals in', () => h.onZoomIn());

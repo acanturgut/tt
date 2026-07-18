@@ -31,9 +31,8 @@ button { font-family: inherit; }
 .icobtn:hover { color: #fff; background: color-mix(in srgb, var(--tab-accent, #122a4a) 72%, #fff 14%); }
 .proj-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .proj-label { color: var(--muted); flex: 0 0 auto; }
-/* padding-left clears the macOS traffic lights; the bar itself drags the window */
-#projtabs { display: flex; align-items: flex-end; gap: 0; height: 40px; flex: 0 0 40px; padding: 7px 12px 0 82px; background: var(--bg); overflow-x: auto; -webkit-app-region: drag; }
-#projtabs button { -webkit-app-region: no-drag; }
+/* padding-left clears the macOS traffic lights; the empty bar area (data-tauri-drag-region) drags the window */
+#projtabs { display: flex; align-items: flex-end; gap: 0; height: 40px; flex: 0 0 40px; padding: 7px 12px 0 82px; background: var(--bg); }
 .proj-tabs { display: flex; align-items: center; gap: 4px; }
 .proj-tab { display: inline-flex; align-items: center; gap: 6px; background: #14181e; color: #6f7886; border: none; border-radius: 9px 9px 0 0; padding: 8px 15px; cursor: pointer; font: inherit; font-weight: 600; white-space: nowrap; max-width: 210px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; position: relative; margin-right: -6px; }
 .proj-tab:hover:not(.active) { background: #1c222c; color: #b6c0cd; z-index: 3; }
@@ -49,6 +48,8 @@ button { font-family: inherit; }
 .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
 .icon-picker-item { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: none; background: none; color: var(--muted); border-radius: 7px; cursor: pointer; font-size: 17px; }
 .icon-picker-item:hover { background: var(--elev-2); color: var(--text); }
+.style-remove { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px; padding: 8px; background: none; border: none; border-top: 1px solid #2a2f3a; color: var(--danger); cursor: pointer; font: inherit; font-weight: 600; border-radius: 0; }
+.style-remove:hover { color: #ff6b60; }
 .addproj-tab { display: inline-flex; align-items: center; gap: 4px; margin-left: 12px; background: transparent; color: var(--muted); border: 1px dashed #3a4048; border-radius: 8px 8px 0 0; padding: 7px 12px; cursor: pointer; font: inherit; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
 .addproj-tab:hover { color: var(--text); background: var(--elev); }
 .proj-none { color: var(--muted); padding: 0 6px; }

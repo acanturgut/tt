@@ -22,3 +22,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Rust / Tauri build output
+/src-tauri/target
+target/
+**/*.rs.bk
+
+# Superpowers brainstorm, specs & plans — local only, never commit
+.superpowers/
+docs/superpowers/
+
+# OS / misc junk
+Thumbs.db
+.env
+.env.*
+*.pem

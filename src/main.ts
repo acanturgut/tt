@@ -31,7 +31,12 @@ import { renderTopbar, renderProjectTabs } from './topbar';
 import { renderTree } from './tree';
 import { mountBroadcast, updateBroadcast } from './broadcast';
 import { openPalette, type Command } from './palette';
-import { subscribeProjects, current as currentProject } from './projects';
+import {
+  subscribeProjects,
+  current as currentProject,
+  listProjects,
+  selectProject,
+} from './projects';
 import { getSettings, openSettings } from './settings';
 import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
@@ -145,6 +150,13 @@ function buildCommands(): Command[] {
       cmds.push({ label: `Spawn ${ag}`, hint: p.name, run: () => void spawn(ag, p.path) });
     }
   }
+  const STATUSES: { key: WorkflowLabel | undefined; text: string }[] = [
+    { key: 'planning', text: 'Planning' },
+    { key: 'in-progress', text: 'In progress' },
+    { key: 'in-review', text: 'In review' },
+    { key: 'done', text: 'Done' },
+    { key: undefined, text: 'Clear status' },
+  ];
   for (const a of visibleAgents()) {
     cmds.push({
       label: `Focus ${a.name}`,
@@ -154,6 +166,18 @@ function buildCommands(): Command[] {
         focus(a.id);
       },
     });
+    cmds.push({ label: `Kill ${a.name}`, hint: a.agentId, run: () => closeAgent(a.id) });
+    for (const st of STATUSES) {
+      cmds.push({
+        label: `Set ${a.name} → ${st.text}`,
+        hint: a.agentId,
+        run: () => setLabel(a.id, st.key),
+      });
+    }
+  }
+  for (const pr of listProjects()) {
+    if (pr.path !== p?.path)
+      cmds.push({ label: `Switch to ${pr.name}`, hint: pr.path, run: () => selectProject(pr.path) });
   }
   cmds.push({ label: 'Show grid', run: () => focus(null) });
   cmds.push({ label: 'Zoom in (all terminals)', run: () => globalZoom(1) });

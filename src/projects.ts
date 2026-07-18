@@ -72,3 +72,10 @@ export function setProjectColor(path: string, color: string) {
   save();
   emit();
 }
+
+export function removeProject(path: string) {
+  projects = projects.filter((p) => p.path !== path);
+  if (currentPath === path) currentPath = projects[0]?.path ?? null;
+  save();
+  emit();
+}
