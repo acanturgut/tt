@@ -14,6 +14,8 @@ pub struct AppState {
     counter: AtomicU64,
     // JSON snapshot of the frontend's agent list, for the MCP list_agents tool.
     pub mcp_agents: Mutex<String>,
+    // JSON snapshot of the active project's task list, for the MCP task tools.
+    pub mcp_tasks: Mutex<String>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -267,6 +269,13 @@ pub fn session_alive(session_key: String) -> bool {
 #[tauri::command]
 pub fn mcp_set_agents(state: State<AppState>, json: String) {
     if let Ok(mut g) = state.mcp_agents.lock() {
+        *g = json;
+    }
+}
+
+#[tauri::command]
+pub fn mcp_set_tasks(state: State<AppState>, json: String) {
+    if let Ok(mut g) = state.mcp_tasks.lock() {
         *g = json;
     }
 }

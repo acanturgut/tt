@@ -13,6 +13,9 @@ use tiny_http::{Header, Method, Response, Server};
 
 const PORT: u16 = 4127;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+static TASK_SEQ: AtomicUsize = AtomicUsize::new(1);
+
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
         let server = match Server::http(("127.0.0.1", PORT)) {
@@ -153,6 +156,48 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
             let _ = app.emit("mcp-close", json!({ "number": n }));
             format!("Closed agent {n}.")
         }
+        "add_task" => {
+            let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("").trim();
+            if title.is_empty() {
+                return "error: 'title' is required".into();
+            }
+            let description = args.get("description").and_then(|v| v.as_str()).unwrap_or("");
+            let id = format!("t{}", TASK_SEQ.fetch_add(1, Ordering::Relaxed));
+            let _ = app.emit(
+                "mcp-task-add",
+                json!({ "id": id, "title": title, "description": description }),
+            );
+            format!("Added task {id}: {title}")
+        }
+        "list_tasks" => {
+            let st = app.state::<AppState>();
+            let s = st.mcp_tasks.lock().map(|g| g.clone()).unwrap_or_default();
+            if s.is_empty() { "[]".into() } else { s }
+        }
+        "update_task" => {
+            let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("").trim();
+            if id.is_empty() {
+                return "error: 'id' is required".into();
+            }
+            // Validate against the snapshot the frontend keeps fresh (same source list_tasks reads).
+            let st = app.state::<AppState>();
+            let snap = st.mcp_tasks.lock().map(|g| g.clone()).unwrap_or_default();
+            let exists = serde_json::from_str::<Value>(&snap)
+                .ok()
+                .and_then(|v| v.as_array().map(|a| a.iter().any(|t| t.get("id").and_then(|x| x.as_str()) == Some(id))))
+                .unwrap_or(false);
+            if !exists {
+                return format!("error: no task {id} in the current project");
+            }
+            let mut payload = json!({ "id": id });
+            for key in ["status", "assignee", "result"] {
+                if let Some(v) = args.get(key).and_then(|v| v.as_str()) {
+                    payload[key] = json!(v);
+                }
+            }
+            let _ = app.emit("mcp-task-update", payload);
+            format!("Updated task {id}.")
+        }
         _ => format!("unknown tool: {name}"),
     }
 }
@@ -207,6 +252,37 @@ fn tool_defs() -> Value {
                 "type": "object",
                 "properties": { "agent_number": { "type": "string", "description": "agent number, e.g. \"2\" or \"1-1\"" } },
                 "required": ["agent_number"]
+            }
+        }
+        ,{
+            "name": "add_task",
+            "description": "Add a task to the current project's board. Returns the new task id (e.g. \"t3\"). New tasks start in the Planning column.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string", "description": "short task title" },
+                    "description": { "type": "string", "description": "optional detail" }
+                },
+                "required": ["title"]
+            }
+        },
+        {
+            "name": "list_tasks",
+            "description": "List the current project's tasks as JSON: id, title, status, assignee, result. status is one of planning, in-progress, in-review, done.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "update_task",
+            "description": "Update a task by id. Claim it by setting status=in-progress and assignee to your agent number; finish by setting status=done and result. status is one of planning, in-progress, in-review, done.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "task id from list_tasks/add_task" },
+                    "status": { "type": "string" },
+                    "assignee": { "type": "string" },
+                    "result": { "type": "string" }
+                },
+                "required": ["id"]
             }
         }
     ])

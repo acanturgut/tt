@@ -18,6 +18,7 @@ export interface TopbarHandlers {
   onToggleLeft: () => void;
   onToggleRight: () => void;
   onTemplates: () => void;
+  onBoard: () => void;
 }
 
 function iconBtn(name: string, title: string, onClick: () => void, extra = ''): HTMLElement {
@@ -190,7 +191,8 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
   }
 
   const tmplBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates());
+  const boardBtn = iconBtn('kanban', 'Task board', () => h.onBoard());
 
   left.append(treeToggle, wrap);
-  right.append(tmplBtn, agentsToggle);
+  right.append(tmplBtn, boardBtn, agentsToggle);
 }

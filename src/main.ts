@@ -31,12 +31,23 @@ import { renderTopbar, renderProjectTabs } from './topbar';
 import { renderTree } from './tree';
 import { mountBroadcast, updateBroadcast } from './broadcast';
 import { openPalette, type Command } from './palette';
+import { mountBoard, openBoard, closeBoard, isBoardOpen } from './board';
+import { mountTaskStrip, renderTaskStrip } from './taskstrip';
 import {
   subscribeProjects,
   current as currentProject,
   listProjects,
   selectProject,
 } from './projects';
+import {
+  addTask,
+  updateTask,
+  loadTasks,
+  allTasks,
+  snapshotFor,
+  subscribeTasks,
+  type Task,
+} from './tasks';
 import { getSettings, openSettings } from './settings';
 import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
@@ -62,6 +73,9 @@ const sidebarEl = document.getElementById('sidebar')!;
 const stageEl = document.getElementById('stage')!;
 const treeEl = document.getElementById('tree')!;
 const broadcastEl = document.getElementById('broadcast')!;
+const boardMountEl = document.getElementById('board')!;
+const statuslineEl = document.getElementById('statusline')!;
+const taskstripEl = document.getElementById('taskstrip')!;
 const welcomeEl = document.getElementById('welcome')!;
 
 function fitAll() {
@@ -113,6 +127,14 @@ function curProjPath(): string | null {
 function visibleAgents() {
   const p = curProjPath();
   return list().filter((a) => a.project === p);
+}
+function agentCounts(): { working: number; idle: number } {
+  let working = 0, idle = 0;
+  for (const a of visibleAgents()) {
+    if (a.status === 'working') working++;
+    else if (a.status === 'idle') idle++;
+  }
+  return { working, idle };
 }
 
 // Broadcast: write the text + Enter to every selected agent's PTY.
@@ -189,6 +211,7 @@ function buildCommands(): Command[] {
   cmds.push({ label: 'Toggle tree panel', run: () => toggleSide('tt.right') });
   cmds.push({ label: 'Toggle OLED / dim mode', run: toggleOled });
   cmds.push({ label: 'Fleet templates…', run: showTemplates });
+  cmds.push({ label: 'Open task board', run: openBoard });
   return cmds;
 }
 
@@ -244,6 +267,7 @@ function renderAgents() {
       })),
     ),
   }).catch(() => {});
+  renderTaskStrip();
 }
 
 // Project-driven UI — topbar + tree, only re-renders on project change.
@@ -262,10 +286,12 @@ function renderProject() {
     onToggleLeft: () => toggleSide('tt.left'),
     onToggleRight: () => toggleSide('tt.right'),
     onTemplates: showTemplates,
+    onBoard: openBoard,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, {
     onOpenAgent: (folder, agentId) => void spawn(agentId, folder),
   });
+  pushTasks();
 }
 
 async function spawn(
@@ -306,6 +332,22 @@ async function spawn(
     if (st.autoFocus) focus(id);
   } catch (e) {
     alert(`spawn failed: ${e}`);
+  }
+}
+
+// Tasks: persist to localStorage and keep the MCP snapshot (active project) fresh.
+function persistTasks() {
+  localStorage.setItem('tt.tasks', JSON.stringify(allTasks()));
+}
+function pushTasks() {
+  void invoke('mcp_set_tasks', { json: snapshotFor(curProjPath() ?? '') }).catch(() => {});
+}
+function restoreTasks() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('tt.tasks') ?? '[]');
+    if (Array.isArray(raw)) loadTasks(raw as Task[]);
+  } catch {
+    /* ignore corrupt store */
   }
 }
 
@@ -427,6 +469,24 @@ listen<{ number: string }>('mcp-close', (e) => {
   if (id) closeAgent(id);
 });
 
+subscribeTasks(() => {
+  persistTasks();
+  pushTasks();
+});
+
+listen<{ id: string; title: string; description: string }>('mcp-task-add', (e) => {
+  const p = curProjPath();
+  if (p) addTask(p, e.payload.title, e.payload.description || undefined, e.payload.id);
+});
+const TASK_STATUSES: WorkflowLabel[] = ['planning', 'in-progress', 'in-review', 'done'];
+listen<{ id: string; status?: string; assignee?: string; result?: string }>('mcp-task-update', (e) => {
+  const { id, ...patch } = e.payload;
+  // Drop an out-of-enum status from an agent (e.g. "in progress") — an invalid
+  // status matches no column and would orphan the card off the board.
+  if (patch.status && !TASK_STATUSES.includes(patch.status as WorkflowLabel)) delete patch.status;
+  updateTask(id, patch as Partial<Task>);
+});
+
 subscribe(renderAgents);
 subscribeProjects(() => {
   renderProject();
@@ -460,6 +520,10 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === '\\') {
     toggleSide('tt.left'); // agents rail
     e.preventDefault();
+  } else if (e.key.toLowerCase() === 'j') {
+    if (isBoardOpen()) closeBoard();
+    else openBoard();
+    e.preventDefault();
   } else if (e.key.toLowerCase() === 'k') {
     openPalette(buildCommands());
     e.preventDefault();
@@ -484,7 +548,10 @@ window.addEventListener('keydown', (e) => {
 applyCollapse();
 applyOled();
 mountBroadcast(broadcastEl, { onSend: broadcast });
+mountBoard(boardMountEl, () => curProjPath());
+mountTaskStrip(taskstripEl, statuslineEl, { getProject: () => curProjPath(), getAgents: agentCounts });
 renderWelcome(welcomeEl);
 renderProject();
 renderAgents();
+restoreTasks();
 void restoreAgents();

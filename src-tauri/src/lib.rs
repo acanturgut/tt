@@ -26,7 +26,8 @@ pub fn run() {
             commands::make_dir,
             commands::search_dirs,
             commands::session_alive,
-            commands::mcp_set_agents
+            commands::mcp_set_agents,
+            commands::mcp_set_tasks
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
