@@ -23,10 +23,12 @@ export class AgentTerminal {
     this.term.loadAddon(this.fit);
     this.el = document.createElement('div');
     this.el.className = 'term';
-    this.term.onData((d) => {
-      markInput(this.id);
-      void invoke('write_agent', { id: this.id, data: d });
-    });
+    // Send ALL data to the PTY (including xterm's automatic replies to terminal
+    // query sequences). But only real keystrokes (onKey) count as "input" for the
+    // attention flag — a fresh TUI like claude auto-replies on startup, which would
+    // otherwise falsely arm "needs you" with zero typing from the user.
+    this.term.onData((d) => void invoke('write_agent', { id: this.id, data: d }));
+    this.term.onKey(() => markInput(this.id));
     this.term.onResize(({ cols, rows }) =>
       void invoke('resize_agent', { id: this.id, cols, rows }),
     );
