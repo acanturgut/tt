@@ -47,10 +47,6 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
     numBtn.classList.toggle('on', numbered);
   };
 
-  const send = document.createElement('button');
-  send.className = 'bc-send';
-  send.append(icon('paper-plane-tilt'), document.createTextNode(' Send'));
-
   const doSend = () => {
     const text = input.value;
     const ids = selectedIds();
@@ -65,8 +61,7 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
       doSend();
     }
   };
-  send.onclick = doSend;
-  inputWrap.append(numBtn, input, send);
+  inputWrap.append(numBtn, input);
 
   root.append(tag, chips, inputWrap);
 }

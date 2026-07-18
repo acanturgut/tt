@@ -34,11 +34,14 @@ import { subscribeProjects, current as currentProject } from './projects';
 import { getSettings, openSettings } from './settings';
 import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
+import { showInstallHelp } from './installs';
 import './styles.css';
 
 const terms = new Map<string, AgentTerminal>();
 // Output that arrives before its AgentTerminal is registered is buffered and flushed on create.
 const pending = new Map<string, Uint8Array[]>();
+// When each agent was spawned — a near-immediate exit means the CLI failed to start.
+const spawnTimes = new Map<string, number>();
 
 const topbarEl = document.getElementById('topbar')!;
 const projtabsEl = document.getElementById('projtabs')!;
@@ -85,6 +88,7 @@ function closeAgent(id: string) {
   terms.get(id)?.dispose();
   terms.delete(id);
   pending.delete(id);
+  spawnTimes.delete(id);
   remove(id);
 }
 
@@ -228,6 +232,7 @@ async function spawn(agentId: string, dir: string, label?: WorkflowLabel) {
     });
     const t = new AgentTerminal(id);
     terms.set(id, t);
+    spawnTimes.set(id, Date.now());
     const q = pending.get(id);
     if (q) {
       pending.delete(id);
@@ -312,7 +317,19 @@ listen<{ id: string; data: number[] }>('agent-output', (e) => {
     pending.set(id, q);
   }
 });
-listen<{ id: string }>('agent-exit', (e) => markExit(e.payload.id));
+listen<{ id: string }>('agent-exit', (e) => {
+  const id = e.payload.id;
+  const a = list().find((x) => x.id === id);
+  const born = spawnTimes.get(id);
+  spawnTimes.delete(id);
+  // Died within a few seconds while still in the store (not user-closed) -> failed to start.
+  if (a && a.agentId !== 'terminal' && born && Date.now() - born < 4000) {
+    showInstallHelp(a.agentId);
+    closeAgent(id);
+  } else {
+    markExit(id);
+  }
+});
 listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
   markClaude(e.payload.id, e.payload.title, e.payload.tokens),
 );

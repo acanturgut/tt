@@ -60,7 +60,9 @@ button { font-family: inherit; }
 .sc-item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── left rail (agents) ──────────────────────────────── */
-#sidebar { width: 220px; flex: 0 0 220px; background: var(--bg); padding: 8px; overflow-y: auto; border-right: 1px solid #15181e; }
+#sidebar { width: 280px; flex: 0 0 280px; background: var(--bg); padding: 8px; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid #15181e; }
+.rail-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+.rail-otter { flex: 0 0 auto; height: 132px; margin-top: 8px; background: url(/otter-corner.png) center bottom / contain no-repeat; opacity: .9; }
 body.left-collapsed #sidebar { display: none; }
 .rail-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-weight: 600; }
 .rail-title.has-attn { color: var(--amber); }
@@ -143,6 +145,23 @@ body.right-collapsed #tree { display: none; }
 
 /* ── command palette ─────────────────────────────────── */
 .palette-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; }
+/* Install-help modal (shown when an agent CLI fails to start). */
+.install { background: var(--elev); border: 1px solid #2a2f3a; border-radius: 14px; padding: 20px; width: 460px; max-width: 92vw; box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
+.install-title { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--amber); }
+.install-title i { font-size: 18px; }
+.install-sub { color: var(--muted); font-size: 12.5px; margin-top: 8px; line-height: 1.5; }
+.install-cmd { display: flex; align-items: center; gap: 8px; margin-top: 14px; background: #0a0c10; border: 1px solid #22262e; border-radius: 8px; padding: 10px 12px; }
+.install-cmd code { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: #e6edf3; overflow-x: auto; white-space: nowrap; }
+.install-copy { flex: 0 0 auto; display: inline-flex; color: var(--muted); background: none; border: none; cursor: pointer; padding: 4px; border-radius: 6px; }
+.install-copy:hover { color: var(--text); background: var(--elev-2); }
+.install-copy.done { color: #3fb950; }
+.install-note { color: var(--muted); font-size: 12px; margin-top: 12px; line-height: 1.5; }
+.install-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.install-docs, .install-ok { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; font: inherit; }
+.install-docs { background: var(--elev-2); color: var(--text); }
+.install-docs:hover { background: #262e39; }
+.install-ok { background: var(--accent); color: #fff; }
+.install-ok:hover { background: var(--accent-hi); }
 .palette { width: 560px; max-width: 92vw; background: var(--elev); border-radius: 12px; box-shadow: 0 24px 70px rgba(0, 0, 0, .75); overflow: hidden; }
 .palette-input { width: 100%; background: transparent; color: var(--text); border: none; padding: 15px 18px; font: 14px Menlo, monospace; }
 .palette-input:focus { outline: none; }
@@ -182,10 +201,9 @@ body.right-collapsed #tree { display: none; }
 .tmpl-savebtn:hover { background: var(--accent); color: #fff; }
 
 /* ── broadcast bar ───────────────────────────────────── */
-/* Reserve the bottom-right corner for the otter; send button stops before it. */
-#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 22px 8px 12px; background: var(--bg); margin-right: 140px; }
-/* Otter mascot in the bottom-right corner. */
-#mascot { position: fixed; right: 12px; bottom: 8px; width: 120px; height: 120px; background: url(/otter-corner.png) center / contain no-repeat; opacity: .92; pointer-events: none; z-index: 6; }
+/* Bottom bar stops at the agents panel's left edge (aligns under the stage). */
+#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 22px 8px 12px; background: var(--bg); margin-right: 280px; }
+body.left-collapsed #broadcast { margin-right: 0; }
 .bc-tag { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-hi); font-weight: 700; flex: 0 0 auto; }
 .bc-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; max-width: 42%; }
 .bc-chip { font-size: 11px; padding: 4px 11px; border-radius: 999px; border: none; background: var(--elev); color: var(--muted); cursor: pointer; white-space: nowrap; flex: 0 0 auto; }

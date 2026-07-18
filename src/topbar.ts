@@ -52,8 +52,8 @@ export function renderProjectTabs(root: HTMLElement) {
 export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   root.innerHTML = '';
 
-  const left = iconBtn('sidebar-simple', 'toggle agents (⌘\\)', () => h.onToggleLeft());
   const treeToggle = iconBtn('folders', 'toggle folder tree (⌘B)', () => h.onToggleRight());
+  const agentsToggle = iconBtn('brain', 'toggle agents (⌘\\)', () => h.onToggleLeft());
 
   const wrap = document.createElement('div');
   wrap.className = 'proj-wrap';
@@ -79,5 +79,5 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   const settingsBtn = iconBtn('gear-six', 'Settings (⌘,)', () => h.onSettings());
   const oled = iconBtn('moon', 'OLED / dim mono mode', () => h.onToggleOled());
 
-  root.append(left, treeToggle, wrap, spacer, zoomOut, zoomIn, tmplBtn, settingsBtn, oled);
+  root.append(treeToggle, wrap, spacer, zoomOut, zoomIn, tmplBtn, settingsBtn, oled, agentsToggle);
 }

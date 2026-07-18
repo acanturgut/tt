@@ -39,6 +39,9 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
   head.append(title, grid);
   root.appendChild(head);
 
+  const listWrap = document.createElement('div');
+  listWrap.className = 'rail-list';
+
   const cur = focused();
   if (!agents.length) {
     const empty = document.createElement('div');
@@ -52,7 +55,8 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
     t2.className = 'rail-empty-hint';
     t2.textContent = 'Spawn one from a folder in the tree, or the top bar';
     empty.append(ic, t1, t2);
-    root.appendChild(empty);
+    listWrap.appendChild(empty);
+    root.append(listWrap, railOtter());
     return;
   }
 
@@ -123,6 +127,15 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
       meta.textContent = metaParts.join(' · ');
       row.appendChild(meta);
     }
-    root.appendChild(row);
+    listWrap.appendChild(row);
   }
+  root.append(listWrap, railOtter());
+}
+
+// Otter art pinned to the bottom of the agents panel.
+function railOtter(): HTMLElement {
+  const o = document.createElement('div');
+  o.className = 'rail-otter';
+  o.setAttribute('aria-hidden', 'true');
+  return o;
 }
