@@ -2,6 +2,7 @@ export interface Project {
   name: string;
   path: string;
   icon?: string; // Phosphor icon name shown on the tab
+  color?: string; // accent color for the selected tab + toolbar
 }
 
 const KEY = 'tt.projects';
@@ -60,6 +61,14 @@ export function setProjectIcon(path: string, icon: string) {
   const p = projects.find((x) => x.path === path);
   if (!p) return;
   p.icon = icon;
+  save();
+  emit();
+}
+
+export function setProjectColor(path: string, color: string) {
+  const p = projects.find((x) => x.path === path);
+  if (!p) return;
+  p.color = color;
   save();
   emit();
 }

@@ -1,5 +1,12 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { listProjects, current, addProject, selectProject, setProjectIcon } from './projects';
+import {
+  listProjects,
+  current,
+  addProject,
+  selectProject,
+  setProjectIcon,
+  setProjectColor,
+} from './projects';
 import { icon } from './icon';
 import { placeMenu } from './menu';
 
@@ -28,19 +35,48 @@ const PROJECT_ICONS = [
   'book-open', 'robot', 'brain', 'gear-six', 'browser', 'device-mobile',
 ];
 
-let iconPicker: HTMLElement | null = null;
-function closeIconPicker() {
-  iconPicker?.remove();
-  iconPicker = null;
+// Muted "pastel" presets that read well as a dark toolbar. First is the default.
+const TAB_COLORS = [
+  '#122a4a', '#1e3a5f', '#2f2a5e', '#3d2a52', '#14423d',
+  '#1d4a2e', '#47341a', '#4d2837', '#2a3340', '#3a1620',
+];
+const DEFAULT_COLOR = '#122a4a';
+
+let stylePicker: HTMLElement | null = null;
+function closeStylePicker() {
+  stylePicker?.remove();
+  stylePicker = null;
   document.removeEventListener('mousedown', onPickerDown);
 }
 function onPickerDown(e: MouseEvent) {
-  if (iconPicker && !iconPicker.contains(e.target as Node)) closeIconPicker();
+  if (stylePicker && !stylePicker.contains(e.target as Node)) closeStylePicker();
 }
-function openIconPicker(path: string, anchor: HTMLElement) {
-  closeIconPicker();
-  iconPicker = document.createElement('div');
-  iconPicker.className = 'icon-picker';
+function openStylePicker(path: string, anchor: HTMLElement) {
+  closeStylePicker();
+  const proj = listProjects().find((x) => x.path === path);
+  const selColor = proj?.color ?? DEFAULT_COLOR;
+
+  stylePicker = document.createElement('div');
+  stylePicker.className = 'style-picker';
+
+  const colors = document.createElement('div');
+  colors.className = 'style-colors';
+  for (const c of TAB_COLORS) {
+    const sw = document.createElement('button');
+    sw.className = 'style-swatch' + (selColor === c ? ' on' : '');
+    sw.style.background = c;
+    sw.title = c;
+    sw.onmousedown = (e) => {
+      e.preventDefault();
+      setProjectColor(path, c); // live preview; keep the picker open
+      colors.querySelectorAll('.style-swatch').forEach((el) => el.classList.remove('on'));
+      sw.classList.add('on');
+    };
+    colors.appendChild(sw);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'icon-grid';
   for (const name of PROJECT_ICONS) {
     const b = document.createElement('button');
     b.className = 'icon-picker-item';
@@ -49,12 +85,14 @@ function openIconPicker(path: string, anchor: HTMLElement) {
     b.onmousedown = (e) => {
       e.preventDefault();
       setProjectIcon(path, name);
-      closeIconPicker();
+      closeStylePicker();
     };
-    iconPicker.appendChild(b);
+    grid.appendChild(b);
   }
-  document.body.appendChild(iconPicker);
-  placeMenu(iconPicker, anchor.getBoundingClientRect());
+
+  stylePicker.append(colors, grid);
+  document.body.appendChild(stylePicker);
+  placeMenu(stylePicker, anchor.getBoundingClientRect());
   setTimeout(() => document.addEventListener('mousedown', onPickerDown), 0);
 }
 
@@ -63,16 +101,18 @@ export function renderProjectTabs(root: HTMLElement) {
   root.innerHTML = '';
   const projs = listProjects();
   const cur = current();
+  // Current project's color drives the selected tab + toolbar (via a CSS var).
+  document.documentElement.style.setProperty('--tab-accent', cur?.color ?? DEFAULT_COLOR);
   for (const p of projs) {
     const tab = document.createElement('button');
     tab.className = 'proj-tab' + (cur && p.path === cur.path ? ' active' : '');
     tab.title = p.path;
     const ic = icon(p.icon ?? 'folder');
     ic.classList.add('proj-tab-ic');
-    ic.title = 'change project icon';
+    ic.title = 'change project icon & color';
     ic.onclick = (e) => {
       e.stopPropagation();
-      openIconPicker(p.path, tab);
+      openStylePicker(p.path, tab);
     };
     const nm = document.createElement('span');
     nm.className = 'proj-tab-name';
