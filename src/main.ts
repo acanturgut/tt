@@ -43,6 +43,9 @@ const terms = new Map<string, AgentTerminal>();
 const pending = new Map<string, Uint8Array[]>();
 // When each agent was spawned — a near-immediate exit means the CLI failed to start.
 const spawnTimes = new Map<string, number>();
+// Block persistence until restoreAgents() has read the saved list, so the empty
+// startup store can never overwrite it before restore runs.
+let restoring = true;
 
 const topbarEl = document.getElementById('topbar')!;
 const projtabsEl = document.getElementById('projtabs')!;
@@ -257,6 +260,7 @@ async function spawn(agentId: string, dir: string, label?: WorkflowLabel) {
 
 // Persist agent metadata so we can reattach live tmux sessions on next launch.
 function persistAgents() {
+  if (restoring) return; // don't clobber the saved list before restoreAgents() reads it
   const data = list()
     .filter((a) => a.key)
     .map((a) => ({ agentId: a.agentId, name: a.name, dir: a.dir, label: a.label, key: a.key, project: a.project }));
@@ -264,13 +268,24 @@ function persistAgents() {
 }
 
 async function restoreAgents() {
-  let saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string }> = [];
   try {
-    const raw = JSON.parse(localStorage.getItem('tt.agents') ?? '[]');
-    if (Array.isArray(raw)) saved = raw;
-  } catch {
-    /* ignore */
+    let saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string }> = [];
+    try {
+      const raw = JSON.parse(localStorage.getItem('tt.agents') ?? '[]');
+      if (Array.isArray(raw)) saved = raw;
+    } catch {
+      /* ignore */
+    }
+    await reattachAll(saved);
+  } finally {
+    restoring = false;
+    persistAgents(); // now safe to sync localStorage to what actually reattached
   }
+}
+
+async function reattachAll(
+  saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string }>,
+) {
   for (const rec of saved) {
     if (!rec?.key || !rec?.agentId || !rec?.dir) continue;
     const alive = await invoke<boolean>('session_alive', { sessionKey: rec.key }).catch(() => false);
