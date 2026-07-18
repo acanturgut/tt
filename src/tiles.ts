@@ -159,7 +159,9 @@ export function syncTiles(
   for (const a of agents) {
     const t = tiles.get(a.id);
     if (!t) continue;
-    t.num.textContent = labels.get(a.id) ?? '';
+    const lbl = labels.get(a.id) ?? '';
+    t.num.textContent = lbl;
+    t.num.title = `Agent ${lbl} — type #${lbl} in the broadcast bar to message only this agent`;
     const visible = !focusMode || a.id === focusedId;
     t.root.style.display = visible ? 'flex' : 'none';
     t.dot.style.background = DOT[a.status];

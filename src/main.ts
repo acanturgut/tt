@@ -54,7 +54,8 @@ const spawnTimes = new Map<string, number>();
 // startup store can never overwrite it before restore runs.
 let restoring = true;
 
-const topbarEl = document.getElementById('topbar')!;
+const tbLeftEl = document.getElementById('tb-left')!;
+const tbRightEl = document.getElementById('tb-right')!;
 const projtabsEl = document.getElementById('projtabs')!;
 const sidebarEl = document.getElementById('sidebar')!;
 const stageEl = document.getElementById('stage')!;
@@ -245,16 +246,17 @@ function renderAgents() {
 
 // Project-driven UI — topbar + tree, only re-renders on project change.
 function renderProject() {
-  renderProjectTabs(projtabsEl);
-  renderTopbar(topbarEl, {
+  renderProjectTabs(projtabsEl, {
+    onZoomIn: () => globalZoom(1),
+    onZoomOut: () => globalZoom(-1),
+  });
+  renderTopbar(tbLeftEl, tbRightEl, {
     onSpawn: (agentId) => {
       const p = currentProject();
       if (p) void spawn(agentId, p.path);
     },
     onToggleLeft: () => toggleSide('tt.left'),
     onToggleRight: () => toggleSide('tt.right'),
-    onZoomIn: () => globalZoom(1),
-    onZoomOut: () => globalZoom(-1),
     onTemplates: showTemplates,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, {

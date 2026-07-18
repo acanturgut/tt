@@ -17,8 +17,6 @@ export interface TopbarHandlers {
   onSpawn: (agentId: string) => void;
   onToggleLeft: () => void;
   onToggleRight: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
   onTemplates: () => void;
 }
 
@@ -109,8 +107,20 @@ function openStylePicker(path: string, anchor: HTMLElement) {
   setTimeout(() => document.addEventListener('mousedown', onPickerDown), 0);
 }
 
+function toolBtn(name: string, title: string, onClick: () => void): HTMLElement {
+  const b = document.createElement('button');
+  b.className = 'proj-tool';
+  b.title = title;
+  b.appendChild(icon(name));
+  b.onclick = onClick;
+  return b;
+}
+
 // Project tabs live on their own row above the nav; each tab is its own panel.
-export function renderProjectTabs(root: HTMLElement) {
+export function renderProjectTabs(
+  root: HTMLElement,
+  h: { onZoomIn: () => void; onZoomOut: () => void },
+) {
   root.innerHTML = '';
   const projs = listProjects();
   const cur = current();
@@ -147,16 +157,19 @@ export function renderProjectTabs(root: HTMLElement) {
   };
   root.appendChild(add);
 
-  const gear = document.createElement('button');
-  gear.className = 'proj-settings';
-  gear.title = 'Settings (⌘,)';
-  gear.appendChild(icon('gear-six'));
-  gear.onclick = () => openSettings();
-  root.appendChild(gear);
+  const tools = document.createElement('div');
+  tools.className = 'proj-tools';
+  tools.append(
+    toolBtn('minus', 'zoom out (⌘-)', h.onZoomOut),
+    toolBtn('plus', 'zoom in (⌘+)', h.onZoomIn),
+    toolBtn('gear-six', 'Settings (⌘,)', () => openSettings()),
+  );
+  root.appendChild(tools);
 }
 
-export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
-  root.innerHTML = '';
+export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHandlers) {
+  left.innerHTML = '';
+  right.innerHTML = '';
 
   const treeToggle = iconBtn('folders', 'toggle folder tree (⌘B)', () => h.onToggleRight());
   const agentsToggle = iconBtn('brain', 'toggle agents (⌘\\)', () => h.onToggleLeft());
@@ -170,18 +183,14 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
     const b = document.createElement('button');
     b.className = 'spawnbtn';
     b.disabled = !hasProj;
-    b.append(providerIcon(agent), document.createTextNode(` ${agent}`));
-    b.title = hasProj ? `spawn ${agent} in ${cur!.name}` : 'add a project first';
+    b.append(providerIcon(agent)); // icon-only; the CLI name is in the tooltip
+    b.title = hasProj ? `New ${agent} in ${cur!.name}` : 'add a project first';
     b.onclick = () => h.onSpawn(agent);
     wrap.append(b);
   }
 
-  const spacer = document.createElement('div');
-  spacer.className = 'topbar-spacer';
-  spacer.setAttribute('data-tauri-drag-region', ''); // extra grab area to move the window
-
-  const zoomOut = iconBtn('minus', 'zoom all terminals out', () => h.onZoomOut());
-  const zoomIn = iconBtn('plus', 'zoom all terminals in', () => h.onZoomIn());
   const tmplBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates());
-  root.append(treeToggle, wrap, spacer, zoomOut, zoomIn, tmplBtn, agentsToggle);
+
+  left.append(treeToggle, wrap);
+  right.append(tmplBtn, agentsToggle);
 }

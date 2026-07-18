@@ -230,7 +230,7 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
   const tl = document.createElement('span');
   tl.className = 'bc-target-label';
   tl.textContent = '0 of 0';
-  targetBtn.append(tl, icon('caret-up'));
+  targetBtn.append(tl, icon('caret-down'));
   targetBtn.onclick = (e) => {
     e.stopPropagation();
     togglePop();
@@ -240,7 +240,7 @@ export function mountBroadcast(root: HTMLElement, h: BroadcastHandlers) {
   inputWrap.className = 'bc-input';
   input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'Message selected agents…   ( / commands · #2 targets agent 2 · Enter )';
+  input.placeholder = 'Message agents…   /commands · #2 to target · Enter';
   input.oninput = () => {
     const v = input!.value;
     if (v.startsWith('/')) openSlash(v.trim().split(/\s+/)[0]);

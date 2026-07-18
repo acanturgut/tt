@@ -24,7 +24,9 @@ body.oled { filter: grayscale(1) brightness(0.82); }
 button { font-family: inherit; }
 
 /* ── top bar ─────────────────────────────────────────── */
-#topbar { display: flex; align-items: center; gap: 10px; height: 46px; flex: 0 0 46px; padding: 0 12px; background: var(--tab-accent, #122a4a); overflow-x: auto; }
+#topbar { display: flex; align-items: center; gap: 10px; height: 48px; flex: 0 0 48px; padding: 0 12px; background: var(--tab-accent, #122a4a); }
+.tb-side { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+#tb-right { justify-content: flex-end; }
 #topbar .brand { font-weight: 800; letter-spacing: .5px; color: var(--accent-hi); font-size: 15px; }
 .topbar-spacer { flex: 1; }
 .icobtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: transparent; color: var(--muted); border: none; border-radius: 7px; cursor: pointer; }
@@ -58,6 +60,8 @@ button { font-family: inherit; }
 .addproj:hover { background: var(--accent-hi); }
 .spawnbtn { background: color-mix(in srgb, var(--tab-accent, #122a4a) 58%, #000); color: #dfeaf6; }
 .spawnbtn:hover:not(:disabled) { background: color-mix(in srgb, var(--tab-accent, #122a4a) 90%, #fff 12%); color: #fff; }
+.spawnbtn { width: 32px; height: 30px; padding: 0; justify-content: center; }
+.spawnbtn i { font-size: 16px; }
 .agent-ico { width: 15px; height: 15px; object-fit: contain; flex: 0 0 auto; }
 .settings-note { color: var(--muted); font-size: 10.5px; line-height: 1.45; margin-top: 12px; }
 .spawnbtn:disabled { opacity: .4; cursor: default; color: var(--muted); }
@@ -231,19 +235,24 @@ body.right-collapsed #tree { display: none; }
 
 /* ── broadcast bar ───────────────────────────────────── */
 /* Broadcast is a top "address bar" under the toolbar, spanning the full width. */
-#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--bg); border-bottom: 1px solid #15181e; }
-.proj-settings { margin-left: auto; align-self: center; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: none; border: none; color: var(--muted); border-radius: 7px; cursor: pointer; }
-.proj-settings:hover { color: #fff; background: rgba(255, 255, 255, .08); }
-.bc-target { display: inline-flex; align-items: center; gap: 6px; background: var(--elev); color: var(--text); border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; font: inherit; font-weight: 600; flex: 0 0 auto; white-space: nowrap; }
-.bc-target:hover { background: var(--elev-2); }
+/* Broadcast omnibox — a centered address-bar pill inside the toolbar. */
+#broadcast { flex: 1 1 auto; min-width: 0; max-width: 620px; margin: 0 auto; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 5px 0 8px; background: rgba(0, 0, 0, .24); border: 1px solid rgba(255, 255, 255, .13); border-radius: 9px; }
+#broadcast:focus-within { border-color: var(--accent); background: rgba(0, 0, 0, .38); }
+.proj-tools { margin-left: auto; align-self: center; display: flex; align-items: center; gap: 1px; }
+.proj-tool { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: none; border: none; color: var(--muted); border-radius: 7px; cursor: pointer; font-size: 15px; }
+.proj-tool:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+.bc-target { display: inline-flex; align-items: center; gap: 5px; background: transparent; color: #cdd6e0; border: none; border-radius: 6px; padding: 4px 7px; cursor: pointer; font: inherit; font-weight: 600; font-size: 12px; flex: 0 0 auto; white-space: nowrap; }
+.bc-target:hover { background: rgba(255, 255, 255, .1); }
 .bc-target > i:first-child { color: var(--accent-hi); }
-.bc-target .ph-caret-up { color: var(--muted); font-size: 11px; }
-.bc-target-label { color: var(--muted); font-weight: 700; }
-.bc-num { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 8px 11px; border-radius: 7px; border: none; background: var(--elev); color: var(--muted); cursor: pointer; flex: 0 0 auto; white-space: nowrap; }
+.bc-target .ph-caret-down { color: rgba(255, 255, 255, .5); font-size: 11px; }
+.bc-target-label { color: #9fb0c8; font-weight: 700; }
+.bc-num { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 4px 8px; border-radius: 6px; border: none; background: transparent; color: #9fb0c8; cursor: pointer; flex: 0 0 auto; white-space: nowrap; }
 .bc-num.on { background: var(--accent); color: #fff; }
+.bc-num:hover:not(.on) { background: rgba(255, 255, 255, .1); }
 .bc-input { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.bc-input input { flex: 1; min-width: 0; background: var(--elev); color: var(--text); border: none; border-radius: 7px; padding: 9px 12px; font: inherit; }
-.bc-input input:focus { outline: none; background: var(--elev-2); }
+.bc-input input { flex: 1; min-width: 0; background: transparent; color: #fff; border: none; padding: 6px 4px; font: inherit; font-size: 13px; }
+.bc-input input::placeholder { color: rgba(255, 255, 255, .45); }
+.bc-input input:focus { outline: none; }
 /* target multi-select popover (opens upward from the bar) */
 .bc-pop { position: fixed; z-index: 120; background: var(--elev); border: 1px solid #2a2f3a; border-radius: 12px; box-shadow: 0 16px 44px rgba(0, 0, 0, .6); padding: 8px; min-width: 240px; max-height: 340px; overflow-y: auto; }
 .bc-pop-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 8px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
