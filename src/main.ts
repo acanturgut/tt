@@ -8,6 +8,7 @@ import {
 } from '@tauri-apps/plugin-notification';
 import {
   add,
+  agentTree,
   clearAttention,
   focus,
   focused,
@@ -109,9 +110,10 @@ function visibleAgents() {
 function broadcast(ids: string[], text: string, numbered: boolean) {
   const vis = visibleAgents();
   const total = vis.length;
+  const labels = new Map(agentTree(vis).map((n) => [n.agent.id, n.label]));
   for (const id of ids) {
     markInput(id);
-    const num = vis.findIndex((a) => a.id === id) + 1; // same number shown on the tile/rail
+    const num = labels.get(id) ?? '?'; // hierarchical number shown on the tile/rail
     const msg = numbered ? `You are agent ${num} of ${total}. ${text}` : text;
     void invoke('write_agent', { id, data: msg });
     // Send Enter as a SEPARATE write a beat later so TUIs (claude/codex) submit
@@ -201,10 +203,17 @@ function renderAgents() {
   updateBroadcast(vis);
   syncNotifications();
   persistAgents();
-  // Push a snapshot for the MCP server's list_agents tool (number = position in list()).
+  // Push a snapshot for the MCP server's list_agents tool (hierarchical numbers).
+  const mcpLabels = new Map(agentTree(list()).map((n) => [n.agent.id, n.label]));
   void invoke('mcp_set_agents', {
     json: JSON.stringify(
-      list().map((a, i) => ({ number: i + 1, name: a.name, kind: a.agentId, dir: a.dir, status: a.status })),
+      list().map((a) => ({
+        number: mcpLabels.get(a.id) ?? '',
+        name: a.name,
+        kind: a.agentId,
+        dir: a.dir,
+        status: a.status,
+      })),
     ),
   }).catch(() => {});
 }
@@ -230,7 +239,12 @@ function renderProject() {
   });
 }
 
-async function spawn(agentId: string, dir: string, label?: WorkflowLabel) {
+async function spawn(
+  agentId: string,
+  dir: string,
+  label?: WorkflowLabel,
+  opts?: { spawned?: boolean; parentId?: string },
+) {
   const st = getSettings();
   const key = crypto.randomUUID();
   try {
@@ -256,6 +270,8 @@ async function spawn(agentId: string, dir: string, label?: WorkflowLabel) {
       status: 'working',
       key,
       project: curProjPath() ?? undefined,
+      spawned: opts?.spawned,
+      parentId: opts?.parentId,
       label: label ?? (st.autoPlanning ? 'planning' : undefined),
     });
     if (st.autoFocus) focus(id);
@@ -358,10 +374,16 @@ listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
 
 // MCP server -> UI: an agent (via the tt MCP tools) asked to spawn/send/broadcast/close.
 // Numbers are 1-based positions in list() (matches the list_agents snapshot).
-listen<{ agent: string; dir: string }>('mcp-spawn', (e) => void spawn(e.payload.agent, e.payload.dir));
-listen<{ number: number; text: string }>('mcp-send', (e) => {
-  const a = list()[e.payload.number - 1];
-  if (a) broadcast([a.id], e.payload.text, false);
+listen<{ agent: string; dir: string }>('mcp-spawn', (e) =>
+  void spawn(e.payload.agent, e.payload.dir, undefined, {
+    spawned: true,
+    parentId: focused() ?? undefined, // best-effort: the agent you're watching spawned it
+  }),
+);
+listen<{ number: string; text: string }>('mcp-send', (e) => {
+  const byLabel = new Map(agentTree(list()).map((n) => [n.label, n.agent.id]));
+  const id = byLabel.get(String(e.payload.number));
+  if (id) broadcast([id], e.payload.text, false);
 });
 listen<{ text: string; numbered: boolean }>('mcp-broadcast', (e) =>
   broadcast(
@@ -370,9 +392,10 @@ listen<{ text: string; numbered: boolean }>('mcp-broadcast', (e) =>
     e.payload.numbered,
   ),
 );
-listen<{ number: number }>('mcp-close', (e) => {
-  const a = list()[e.payload.number - 1];
-  if (a) closeAgent(a.id);
+listen<{ number: string }>('mcp-close', (e) => {
+  const byLabel = new Map(agentTree(list()).map((n) => [n.label, n.agent.id]));
+  const id = byLabel.get(String(e.payload.number));
+  if (id) closeAgent(id);
 });
 
 subscribe(renderAgents);

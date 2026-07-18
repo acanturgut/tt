@@ -14,6 +14,8 @@ export interface Agent {
   tokens?: number;
   key?: string; // persistence key; tmux session = tt-<key>
   project?: string; // project path this agent belongs to (its tab/panel)
+  spawned?: boolean; // created by another agent via MCP (a sub-agent)
+  parentId?: string; // best-effort: the agent focused when this one was spawned
 }
 
 const agents = new Map<string, Agent>();
@@ -111,6 +113,36 @@ export function attentionCount(): number {
   let n = 0;
   for (const a of agents.values()) if (a.attention) n++;
   return n;
+}
+
+export interface AgentNode {
+  agent: Agent;
+  depth: number;
+  label: string; // hierarchical: roots "1","2"…; children of #1 -> "1-1","1-2"…
+}
+
+// Order agents as a tree (each spawned sub-agent nested under its parent) and
+// assign hierarchical display numbers.
+export function agentTree(input: Agent[]): AgentNode[] {
+  const has = new Set(input.map((a) => a.id));
+  const kids = new Map<string, Agent[]>();
+  const roots: Agent[] = [];
+  for (const a of input) {
+    if (a.parentId && has.has(a.parentId) && a.parentId !== a.id) {
+      const arr = kids.get(a.parentId) ?? [];
+      arr.push(a);
+      kids.set(a.parentId, arr);
+    } else {
+      roots.push(a);
+    }
+  }
+  const out: AgentNode[] = [];
+  const walk = (a: Agent, depth: number, label: string) => {
+    out.push({ agent: a, depth, label });
+    (kids.get(a.id) ?? []).forEach((c, i) => walk(c, depth + 1, `${label}-${i + 1}`));
+  };
+  roots.forEach((r, i) => walk(r, 0, `${i + 1}`));
+  return out;
 }
 
 export function markClaude(id: string, title?: string, tokens?: number) {

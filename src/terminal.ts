@@ -31,6 +31,21 @@ export class AgentTerminal {
     // otherwise falsely arm "needs you" with zero typing from the user.
     this.term.onData((d) => void invoke('write_agent', { id: this.id, data: d }));
     this.term.onKey(() => markInput(this.id));
+    // ⌘C copies the selection, ⌘V pastes — otherwise the terminal swallows them.
+    this.term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey) return true;
+      if (e.key === 'c' && this.term.hasSelection()) {
+        void navigator.clipboard.writeText(this.term.getSelection());
+        return false;
+      }
+      if (e.key === 'v') {
+        void navigator.clipboard.readText().then((t) => {
+          if (t) this.term.paste(t);
+        });
+        return false;
+      }
+      return true;
+    });
     this.term.onResize(({ cols, rows }) =>
       void invoke('resize_agent', { id: this.id, cols, rows }),
     );

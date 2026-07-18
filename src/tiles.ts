@@ -1,5 +1,5 @@
 import { gridDims } from './grid';
-import type { Agent, WorkflowLabel } from './agents';
+import { agentTree, type Agent, type WorkflowLabel } from './agents';
 import type { AgentTerminal } from './terminal';
 import { statusPill, updatePill, labelColor } from './statuspill';
 import { editableName } from './naming';
@@ -155,12 +155,11 @@ export function syncTiles(
   stage.style.gridTemplateColumns = focusMode ? '1fr' : `repeat(${cols || 1}, 1fr)`;
   stage.style.gridTemplateRows = focusMode ? '1fr' : `repeat(${rows || 1}, 1fr)`;
 
-  let idx = 0;
+  const labels = new Map(agentTree(agents).map((n) => [n.agent.id, n.label]));
   for (const a of agents) {
-    idx += 1;
     const t = tiles.get(a.id);
     if (!t) continue;
-    t.num.textContent = String(idx);
+    t.num.textContent = labels.get(a.id) ?? '';
     const visible = !focusMode || a.id === focusedId;
     t.root.style.display = visible ? 'flex' : 'none';
     t.dot.style.background = DOT[a.status];

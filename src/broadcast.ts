@@ -1,4 +1,4 @@
-import type { Agent } from './agents';
+import { agentTree, type Agent } from './agents';
 import { icon } from './icon';
 
 export interface BroadcastHandlers {
@@ -55,16 +55,18 @@ function slashCommands(): Slash[] {
 
 // #N tokens target agents by their number (1-based position). Returns targets + stripped text.
 function parseTargets(text: string): { ids: string[]; clean: string } | null {
-  const nums = new Set<number>();
-  const re = /(?:^|\s)#(\d+)\b/g;
+  const tokens = new Set<string>();
+  const re = /(?:^|\s)#([0-9]+(?:-[0-9]+)*)\b/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) nums.add(Number(m[1]));
-  if (!nums.size) return null;
+  while ((m = re.exec(text))) tokens.add(m[1]);
+  if (!tokens.size) return null;
+  const byLabel = new Map(agentTree(currentAgents).map((n) => [n.label, n.agent.id]));
   const ids: string[] = [];
-  currentAgents.forEach((a, i) => {
-    if (nums.has(i + 1)) ids.push(a.id);
-  });
-  const clean = text.replace(/(?:^|\s)#\d+\b/g, ' ').replace(/\s+/g, ' ').trim();
+  for (const tok of tokens) {
+    const id = byLabel.get(tok);
+    if (id) ids.push(id);
+  }
+  const clean = text.replace(/(?:^|\s)#[0-9]+(?:-[0-9]+)*\b/g, ' ').replace(/\s+/g, ' ').trim();
   return { ids, clean };
 }
 

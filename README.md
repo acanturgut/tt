@@ -82,6 +82,26 @@ Claude gets a pinned `--session-id` so tt reads exactly that session's title +
 token count from `~/.claude/projects` (no cross-talk between two claudes in one
 folder).
 
+## MCP — let agents spawn agents
+
+While tt is running it exposes an MCP server at `http://127.0.0.1:4127/mcp`
+(loopback only, no auth). Point any agent CLI at it and that agent can spawn and
+coordinate more agents — the new agents appear as normal tiles in tt.
+
+**Tools:** `spawn_agent(agent, dir)` · `list_agents()` · `send(agent_number, text)` ·
+`broadcast(text, numbered?)` · `close_agent(agent_number)`. Agent numbers are
+hierarchical — a sub-agent spawned by #1 is `1-1`.
+
+Add it to Claude Code (restart the session afterward):
+
+```sh
+claude mcp add tt --transport http http://127.0.0.1:4127/mcp
+# verify:  claude mcp list   →   tt … ✔ Connected
+```
+
+Every other CLI uses the same URL — see [docs/MCP.md](docs/MCP.md) for Codex,
+Cursor, Gemini, and opencode config snippets.
+
 ## Tests
 
 ```sh

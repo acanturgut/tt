@@ -1,4 +1,4 @@
-import { focused, type Agent, type WorkflowLabel } from './agents';
+import { focused, agentTree, type Agent, type WorkflowLabel } from './agents';
 import { statusPill, labelColor } from './statuspill';
 import { icon } from './icon';
 
@@ -60,12 +60,15 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
     return;
   }
 
-  let idx = 0;
-  for (const a of agents) {
-    idx += 1;
+  for (const node of agentTree(agents)) {
+    const a = node.agent;
     const row = document.createElement('div');
     row.className =
-      'agentrow' + (a.id === cur ? ' active' : '') + (a.attention ? ' attention' : '');
+      'agentrow' +
+      (a.id === cur ? ' active' : '') +
+      (a.attention ? ' attention' : '') +
+      (node.depth > 0 ? ' sub' : '');
+    if (node.depth > 0) row.style.marginLeft = `${node.depth * 14}px`;
     row.onclick = () => h.onFocusToggle(a.id);
 
     row.draggable = true;
@@ -105,14 +108,21 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
     };
     const num = document.createElement('span');
     num.className = 'rnum';
-    num.textContent = `#${idx}`;
+    num.textContent = `#${node.label}`;
+    const lead: HTMLElement[] = [];
+    if (node.depth > 0) {
+      const arrow = icon('arrow-bend-down-right');
+      arrow.classList.add('sub-arrow');
+      lead.push(arrow);
+    }
+    lead.push(num, dot);
     if (a.attention) {
       const star = document.createElement('span');
       star.className = 'attn';
       star.appendChild(icon('bell-ringing'));
-      top.append(num, dot, star, label, close);
+      top.append(...lead, star, label, close);
     } else {
-      top.append(num, dot, label, close);
+      top.append(...lead, label, close);
     }
 
     const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));

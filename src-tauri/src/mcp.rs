@@ -91,6 +91,15 @@ fn handle(app: &AppHandle, body: &str, is_post: bool) -> Option<Value> {
     }
 }
 
+// agent_number may arrive as an int (2) or a hierarchical string ("1-1").
+fn num_arg(args: &Value, key: &str) -> String {
+    match args.get(key) {
+        Some(Value::String(s)) => s.trim().to_string(),
+        Some(Value::Number(n)) => n.to_string(),
+        _ => String::new(),
+    }
+}
+
 fn result(id: Value, result: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
@@ -119,9 +128,9 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
             }
         }
         "send" => {
-            let n = args.get("agent_number").and_then(|v| v.as_u64()).unwrap_or(0);
+            let n = num_arg(args, "agent_number");
             let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
-            if n == 0 {
+            if n.is_empty() {
                 return "error: 'agent_number' is required".into();
             }
             let _ = app.emit("mcp-send", json!({ "number": n, "text": text }));
@@ -137,8 +146,8 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
             "Broadcast sent to all agents.".into()
         }
         "close_agent" => {
-            let n = args.get("agent_number").and_then(|v| v.as_u64()).unwrap_or(0);
-            if n == 0 {
+            let n = num_arg(args, "agent_number");
+            if n.is_empty() {
                 return "error: 'agent_number' is required".into();
             }
             let _ = app.emit("mcp-close", json!({ "number": n }));
@@ -173,7 +182,7 @@ fn tool_defs() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "agent_number": { "type": "integer" },
+                    "agent_number": { "type": "string", "description": "agent number, e.g. \"2\" or a sub-agent like \"1-1\"" },
                     "text": { "type": "string" }
                 },
                 "required": ["agent_number", "text"]
@@ -196,7 +205,7 @@ fn tool_defs() -> Value {
             "description": "Close (kill) an agent addressed by its number.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "agent_number": { "type": "integer" } },
+                "properties": { "agent_number": { "type": "string", "description": "agent number, e.g. \"2\" or \"1-1\"" } },
                 "required": ["agent_number"]
             }
         }
