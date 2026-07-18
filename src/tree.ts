@@ -30,9 +30,14 @@ export async function renderTree(container: HTMLElement, rootPath: string | null
   if (gen !== treeGen) return; // superseded by a newer render — don't append (avoids duplicate trees)
   container.innerHTML = '';
 
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'tree-search-wrap';
+  const searchIcon = icon('magnifying-glass');
+  searchIcon.classList.add('tree-search-ic');
   const search = document.createElement('input');
   search.className = 'tree-search';
   search.placeholder = 'Search folders (deep)…';
+  searchWrap.append(searchIcon, search);
 
   const scroll = document.createElement('div');
   scroll.className = 'tree-scroll';
@@ -71,7 +76,7 @@ export async function renderTree(container: HTMLElement, rootPath: string | null
     timer = setTimeout(() => void runSearch(q), 180);
   };
 
-  container.append(search, scroll, results);
+  container.append(searchWrap, scroll, results);
 }
 
 // Deep-search results: a flat list of matching folders anywhere under the root.

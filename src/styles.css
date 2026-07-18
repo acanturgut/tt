@@ -126,7 +126,9 @@ body.left-collapsed #sidebar { display: none; }
 /* ── right tree ──────────────────────────────────────── */
 #tree { width: 268px; flex: 0 0 268px; background: var(--bg); padding: 6px; display: flex; flex-direction: column; overflow: hidden; }
 body.right-collapsed #tree { display: none; }
-.tree-search { flex: 0 0 auto; width: 100%; background: var(--elev); color: var(--text); border: none; border-radius: 7px; padding: 7px 10px; margin-bottom: 6px; font: inherit; }
+.tree-search-wrap { flex: 0 0 auto; position: relative; margin-bottom: 6px; }
+.tree-search-ic { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none; }
+.tree-search { width: 100%; background: var(--elev); color: var(--text); border: none; border-radius: 7px; padding: 7px 10px 7px 30px; font: inherit; }
 .tree-search:focus { outline: none; background: var(--elev-2); }
 .tree-scroll { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0; }
 .tree-results { flex: 1 1 auto; overflow-y: auto; min-height: 0; }

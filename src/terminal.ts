@@ -11,11 +11,13 @@ export class AgentTerminal {
   el: HTMLDivElement;
   private opened = false;
   private fontSize = 12;
+  private webgl?: WebglAddon;
 
   constructor(public id: string) {
     this.term = new Terminal({
       fontFamily: 'Menlo, monospace',
       fontSize: this.fontSize,
+      lineHeight: 1.15,
       cursorBlink: true,
       allowProposedApi: true,
     });
@@ -39,12 +41,17 @@ export class AgentTerminal {
     if (this.opened) return;
     this.opened = true;
     this.term.open(this.el);
-    try {
-      this.term.loadAddon(new WebglAddon());
-    } catch {
-      /* webgl unavailable — canvas fallback is fine */
-    }
+    this.loadWebgl();
     this.fitNow();
+  }
+
+  private loadWebgl() {
+    try {
+      this.webgl = new WebglAddon();
+      this.term.loadAddon(this.webgl);
+    } catch {
+      this.webgl = undefined; // webgl unavailable — canvas fallback is fine
+    }
   }
 
   write(data: Uint8Array) {
@@ -62,7 +69,19 @@ export class AgentTerminal {
   setFontSize(px: number) {
     this.fontSize = Math.max(6, Math.min(32, px));
     this.term.options.fontSize = this.fontSize;
-    this.fitNow();
+    // WebGL caches cell dimensions at the old font size; reload it so rows
+    // re-measure at the new size (otherwise lines pack together after a zoom).
+    if (this.webgl && this.opened) {
+      try {
+        this.webgl.dispose();
+      } catch {
+        /* ignore */
+      }
+      this.webgl = undefined;
+      this.loadWebgl();
+    }
+    // Defer the fit a frame so the char re-measure lands before we compute rows.
+    requestAnimationFrame(() => this.fitNow());
   }
   zoomIn() {
     this.setFontSize(this.fontSize + 1);
