@@ -21,6 +21,7 @@ import {
   setLabel,
   setName,
   subscribe,
+  type WorkflowLabel,
 } from './agents';
 import { AgentTerminal } from './terminal';
 import { syncTiles } from './tiles';
@@ -161,6 +162,7 @@ function renderAgents() {
   });
   updateBroadcast(list());
   syncNotifications();
+  persistAgents();
 }
 
 // Project-driven UI — topbar + tree, only re-renders on project change.
@@ -184,11 +186,13 @@ function renderProject() {
 
 async function spawn(agentId: string, dir: string) {
   const st = getSettings();
+  const key = crypto.randomUUID();
   try {
     const id = await invoke<string>('spawn_agent', {
       projectDir: dir,
       agentId,
       permMode: agentId === 'claude' ? st.claudeMode : undefined,
+      sessionKey: key,
     });
     const t = new AgentTerminal(id);
     terms.set(id, t);
@@ -203,11 +207,61 @@ async function spawn(agentId: string, dir: string) {
       name: agentId,
       dir,
       status: 'working',
+      key,
       label: st.autoPlanning ? 'planning' : undefined,
     });
     if (st.autoFocus) focus(id);
   } catch (e) {
     alert(`spawn failed: ${e}`);
+  }
+}
+
+// Persist agent metadata so we can reattach live tmux sessions on next launch.
+function persistAgents() {
+  const data = list()
+    .filter((a) => a.key)
+    .map((a) => ({ agentId: a.agentId, name: a.name, dir: a.dir, label: a.label, key: a.key }));
+  localStorage.setItem('tt.agents', JSON.stringify(data));
+}
+
+async function restoreAgents() {
+  let saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string }> = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem('tt.agents') ?? '[]');
+    if (Array.isArray(raw)) saved = raw;
+  } catch {
+    /* ignore */
+  }
+  for (const rec of saved) {
+    if (!rec?.key || !rec?.agentId || !rec?.dir) continue;
+    const alive = await invoke<boolean>('session_alive', { sessionKey: rec.key }).catch(() => false);
+    if (!alive) continue; // tmux session gone (reboot etc.) -> drop it
+    try {
+      const id = await invoke<string>('spawn_agent', {
+        projectDir: rec.dir,
+        agentId: rec.agentId,
+        permMode: rec.agentId === 'claude' ? getSettings().claudeMode : undefined,
+        sessionKey: rec.key,
+      });
+      const t = new AgentTerminal(id);
+      terms.set(id, t);
+      const q = pending.get(id);
+      if (q) {
+        pending.delete(id);
+        for (const b of q) t.write(b);
+      }
+      add({
+        id,
+        agentId: rec.agentId,
+        name: rec.name ?? rec.agentId,
+        dir: rec.dir,
+        status: 'working',
+        key: rec.key,
+        label: rec.label as WorkflowLabel | undefined,
+      });
+    } catch {
+      /* skip */
+    }
   }
 }
 
@@ -264,6 +318,10 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === ',') {
     openSettings();
     e.preventDefault();
+  } else if (e.key.toLowerCase() === 'w') {
+    const f = focused();
+    if (f) closeAgent(f);
+    e.preventDefault(); // don't let Cmd-W close the window
   }
 });
 
@@ -272,3 +330,4 @@ applyOled();
 mountBroadcast(broadcastEl, { onSend: broadcast });
 renderProject();
 renderAgents();
+void restoreAgents();

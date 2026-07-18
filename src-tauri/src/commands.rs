@@ -57,6 +57,22 @@ fn expand_dir(dir: &str) -> String {
     }
 }
 
+fn sh_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+fn tmux_available() -> bool {
+    use std::sync::OnceLock;
+    static AVAIL: OnceLock<bool> = OnceLock::new();
+    *AVAIL.get_or_init(|| {
+        std::process::Command::new("tmux")
+            .arg("-V")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    })
+}
+
 fn get_session(state: &State<AppState>, id: &str) -> Result<Arc<PtySession>, String> {
     state
         .agents
@@ -74,6 +90,7 @@ pub fn spawn_agent(
     project_dir: String,
     agent_id: String,
     perm_mode: Option<String>,
+    session_key: String,
 ) -> Result<String, String> {
     let cmd =
         registry::command_for(&agent_id).ok_or_else(|| format!("unknown agent: {agent_id}"))?;
@@ -82,10 +99,7 @@ pub fn spawn_agent(
     let n = state.counter.fetch_add(1, Ordering::Relaxed);
     let id = format!("{agent_id}-{n}");
 
-    // For claude, pin a session id (`--session-id <uuid>`) so we watch exactly this
-    // agent's jsonl — two claudes in one folder would otherwise cross their status.
     let mut args = cmd.args;
-    let mut session_id = String::new();
     if agent_id == "claude" {
         if let Some(mode) = perm_mode {
             if let Some(i) = args.iter().position(|a| a == "--permission-mode") {
@@ -94,10 +108,35 @@ pub fn spawn_agent(
                 }
             }
         }
-        session_id = uuid::Uuid::new_v4().to_string();
+        // Stable session id (from session_key) so the jsonl watcher still points at
+        // the right file after a reattach.
         args.push("--session-id".to_string());
-        args.push(session_id.clone());
+        args.push(session_key.clone());
     }
+
+    // Run inside tmux (if available) so the session survives tt closing and can be
+    // reattached on restart. status bar off so tiles have no green tmux bar.
+    let tmux_name = if tmux_available() {
+        Some(format!("tt-{session_key}"))
+    } else {
+        None
+    };
+    let (program, spawn_args): (String, Vec<String>) = if let Some(ref name) = tmux_name {
+        let cmdq = std::iter::once(cmd.program.clone())
+            .chain(args.iter().cloned())
+            .map(|a| sh_quote(&a))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let full = format!(
+            "tmux has-session -t {name} 2>/dev/null || tmux new-session -d -s {name} -c {dir} {cmdq}; tmux set -t {name} status off 2>/dev/null; exec tmux attach -t {name}",
+            name = name,
+            dir = sh_quote(&project_dir),
+            cmdq = cmdq,
+        );
+        ("sh".to_string(), vec!["-c".to_string(), full])
+    } else {
+        (cmd.program.clone(), args.clone())
+    };
 
     // One flag stops the claude-watch poller. on_exit flips it, so BOTH a natural
     // exit and kill_agent (kill -> child dies -> reader EOF -> on_exit) end it.
@@ -110,8 +149,8 @@ pub fn spawn_agent(
     let id_exit = id.clone();
 
     let session = PtySession::spawn(
-        &cmd.program,
-        &args,
+        &program,
+        &spawn_args,
         &project_dir,
         80,
         24,
@@ -128,11 +167,12 @@ pub fn spawn_agent(
             watch_stop_exit.store(true, Ordering::Relaxed);
             let _ = app_exit.emit("agent-exit", ExitPayload { id: id_exit.clone() });
         },
+        tmux_name.clone(),
     )?;
 
-    // Claude-only: tail the newest jsonl for title + tokens.
+    // Claude-only: tail the jsonl (keyed by session_key) for title + tokens.
     if agent_id == "claude" {
-        start_claude_watch(app.clone(), id.clone(), project_dir.clone(), session_id, watch_stop);
+        start_claude_watch(app.clone(), id.clone(), project_dir.clone(), session_key, watch_stop);
     }
 
     state
@@ -196,9 +236,26 @@ pub fn kill_agent(state: State<AppState>, id: String) -> Result<(), String> {
         agents.remove(&id)
     };
     if let Some(s) = removed {
+        // A tmux-backed agent's PTY child is only the tmux client; kill the actual
+        // session so the agent stops (plain-PTY agents just get killed directly).
+        if let Some(name) = s.tmux() {
+            let _ = std::process::Command::new("tmux")
+                .args(["kill-session", "-t", &name])
+                .status();
+        }
         s.kill();
     }
     Ok(())
+}
+
+// True if this agent's tmux session is still alive (for reattach on restart).
+#[tauri::command]
+pub fn session_alive(session_key: String) -> bool {
+    std::process::Command::new("tmux")
+        .args(["has-session", "-t", &format!("tt-{session_key}")])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 #[derive(serde::Serialize)]

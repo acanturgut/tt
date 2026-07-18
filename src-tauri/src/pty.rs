@@ -9,6 +9,7 @@ pub struct PtySession {
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     stop: Arc<AtomicBool>,
+    tmux: Option<String>, // tmux session name if this agent runs inside tmux
 }
 
 impl PtySession {
@@ -20,6 +21,7 @@ impl PtySession {
         rows: u16,
         on_output: impl Fn(Vec<u8>) + Send + 'static,
         on_exit: impl FnOnce() + Send + 'static,
+        tmux: Option<String>,
     ) -> Result<PtySession, String> {
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -62,7 +64,12 @@ impl PtySession {
             writer: Mutex::new(writer),
             child: Mutex::new(child),
             stop: Arc::new(AtomicBool::new(false)),
+            tmux,
         })
+    }
+
+    pub fn tmux(&self) -> Option<String> {
+        self.tmux.clone()
     }
 
     pub fn write(&self, data: &[u8]) -> Result<(), String> {
@@ -110,6 +117,7 @@ mod tests {
                 let _ = tx.send(bytes);
             },
             || {},
+            None,
         )
         .expect("spawn should succeed");
 

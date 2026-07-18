@@ -18,7 +18,8 @@ pub fn run() {
             commands::resize_agent,
             commands::kill_agent,
             commands::list_dir,
-            commands::make_dir
+            commands::make_dir,
+            commands::session_alive
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -12,6 +12,7 @@ export interface Agent {
   awaited?: boolean; // you sent input -> a later quiet means it's your turn
   title?: string;
   tokens?: number;
+  key?: string; // persistence key; tmux session = tt-<key>
 }
 
 const agents = new Map<string, Agent>();

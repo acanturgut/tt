@@ -28,6 +28,8 @@ The build is unsigned, so on first launch: right-click **tt** -> **Open** -> **O
 ## Requirements
 
 - **Rust** (rustup) and **Node 20+**
+- **tmux** (optional) - agents run inside it so their sessions survive closing/restarting
+  the app; without tmux they still work but don't persist.
 - The agent CLIs you want to use, on your `PATH`:
   - `claude` - Claude Code
   - `codex` - Codex CLI
