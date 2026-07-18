@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { icon } from './icon';
 import { placeMenu } from './menu';
+import { visibleProviders, providerIcon } from './providers';
 
 interface DirEntry {
   name: string;
@@ -251,10 +252,10 @@ async function buildNode(
 function openAgentMenu(path: string, h: TreeHandlers, anchor: HTMLElement) {
   const menu = document.createElement('div');
   menu.className = 'popmenu';
-  for (const a of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal']) {
+  for (const a of visibleProviders()) {
     const item = document.createElement('div');
     item.className = 'popmenu-item';
-    item.textContent = `${a} here`;
+    item.append(providerIcon(a), document.createTextNode(` ${a} here`));
     item.onclick = (ev) => {
       ev.stopPropagation();
       h.onOpenAgent(path, a);

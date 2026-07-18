@@ -37,6 +37,7 @@ import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
 import { showInstallHelp } from './installs';
 import { randomName } from './naming';
+import { visibleProviders, subscribeProviders } from './providers';
 import './styles.css';
 
 const terms = new Map<string, AgentTerminal>();
@@ -140,7 +141,7 @@ function buildCommands(): Command[] {
   const cmds: Command[] = [];
   const p = currentProject();
   if (p) {
-    for (const ag of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal']) {
+    for (const ag of visibleProviders()) {
       cmds.push({ label: `Spawn ${ag}`, hint: p.name, run: () => void spawn(ag, p.path) });
     }
   }
@@ -402,6 +403,7 @@ subscribeProjects(() => {
   renderProject();
   renderAgents(); // switching tabs changes which agents are visible
 });
+subscribeProviders(renderProject); // hiding/showing providers re-renders the toolbar
 window.addEventListener('resize', fitAll);
 
 // Keyboard shortcuts (⌘): 1-9 focus agent, 0 grid, +/- zoom all, B/\ panels.

@@ -28,7 +28,7 @@ button { font-family: inherit; }
 #topbar .brand { font-weight: 800; letter-spacing: .5px; color: var(--accent-hi); font-size: 15px; }
 .topbar-spacer { flex: 1; }
 .icobtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: transparent; color: var(--muted); border: none; border-radius: 7px; cursor: pointer; }
-.icobtn:hover { color: var(--accent-hi); background: var(--elev); }
+.icobtn:hover { color: #fff; background: color-mix(in srgb, var(--tab-accent, #122a4a) 72%, #fff 14%); }
 .proj-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .proj-label { color: var(--muted); flex: 0 0 auto; }
 /* padding-left clears the macOS traffic lights; the bar itself drags the window */
@@ -55,8 +55,10 @@ button { font-family: inherit; }
 .addproj, .spawnbtn { display: inline-flex; align-items: center; gap: 4px; border: none; border-radius: 7px; padding: 6px 9px; cursor: pointer; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
 .addproj { background: var(--accent); color: #fff; }
 .addproj:hover { background: var(--accent-hi); }
-.spawnbtn { background: var(--elev); color: var(--accent-hi); }
-.spawnbtn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.spawnbtn { background: color-mix(in srgb, var(--tab-accent, #122a4a) 58%, #000); color: #dfeaf6; }
+.spawnbtn:hover:not(:disabled) { background: color-mix(in srgb, var(--tab-accent, #122a4a) 90%, #fff 12%); color: #fff; }
+.agent-ico { width: 15px; height: 15px; object-fit: contain; flex: 0 0 auto; }
+.settings-note { color: var(--muted); font-size: 10.5px; line-height: 1.45; margin-top: 12px; }
 .spawnbtn:disabled { opacity: .4; cursor: default; color: var(--muted); }
 
 /* shadcn-style Select */
@@ -164,7 +166,8 @@ body.right-collapsed #tree { display: none; }
 
 /* ── popup menus ─────────────────────────────────────── */
 .popmenu { position: fixed; z-index: 50; background: var(--elev); border-radius: 10px; padding: 5px; box-shadow: 0 12px 34px rgba(0, 0, 0, .7); min-width: 132px; }
-.popmenu-item { padding: 7px 10px; border-radius: 7px; cursor: pointer; font-size: 12px; }
+.popmenu-item { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 7px; cursor: pointer; font-size: 12px; }
+.popmenu-item .agent-ico { width: 14px; height: 14px; }
 .popmenu-item:hover { background: var(--accent); color: #fff !important; }
 .popmenu-clear { color: var(--muted); margin-top: 2px; }
 

@@ -9,6 +9,7 @@ import {
 } from './projects';
 import { icon } from './icon';
 import { placeMenu } from './menu';
+import { visibleProviders, providerIcon } from './providers';
 
 export interface TopbarHandlers {
   onSpawn: (agentId: string) => void;
@@ -146,11 +147,11 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
 
   const cur = current();
   const hasProj = !!cur;
-  for (const agent of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal']) {
+  for (const agent of visibleProviders()) {
     const b = document.createElement('button');
     b.className = 'spawnbtn';
     b.disabled = !hasProj;
-    b.append(icon('terminal-window'), document.createTextNode(` ${agent}`));
+    b.append(providerIcon(agent), document.createTextNode(` ${agent}`));
     b.title = hasProj ? `spawn ${agent} in ${cur!.name}` : 'add a project first';
     b.onclick = () => h.onSpawn(agent);
     wrap.append(b);

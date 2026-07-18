@@ -1,3 +1,5 @@
+import { PROVIDERS, isProviderHidden, setProviderHidden } from './providers';
+
 export interface Settings {
   autoPlanning: boolean; // tag new agents with the Planning status
   autoFocus: boolean; // zoom the newest agent on spawn
@@ -87,6 +89,17 @@ export function openSettings() {
     ),
   );
   box.appendChild(claude);
+
+  const provs = section('Agent providers');
+  for (const id of PROVIDERS) {
+    provs.appendChild(toggle(id, !isProviderHidden(id), (v) => setProviderHidden(id, !v)));
+  }
+  const tm = document.createElement('div');
+  tm.className = 'settings-note';
+  tm.textContent =
+    'Claude, Codex, Cursor, Gemini, opencode and Antigravity are trademarks of their respective owners. tt is an independent tool — not affiliated with, endorsed by, or sponsored by any of them.';
+  provs.appendChild(tm);
+  box.appendChild(provs);
 
   overlay.appendChild(box);
   document.body.appendChild(overlay);
