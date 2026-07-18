@@ -1,4 +1,4 @@
-import { listTasks, addTask, updateTask, removeTask, subscribeTasks, type TaskStatus } from './tasks';
+import { listTasks, subscribeTasks, type TaskStatus } from './tasks';
 import { subscribeProjects } from './projects';
 import { labelColor } from './statuspill';
 
@@ -35,6 +35,8 @@ export function mountBoard(root: HTMLElement, getProject: () => string | null): 
   subscribeProjects(() => { if (open) render(); });
 }
 
+// Read-only: agents own this board (they add/claim/complete via the MCP tools).
+// Humans watch — no add, drag, edit, or delete here.
 function render(): void {
   if (!boardEl) return;
   const project = getProj();
@@ -67,30 +69,13 @@ function render(): void {
     head.textContent = `${col.text} (${n})`;
     c.appendChild(head);
 
-    // Drop target: dropping a card sets its status to this column.
-    c.ondragover = (e) => {
-      e.preventDefault();
-      c.classList.add('drag-over');
-    };
-    c.ondragleave = () => c.classList.remove('drag-over');
-    c.ondrop = (e) => {
-      e.preventDefault();
-      c.classList.remove('drag-over');
-      const id = e.dataTransfer?.getData('text/plain');
-      if (id) updateTask(id, { status: col.key });
-    };
-
     for (const t of tasks.filter((x) => x.status === col.key)) {
       const card = document.createElement('div');
       card.className = 'board-card';
-      card.draggable = true;
-      card.ondragstart = (e) => e.dataTransfer?.setData('text/plain', t.id);
 
       const ttl = document.createElement('div');
       ttl.className = 'board-card-title';
       ttl.textContent = t.title;
-      ttl.title = 'double-click to edit';
-      ttl.ondblclick = () => editTitle(ttl, t.id, t.title);
       card.appendChild(ttl);
 
       if (t.assignee) {
@@ -106,50 +91,10 @@ function render(): void {
         card.appendChild(res);
       }
 
-      const del = document.createElement('button');
-      del.className = 'board-card-del';
-      del.textContent = '×';
-      del.title = 'delete task';
-      del.onclick = () => removeTask(t.id);
-      card.appendChild(del);
-
       c.appendChild(card);
-    }
-
-    if (col.key === 'planning') {
-      const add = document.createElement('input');
-      add.className = 'board-add';
-      add.placeholder = '+ add task…';
-      add.onkeydown = (e) => {
-        if (e.key === 'Enter' && add.value.trim() && project) {
-          addTask(project, add.value.trim());
-          add.value = '';
-        }
-      };
-      c.appendChild(add);
     }
 
     cols.appendChild(c);
   }
   boardEl.appendChild(cols);
-}
-
-function editTitle(el: HTMLElement, id: string, cur: string): void {
-  let settled = false;
-  const inp = document.createElement('input');
-  inp.className = 'board-add';
-  inp.value = cur;
-  el.replaceWith(inp);
-  inp.focus();
-  const done = (save: boolean) => {
-    if (settled) return;
-    settled = true;
-    if (save && inp.value.trim() && inp.value.trim() !== cur) updateTask(id, { title: inp.value.trim() });
-    else render(); // re-render to restore the label
-  };
-  inp.onkeydown = (e) => {
-    if (e.key === 'Enter') done(true);
-    else if (e.key === 'Escape') done(false);
-  };
-  inp.onblur = () => done(true);
 }
