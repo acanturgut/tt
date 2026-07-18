@@ -31,7 +31,9 @@ button { font-family: inherit; }
 .icobtn:hover { color: var(--accent-hi); background: var(--elev); }
 .proj-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .proj-label { color: var(--muted); flex: 0 0 auto; }
-#projtabs { display: flex; align-items: flex-end; gap: 3px; height: 40px; flex: 0 0 40px; padding: 7px 12px 0; background: var(--bg); overflow-x: auto; }
+/* padding-left clears the macOS traffic lights; the bar itself drags the window */
+#projtabs { display: flex; align-items: flex-end; gap: 3px; height: 40px; flex: 0 0 40px; padding: 7px 12px 0 82px; background: var(--bg); overflow-x: auto; -webkit-app-region: drag; }
+#projtabs button { -webkit-app-region: no-drag; }
 .proj-tabs { display: flex; align-items: center; gap: 4px; }
 .proj-tab { background: #1c222b; color: #cdd6e0; border: none; border-radius: 9px 9px 0 0; padding: 8px 16px; cursor: pointer; font: inherit; font-weight: 600; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
 .proj-tab:hover:not(.active) { background: #262e39; color: #fff; }
@@ -64,7 +66,6 @@ button { font-family: inherit; }
 /* ── left rail (agents) ──────────────────────────────── */
 #sidebar { width: 280px; flex: 0 0 280px; background: var(--bg); padding: 8px; display: flex; flex-direction: column; overflow: hidden; }
 .rail-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
-.rail-otter { flex: 0 0 auto; height: 180px; margin-top: 8px; background: url(/otter-corner.png) center bottom / contain no-repeat; opacity: .95; -webkit-mask-image: linear-gradient(to top, #000 60%, transparent 100%); mask-image: linear-gradient(to top, #000 60%, transparent 100%); }
 body.left-collapsed #sidebar { display: none; }
 .rail-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-weight: 600; }
 .rail-title.has-attn { color: var(--amber); }

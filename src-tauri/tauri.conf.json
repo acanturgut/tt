@@ -16,7 +16,9 @@
         "title": "tt",
         "width": 1100,
         "height": 720,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {
