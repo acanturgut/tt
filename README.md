@@ -1,4 +1,9 @@
-<img width="256" height="256" alt="cd92468d-07d3-44a1-86ef-960b428b169c-1" src="https://github.com/user-attachments/assets/624d7637-1c55-45de-ab85-1cb5e371b268" />
+
+
+##TT
+
+<img width="1912" height="1243" alt="Screenshot 2026-07-18 at 14 05 16" src="https://github.com/user-attachments/assets/7c2fbed6-3cfc-4d22-b73c-816d77cea75c" />
+
 
 Every coding-agent CLI in one place. A desktop app (Tauri + xterm.js): add a
 project folder, then spawn **Claude Code, Codex, Cursor, or a plain terminal**
@@ -88,3 +93,7 @@ cd .. && npm test             # frontend: store + tiling math
 
 `docs/superpowers/specs/` (design) and `docs/superpowers/plans/` (implementation
 plan).
+
+
+<img width="256" height="256" alt="cd92468d-07d3-44a1-86ef-960b428b169c-1" src="https://github.com/user-attachments/assets/624d7637-1c55-45de-ab85-1cb5e371b268" /><img width="1912" height="1243" alt="Screenshot 2026-07-18 at 14 05 16" src="https://github.com/user-attachments/assets/7e4efcff-0da9-411b-8b8e-016543ea3639" />
+
