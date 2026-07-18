@@ -12,6 +12,48 @@ pub struct PtySession {
     tmux: Option<String>, // tmux session name if this agent runs inside tmux
 }
 
+/// A GUI .app on macOS inherits only a bare PATH (/usr/bin:/bin:…), so CLIs the user
+/// installed (Homebrew, ~/.local/bin, nvm, cargo…) aren't found and spawns fail with
+/// "not found in PATH". Resolve the PATH their login shell would have — once — and
+/// reuse it for every spawn so agents resolve just like they do in a real terminal.
+fn user_path() -> String {
+    static CACHED: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    CACHED
+        .get_or_init(|| {
+            let mut path = std::env::var("PATH").unwrap_or_default();
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+            // Marker isolates the PATH from any prompt/init noise on stdout.
+            if let Ok(out) = std::process::Command::new(&shell)
+                .args(["-ilc", "printf '__TTPATH__%s' \"$PATH\""])
+                .output()
+            {
+                let s = String::from_utf8_lossy(&out.stdout);
+                if let Some(rest) = s.split("__TTPATH__").nth(1) {
+                    let p = rest.trim();
+                    if !p.is_empty() {
+                        path = p.to_string();
+                    }
+                }
+            }
+            // Belt-and-suspenders: guarantee the usual user bins are present even if the
+            // shell probe failed (covers ~/.local/bin, Homebrew, cargo).
+            if let Ok(home) = std::env::var("HOME") {
+                for d in [
+                    format!("{home}/.local/bin"),
+                    "/opt/homebrew/bin".to_string(),
+                    "/usr/local/bin".to_string(),
+                    format!("{home}/.cargo/bin"),
+                ] {
+                    if !path.split(':').any(|seg| seg == d) {
+                        path = format!("{d}:{path}");
+                    }
+                }
+            }
+            path
+        })
+        .clone()
+}
+
 impl PtySession {
     pub fn spawn(
         program: &str,
@@ -36,6 +78,7 @@ impl PtySession {
         let mut cmd = CommandBuilder::new(program);
         cmd.args(args);
         cmd.cwd(cwd);
+        cmd.env("PATH", user_path()); // find user-installed CLIs even from a bare .app PATH
 
         let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
         drop(pair.slave); // release the slave so EOF is delivered on child exit
