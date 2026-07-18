@@ -1,7 +1,5 @@
 <img width="256" height="256" alt="cd92468d-07d3-44a1-86ef-960b428b169c-1" src="https://github.com/user-attachments/assets/624d7637-1c55-45de-ab85-1cb5e371b268" />
 
-# tt
-
 Every coding-agent CLI in one place. A desktop app (Tauri + xterm.js): add a
 project folder, then spawn **Claude Code, Codex, Cursor, or a plain terminal**
 in any directory - tiled side-by-side, each with a live activity dot and a
