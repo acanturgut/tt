@@ -287,6 +287,74 @@ pub fn make_dir(path: String) -> Result<(), String> {
     std::fs::create_dir_all(&path).map_err(|e| e.to_string())
 }
 
+// Heavy/noisy directories we never descend into during a deep search.
+const SEARCH_SKIP: &[&str] = &[
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    "vendor",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".cache",
+    ".gradle",
+    "Pods",
+];
+
+// Recursively find subdirectories whose name contains `query` (case-insensitive).
+// Skips hidden + heavy dirs and bounds depth/result count so it stays snappy.
+#[tauri::command]
+pub fn search_dirs(
+    root: String,
+    query: String,
+    limit: Option<usize>,
+) -> Result<Vec<DirEntry>, String> {
+    let root = expand_dir(&root);
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return Ok(Vec::new());
+    }
+    let limit = limit.unwrap_or(300);
+    let max_depth = 12usize;
+    let mut out: Vec<DirEntry> = Vec::new();
+    let mut stack: Vec<(std::path::PathBuf, usize)> = vec![(std::path::PathBuf::from(&root), 0)];
+    while let Some((dir, depth)) = stack.pop() {
+        if out.len() >= limit {
+            break;
+        }
+        let rd = match std::fs::read_dir(&dir) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        for entry in rd.flatten() {
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') || SEARCH_SKIP.contains(&name.as_str()) {
+                continue;
+            }
+            let path = entry.path();
+            if name.to_lowercase().contains(&q) {
+                out.push(DirEntry {
+                    name: name.clone(),
+                    path: path.to_string_lossy().to_string(),
+                });
+                if out.len() >= limit {
+                    break;
+                }
+            }
+            if depth + 1 < max_depth {
+                stack.push((path, depth + 1));
+            }
+        }
+    }
+    out.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,5 +382,19 @@ mod tests {
         make_dir(tmp.path().join("newfolder").to_string_lossy().to_string()).unwrap();
         let entries = list_dir(tmp.path().to_string_lossy().to_string()).unwrap();
         assert!(entries.iter().any(|e| e.name == "newfolder"));
+    }
+
+    #[test]
+    fn search_dirs_finds_nested_and_skips_noise() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path();
+        std::fs::create_dir_all(base.join("src/components/widgets")).unwrap();
+        std::fs::create_dir_all(base.join("node_modules/widgets")).unwrap();
+        std::fs::create_dir_all(base.join(".hidden/widgets")).unwrap();
+        let root = base.to_string_lossy().to_string();
+        let hits = search_dirs(root, "widget".into(), None).unwrap();
+        // finds the deep one, not the copies under node_modules / hidden dirs
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].path.ends_with("src/components/widgets"));
     }
 }

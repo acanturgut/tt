@@ -19,6 +19,7 @@ pub fn run() {
             commands::kill_agent,
             commands::list_dir,
             commands::make_dir,
+            commands::search_dirs,
             commands::session_alive
         ])
         .run(tauri::generate_context!())

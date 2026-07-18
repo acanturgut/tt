@@ -134,6 +134,10 @@ body.right-collapsed #tree { display: none; }
 .tree-act { display: inline-flex; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 5px; visibility: hidden; flex: 0 0 auto; }
 .tree-row:hover .tree-act { visibility: visible; }
 .tree-act:hover { color: var(--accent-hi); background: var(--elev-2); }
+.tree-result { padding: 5px 6px; cursor: pointer; }
+.tree-result-name { flex: 0 1 auto; font-weight: 600; }
+.tree-rel { flex: 1 1 auto; min-width: 0; color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.tree-searching { color: var(--muted); font-size: 12px; padding: 8px 6px; }
 .tree-newinput { background: var(--elev-2); color: var(--text); border: none; border-radius: 5px; padding: 3px 7px; margin: 2px 0 2px 20px; width: calc(100% - 26px); }
 .tree-newinput:focus { outline: none; }
 
