@@ -68,7 +68,10 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
       (a.id === cur ? ' active' : '') +
       (a.attention ? ' attention' : '') +
       (node.depth > 0 ? ' sub' : '');
-    if (node.depth > 0) row.style.marginLeft = `${node.depth * 14}px`;
+    if (node.depth > 0) {
+      row.style.setProperty('--depth', String(node.depth));
+      row.style.paddingLeft = `${node.depth * 18 + 8}px`;
+    }
     row.onclick = () => h.onFocusToggle(a.id);
 
     row.draggable = true;

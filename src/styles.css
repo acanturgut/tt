@@ -112,7 +112,11 @@ body.left-collapsed #sidebar { display: none; }
 .gridbtn { display: inline-flex; align-items: center; gap: 4px; background: var(--elev); color: var(--text); border: none; border-radius: 7px; padding: 5px 9px; cursor: pointer; font-size: 12px; }
 .gridbtn:hover:not(:disabled) { background: var(--elev-2); }
 .gridbtn:disabled { opacity: .4; cursor: default; }
-.agentrow { padding: 13px 8px; cursor: pointer; background: none; border: none; border-bottom: 1px solid #16191f; border-radius: 0; transition: background .12s ease; }
+.agentrow { position: relative; padding: 13px 8px; cursor: pointer; background: none; border: none; border-bottom: 1px solid #16191f; border-radius: 0; transition: background .12s ease; }
+/* Subagents render as a tree: a vertical guide line + dimmer child rows. */
+.agentrow.sub::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(var(--depth, 1) * 18px - 4px); width: 1px; background: #2b313b; }
+.agentrow.sub .label { font-size: 13px; font-weight: 600; color: #b9c1cc; }
+.agentrow.sub .dot { width: 8px; height: 8px; }
 .agentrow:last-child { border-bottom: none; }
 .agentrow:hover { background: rgba(255, 255, 255, .03); }
 .agentrow.active { background: rgba(47, 129, 247, .10); box-shadow: inset 2px 0 0 var(--accent); }
