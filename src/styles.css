@@ -230,8 +230,10 @@ body.right-collapsed #tree { display: none; }
 .tmpl-savebtn:hover { background: var(--accent); color: #fff; }
 
 /* ── broadcast bar ───────────────────────────────────── */
-/* Bottom bar lives under the stage; the agents panel is a full-height column beside it. */
-#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 22px 8px 12px; background: var(--bg); }
+/* Broadcast is a top "address bar" under the toolbar, spanning the full width. */
+#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--bg); border-bottom: 1px solid #15181e; }
+.proj-settings { margin-left: auto; align-self: center; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: none; border: none; color: var(--muted); border-radius: 7px; cursor: pointer; }
+.proj-settings:hover { color: #fff; background: rgba(255, 255, 255, .08); }
 .bc-target { display: inline-flex; align-items: center; gap: 6px; background: var(--elev); color: var(--text); border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; font: inherit; font-weight: 600; flex: 0 0 auto; white-space: nowrap; }
 .bc-target:hover { background: var(--elev-2); }
 .bc-target > i:first-child { color: var(--accent-hi); }

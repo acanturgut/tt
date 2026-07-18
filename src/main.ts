@@ -255,7 +255,6 @@ function renderProject() {
     onToggleRight: () => toggleSide('tt.right'),
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
-    onSettings: openSettings,
     onTemplates: showTemplates,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, {

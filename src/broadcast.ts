@@ -97,11 +97,11 @@ function doSend() {
   closeSlash();
 }
 
-function positionAbove(menu: HTMLElement, anchor: HTMLElement) {
+function positionBelow(menu: HTMLElement, anchor: HTMLElement) {
   const r = anchor.getBoundingClientRect();
   menu.style.position = 'fixed';
   menu.style.left = `${r.left}px`;
-  menu.style.bottom = `${window.innerHeight - r.top + 6}px`;
+  menu.style.top = `${r.bottom + 6}px`;
 }
 
 function closeSlash() {
@@ -134,7 +134,7 @@ function openSlash(prefix: string) {
     slash.appendChild(it);
   }
   document.body.appendChild(slash);
-  positionAbove(slash, input);
+  positionBelow(slash, input);
 }
 
 // ---- target multi-select popover -----------------------------------------
@@ -155,7 +155,7 @@ function togglePop() {
   pop.className = 'bc-pop';
   renderPop();
   document.body.appendChild(pop);
-  if (targetBtn) positionAbove(pop, targetBtn);
+  if (targetBtn) positionBelow(pop, targetBtn);
   setTimeout(() => document.addEventListener('mousedown', onPopDown), 0);
 }
 function renderPop() {

@@ -11,6 +11,7 @@ import {
 import { icon } from './icon';
 import { placeMenu } from './menu';
 import { visibleProviders, providerIcon } from './providers';
+import { openSettings } from './settings';
 
 export interface TopbarHandlers {
   onSpawn: (agentId: string) => void;
@@ -18,7 +19,6 @@ export interface TopbarHandlers {
   onToggleRight: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onSettings: () => void;
   onTemplates: () => void;
 }
 
@@ -146,6 +146,13 @@ export function renderProjectTabs(root: HTMLElement) {
     }
   };
   root.appendChild(add);
+
+  const gear = document.createElement('button');
+  gear.className = 'proj-settings';
+  gear.title = 'Settings (⌘,)';
+  gear.appendChild(icon('gear-six'));
+  gear.onclick = () => openSettings();
+  root.appendChild(gear);
 }
 
 export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
@@ -176,6 +183,5 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   const zoomOut = iconBtn('minus', 'zoom all terminals out', () => h.onZoomOut());
   const zoomIn = iconBtn('plus', 'zoom all terminals in', () => h.onZoomIn());
   const tmplBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates());
-  const settingsBtn = iconBtn('gear-six', 'Settings (⌘,)', () => h.onSettings());
-  root.append(treeToggle, wrap, spacer, zoomOut, zoomIn, tmplBtn, settingsBtn, agentsToggle);
+  root.append(treeToggle, wrap, spacer, zoomOut, zoomIn, tmplBtn, agentsToggle);
 }
