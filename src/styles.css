@@ -302,17 +302,17 @@ body.board-open #board { display: flex; flex-direction: column; flex: 1; min-hei
 .board-header { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid #262626; }
 .board-back { background: #222; border: 1px solid #444; border-radius: 4px; color: #ddd; padding: 3px 10px; cursor: pointer; }
 .board-title { color: #ccc; font-weight: 600; }
-.board-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px; overflow: auto; flex: 1; min-height: 0; }
+.board-cols { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 10px; padding: 12px; overflow: auto; flex: 1; min-height: 0; }
 .board-col { display: flex; flex-direction: column; gap: 8px; background: #111; border: 1px solid #242424; border-top: 2px solid var(--col); border-radius: 6px; padding: 8px; min-height: 0; }
 .board-col.drag-over { background: #14181f; }
 .board-col-head { color: var(--col); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
 .board-col-del { background: none; border: none; color: #6b7480; cursor: pointer; padding: 0 2px; display: flex; opacity: 0; transition: opacity 0.12s; }
 .board-col:hover .board-col-del { opacity: 1; }
 .board-col-del:hover { color: #f85149; }
-.board-card { position: relative; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 5px; padding: 6px 8px; cursor: grab; }
-.board-card-title { color: #ddd; font-size: 13px; padding-right: 14px; }
-.board-card-who { color: #7aa2d6; font-size: 11px; }
-.board-card-result { color: #888; font-size: 11px; margin-top: 2px; }
+.board-card { position: relative; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 5px; padding: 6px 8px; }
+.board-card-title { color: #ddd; font-size: 13px; padding-right: 14px; overflow-wrap: anywhere; white-space: normal; }
+.board-card-who { color: #7aa2d6; font-size: 11px; overflow-wrap: anywhere; }
+.board-card-result { color: #888; font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; white-space: normal; }
 .board-card-del { position: absolute; top: 2px; right: 4px; background: none; border: none; color: #666; cursor: pointer; font-size: 14px; line-height: 1; }
 .board-card-del:hover { color: #e06; }
 .board-add { background: #141414; border: 1px solid #2a2a2a; border-radius: 4px; color: #ddd; padding: 5px 8px; font: inherit; }
