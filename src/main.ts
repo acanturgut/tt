@@ -32,6 +32,7 @@ import { mountBroadcast, updateBroadcast } from './broadcast';
 import { openPalette, type Command } from './palette';
 import { subscribeProjects, current as currentProject } from './projects';
 import { getSettings, openSettings } from './settings';
+import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
 import './styles.css';
 
@@ -102,6 +103,16 @@ function globalZoom(delta: number) {
   for (const t of terms.values()) (delta > 0 ? t.zoomIn() : t.zoomOut());
 }
 
+async function runTemplate(t: Template) {
+  for (const a of t.agents) await spawn(a.agentId, a.dir, a.label);
+}
+function showTemplates() {
+  openTemplates({
+    onRun: (t) => void runTemplate(t),
+    currentAgents: () => list().map((a) => ({ agentId: a.agentId, dir: a.dir, label: a.label })),
+  });
+}
+
 function buildCommands(): Command[] {
   const cmds: Command[] = [];
   const p = currentProject();
@@ -126,6 +137,7 @@ function buildCommands(): Command[] {
   cmds.push({ label: 'Toggle agents panel', run: () => toggleSide('tt.left') });
   cmds.push({ label: 'Toggle tree panel', run: () => toggleSide('tt.right') });
   cmds.push({ label: 'Toggle OLED / dim mode', run: toggleOled });
+  cmds.push({ label: 'Fleet templates…', run: showTemplates });
   return cmds;
 }
 
@@ -182,13 +194,14 @@ function renderProject() {
     onZoomOut: () => globalZoom(-1),
     onToggleOled: toggleOled,
     onSettings: openSettings,
+    onTemplates: showTemplates,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, {
     onOpenAgent: (folder, agentId) => void spawn(agentId, folder),
   });
 }
 
-async function spawn(agentId: string, dir: string) {
+async function spawn(agentId: string, dir: string, label?: WorkflowLabel) {
   const st = getSettings();
   const key = crypto.randomUUID();
   try {
@@ -212,7 +225,7 @@ async function spawn(agentId: string, dir: string) {
       dir,
       status: 'working',
       key,
-      label: st.autoPlanning ? 'planning' : undefined,
+      label: label ?? (st.autoPlanning ? 'planning' : undefined),
     });
     if (st.autoFocus) focus(id);
   } catch (e) {

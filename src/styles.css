@@ -29,6 +29,11 @@ button { font-family: inherit; }
 .icobtn:hover { color: var(--accent-hi); background: var(--elev); }
 .proj-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .proj-label { color: var(--muted); flex: 0 0 auto; }
+.proj-tabs { display: flex; align-items: center; gap: 4px; }
+.proj-tab { background: var(--elev); color: var(--muted); border: none; border-radius: 7px; padding: 6px 12px; cursor: pointer; font: inherit; white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
+.proj-tab:hover { background: var(--elev-2); color: var(--text); }
+.proj-tab.active { background: var(--accent); color: #fff; }
+.proj-none { color: var(--muted); padding: 0 6px; }
 .addproj, .spawnbtn { display: inline-flex; align-items: center; gap: 4px; border: none; border-radius: 7px; padding: 6px 9px; cursor: pointer; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
 .addproj { background: var(--accent); color: #fff; }
 .addproj:hover { background: var(--accent-hi); }
@@ -149,6 +154,25 @@ body.right-collapsed #tree { display: none; }
 .settings-row > span { flex: 1; }
 .settings-row input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
 .settings-select { background: var(--elev-2); color: var(--text); border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+
+/* ── fleet templates ─────────────────────────────────── */
+.tmpl { width: 480px; max-width: 92vw; background: var(--elev); border-radius: 12px; box-shadow: 0 24px 70px rgba(0, 0, 0, .75); padding: 18px 20px; }
+.tmpl-list { max-height: 46vh; overflow-y: auto; margin-bottom: 12px; }
+.tmpl-empty { color: var(--muted); padding: 14px 4px; font-size: 12px; text-align: center; }
+.tmpl-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; }
+.tmpl-row:hover { background: var(--elev-2); }
+.tmpl-info { flex: 1; min-width: 0; }
+.tmpl-name { font-weight: 700; }
+.tmpl-sub { color: var(--muted); font-size: 11px; }
+.tmpl-run { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-weight: 600; }
+.tmpl-run:hover { background: var(--accent-hi); }
+.tmpl-del { display: inline-flex; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 5px; }
+.tmpl-del:hover { color: var(--danger); background: var(--border, #1e242e); }
+.tmpl-save { display: flex; gap: 8px; }
+.tmpl-input { flex: 1; background: var(--elev-2); color: var(--text); border: none; border-radius: 7px; padding: 8px 11px; font: inherit; }
+.tmpl-input:focus { outline: none; }
+.tmpl-savebtn { background: var(--elev-2); color: var(--accent-hi); border: none; border-radius: 7px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
+.tmpl-savebtn:hover { background: var(--accent); color: #fff; }
 
 /* ── broadcast bar ───────────────────────────────────── */
 #broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 22px 8px 12px; background: var(--bg); }

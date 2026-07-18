@@ -1,7 +1,6 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { listProjects, current, addProject, selectProject, type Project } from './projects';
+import { listProjects, current, addProject, selectProject } from './projects';
 import { icon } from './icon';
-import { placeMenu } from './menu';
 
 export interface TopbarHandlers {
   onSpawn: (agentId: string) => void;
@@ -11,79 +10,49 @@ export interface TopbarHandlers {
   onZoomOut: () => void;
   onToggleOled: () => void;
   onSettings: () => void;
+  onTemplates: () => void;
 }
 
-// shadcn-style Select: a trigger button + a popover list (accent hover, check on
-// the selected item). Native <select> can't be styled this way, so it's custom.
-function projectSelect(): HTMLElement {
-  const projs = listProjects();
-  const cur = current();
-
-  const trigger = document.createElement('button');
-  trigger.className = 'sc-trigger';
-  trigger.disabled = projs.length === 0;
-  const value = document.createElement('span');
-  value.className = 'sc-value' + (cur ? '' : ' sc-placeholder');
-  value.textContent = cur ? cur.name : 'No projects';
-  trigger.append(value, icon('caret-down', 'sc-caret'));
-  trigger.onclick = (ev) => {
-    ev.stopPropagation();
-    openContent(trigger, projs, cur?.path ?? null);
-  };
-  return trigger;
-}
-
-function openContent(trigger: HTMLElement, projs: Project[], curPath: string | null) {
-  const content = document.createElement('div');
-  content.className = 'sc-content';
-  for (const p of projs) {
-    const item = document.createElement('div');
-    item.className = 'sc-item' + (p.path === curPath ? ' sc-selected' : '');
-    const label = document.createElement('span');
-    label.className = 'sc-item-label';
-    label.textContent = p.name;
-    label.title = p.path;
-    item.append(icon('check', 'sc-check'), label);
-    item.onclick = (ev) => {
-      ev.stopPropagation();
-      selectProject(p.path); // store emit -> topbar re-renders
-      cleanup();
-    };
-    content.appendChild(item);
-  }
-  const r = trigger.getBoundingClientRect();
-  content.style.minWidth = `${Math.round(r.width)}px`;
-  document.body.appendChild(content);
-  placeMenu(content, r);
-
-  function onDown(ev: MouseEvent) {
-    if (!content.contains(ev.target as Node) && ev.target !== trigger) cleanup();
-  }
-  function cleanup() {
-    content.remove();
-    document.removeEventListener('mousedown', onDown);
-  }
-  setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+function iconBtn(name: string, title: string, onClick: () => void, extra = ''): HTMLElement {
+  const b = document.createElement('button');
+  b.className = 'icobtn';
+  b.title = title;
+  b.appendChild(icon(name, extra));
+  b.onclick = onClick;
+  return b;
 }
 
 export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   root.innerHTML = '';
 
-  const left = document.createElement('button');
-  left.className = 'icobtn';
-  left.title = 'toggle agents panel';
-  left.appendChild(icon('sidebar-simple'));
-  left.onclick = () => h.onToggleLeft();
+  const left = iconBtn('sidebar-simple', 'toggle agents panel', () => h.onToggleLeft());
 
   const wrap = document.createElement('div');
   wrap.className = 'proj-wrap';
-  const lbl = document.createElement('span');
-  lbl.className = 'proj-label';
-  lbl.textContent = 'Projects';
+
+  // Project tabs
+  const tabs = document.createElement('div');
+  tabs.className = 'proj-tabs';
+  const projs = listProjects();
+  const cur = current();
+  if (!projs.length) {
+    const none = document.createElement('span');
+    none.className = 'proj-none';
+    none.textContent = 'No projects';
+    tabs.appendChild(none);
+  }
+  for (const p of projs) {
+    const tab = document.createElement('button');
+    tab.className = 'proj-tab' + (cur && p.path === cur.path ? ' active' : '');
+    tab.textContent = p.name;
+    tab.title = p.path;
+    tab.onclick = () => selectProject(p.path);
+    tabs.appendChild(tab);
+  }
 
   const add = document.createElement('button');
   add.className = 'addproj';
-  add.append(icon('folder-plus'), document.createTextNode(' Add project'));
+  add.append(icon('folder-plus'), document.createTextNode(' Add'));
   add.onclick = async () => {
     try {
       const picked = await open({ directory: true, multiple: false });
@@ -92,10 +61,9 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
       alert(`add project failed: ${e}`);
     }
   };
-  wrap.append(lbl, projectSelect(), add);
+  wrap.append(tabs, add);
 
   // Quick-spawn in the selected project's root.
-  const cur = current();
   const hasProj = !!cur;
   for (const agent of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal']) {
     const b = document.createElement('button');
@@ -110,34 +78,12 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   const spacer = document.createElement('div');
   spacer.className = 'topbar-spacer';
 
-  const zoomOut = document.createElement('button');
-  zoomOut.className = 'icobtn';
-  zoomOut.title = 'zoom all terminals out';
-  zoomOut.appendChild(icon('minus'));
-  zoomOut.onclick = () => h.onZoomOut();
-  const zoomIn = document.createElement('button');
-  zoomIn.className = 'icobtn';
-  zoomIn.title = 'zoom all terminals in';
-  zoomIn.appendChild(icon('plus'));
-  zoomIn.onclick = () => h.onZoomIn();
+  const zoomOut = iconBtn('minus', 'zoom all terminals out', () => h.onZoomOut());
+  const zoomIn = iconBtn('plus', 'zoom all terminals in', () => h.onZoomIn());
+  const tmplBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates());
+  const settingsBtn = iconBtn('gear-six', 'Settings (⌘,)', () => h.onSettings());
+  const oled = iconBtn('moon', 'OLED / dim mono mode', () => h.onToggleOled());
+  const right = iconBtn('sidebar-simple', 'toggle tree panel', () => h.onToggleRight(), 'flip');
 
-  const settingsBtn = document.createElement('button');
-  settingsBtn.className = 'icobtn';
-  settingsBtn.title = 'Settings (⌘,)';
-  settingsBtn.appendChild(icon('gear-six'));
-  settingsBtn.onclick = () => h.onSettings();
-
-  const oled = document.createElement('button');
-  oled.className = 'icobtn';
-  oled.title = 'OLED / dim mono mode';
-  oled.appendChild(icon('moon'));
-  oled.onclick = () => h.onToggleOled();
-
-  const right = document.createElement('button');
-  right.className = 'icobtn';
-  right.title = 'toggle tree panel';
-  right.appendChild(icon('sidebar-simple', 'flip'));
-  right.onclick = () => h.onToggleRight();
-
-  root.append(left, wrap, spacer, zoomOut, zoomIn, settingsBtn, oled, right);
+  root.append(left, wrap, spacer, zoomOut, zoomIn, tmplBtn, settingsBtn, oled, right);
 }
