@@ -14,6 +14,7 @@ import {
   list,
   markClaude,
   markExit,
+  markInput,
   markOutput,
   remove,
   reorder,
@@ -80,7 +81,10 @@ function closeAgent(id: string) {
 
 // Broadcast: write the text + Enter to every selected agent's PTY.
 function broadcast(ids: string[], text: string) {
-  for (const id of ids) void invoke('write_agent', { id, data: `${text}\r` });
+  for (const id of ids) {
+    markInput(id);
+    void invoke('write_agent', { id, data: `${text}\r` });
+  }
 }
 
 function globalZoom(delta: number) {
@@ -96,6 +100,14 @@ function toggleSide(key: 'tt.left' | 'tt.right') {
   localStorage.setItem(key, collapsed ? '1' : '0');
   applyCollapse();
   requestAnimationFrame(fitAll);
+}
+
+function applyOled() {
+  document.body.classList.toggle('oled', localStorage.getItem('tt.oled') === '1');
+}
+function toggleOled() {
+  localStorage.setItem('tt.oled', localStorage.getItem('tt.oled') === '1' ? '0' : '1');
+  applyOled();
 }
 
 // Agent-driven UI — re-renders on every agent store change.
@@ -129,6 +141,7 @@ function renderProject() {
     onToggleRight: () => toggleSide('tt.right'),
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
+    onToggleOled: toggleOled,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, {
     onOpenAgent: (folder, agentId) => void spawn(agentId, folder),
@@ -202,6 +215,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 applyCollapse();
+applyOled();
 mountBroadcast(broadcastEl, { onSend: broadcast });
 renderProject();
 renderAgents();

@@ -1,0 +1,45 @@
+name: Release
+
+# Manual only — you trigger it from the Actions tab and pick a tag.
+# CI runs on every merge to main; releasing is a deliberate, separate step.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install JS deps
+        run: npm ci
+
+      # Builds the app (runs `npm run build` via beforeBuildCommand), bundles the
+      # .dmg/.app, and creates a DRAFT GitHub Release so publishing stays manual.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.tag }}
+          releaseName: 'tt ${{ github.event.inputs.tag }}'
+          releaseBody: |
+            Download the `.dmg` below and drag **tt** to Applications.
+            Unsigned build — first launch: right-click **tt** → Open → Open.
+          releaseDraft: true

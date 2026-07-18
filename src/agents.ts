@@ -9,6 +9,7 @@ export interface Agent {
   status: Status;
   label?: WorkflowLabel;
   attention?: boolean; // finished a turn, waiting on the user
+  awaited?: boolean; // you sent input -> a later quiet means it's your turn
   title?: string;
   tokens?: number;
 }
@@ -72,8 +73,10 @@ export function markOutput(id: string) {
     id,
     setTimeout(() => {
       const cur = agents.get(id);
-      if (cur && cur.status !== 'exited' && !cur.attention) {
+      // only "needs you" if you sent it something and you're not already watching it
+      if (cur && cur.status !== 'exited' && !cur.attention && cur.awaited && focusedId !== id) {
         cur.attention = true;
+        cur.awaited = false;
         emit();
       }
     }, ATTENTION_MS),
@@ -121,6 +124,18 @@ export function setLabel(id: string, label: WorkflowLabel | undefined) {
   if (!a) return;
   a.label = label;
   emit();
+}
+
+// Called when you send keystrokes/prompts to an agent — arms "needs you" for
+// when it next goes quiet. Cheap: only emits if it was already flagged.
+export function markInput(id: string) {
+  const a = agents.get(id);
+  if (!a) return;
+  a.awaited = true;
+  if (a.attention) {
+    a.attention = false;
+    emit();
+  }
 }
 
 export function setName(id: string, name: string) {

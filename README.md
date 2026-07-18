@@ -5,6 +5,14 @@ project folder, then spawn **Claude Code, Codex, Cursor, or a plain terminal**
 in any directory - tiled side-by-side, each with a live activity dot and a
 workflow status you set.
 
+## Install (macOS)
+
+Download the latest `.dmg` from [Releases](https://github.com/acanturgut/tt/releases),
+open it, and drag **tt** to Applications.
+
+The build is unsigned, so on first launch: right-click **tt** -> **Open** -> **Open**
+(only needed once). Then install the agent CLIs you want (see Requirements).
+
 ## Features
 
 - **Projects** - add a folder via the native picker; switch via the top-bar
@@ -26,6 +34,9 @@ workflow status you set.
   - `cursor-agent` - Cursor CLI
   - `gemini` - Gemini CLI
   - a shell for the plain terminal (uses `$SHELL`)
+
+  > Gemini's free Google sign-in was deprecated for the CLI. Set a `GEMINI_API_KEY`
+  > (free key at aistudio.google.com/apikey) or choose "Use Gemini API Key" in its prompt.
 
 ## Develop / Run
 

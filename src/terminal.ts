@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { invoke } from '@tauri-apps/api/core';
+import { markInput } from './agents';
 
 export class AgentTerminal {
   term: Terminal;
@@ -22,7 +23,10 @@ export class AgentTerminal {
     this.term.loadAddon(this.fit);
     this.el = document.createElement('div');
     this.el.className = 'term';
-    this.term.onData((d) => void invoke('write_agent', { id: this.id, data: d }));
+    this.term.onData((d) => {
+      markInput(this.id);
+      void invoke('write_agent', { id: this.id, data: d });
+    });
     this.term.onResize(({ cols, rows }) =>
       void invoke('resize_agent', { id: this.id, cols, rows }),
     );

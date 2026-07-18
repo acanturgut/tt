@@ -44,7 +44,7 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   if (!agents.length) {
     const empty = document.createElement('div');
     empty.className = 'rail-empty';
-    const ic = icon('robot');
+    const ic = icon('brain');
     ic.classList.add('rail-empty-ic');
     const t1 = document.createElement('div');
     t1.className = 'rail-empty-title';

@@ -9,6 +9,7 @@ export interface TopbarHandlers {
   onToggleRight: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onToggleOled: () => void;
 }
 
 // shadcn-style Select: a trigger button + a popover list (accent hover, check on
@@ -119,11 +120,17 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   zoomIn.appendChild(icon('plus'));
   zoomIn.onclick = () => h.onZoomIn();
 
+  const oled = document.createElement('button');
+  oled.className = 'icobtn';
+  oled.title = 'OLED / dim mono mode';
+  oled.appendChild(icon('moon'));
+  oled.onclick = () => h.onToggleOled();
+
   const right = document.createElement('button');
   right.className = 'icobtn';
   right.title = 'toggle tree panel';
   right.appendChild(icon('sidebar-simple', 'flip'));
   right.onclick = () => h.onToggleRight();
 
-  root.append(left, wrap, spacer, zoomOut, zoomIn, right);
+  root.append(left, wrap, spacer, zoomOut, zoomIn, oled, right);
 }

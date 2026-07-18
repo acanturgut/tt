@@ -13,6 +13,8 @@
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); font: 12px Menlo, monospace; }
+/* OLED / dim mono: strip all color and dim the whole app (terminals included). */
+body.oled { filter: grayscale(1) brightness(0.82); }
 #app { display: flex; flex-direction: column; height: 100vh; }
 #body { flex: 1; display: flex; min-height: 0; }
 .ph { font-size: 15px; line-height: 1; display: inline-flex; vertical-align: middle; }
