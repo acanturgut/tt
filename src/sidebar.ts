@@ -1,4 +1,4 @@
-import { list, focused, attentionCount, type Agent, type WorkflowLabel } from './agents';
+import { focused, type Agent, type WorkflowLabel } from './agents';
 import { statusPill, labelColor } from './statuspill';
 import { icon } from './icon';
 
@@ -20,14 +20,14 @@ function fmtTokens(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
 }
 
-export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
+export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHandlers) {
   root.innerHTML = '';
 
   const head = document.createElement('div');
   head.className = 'rail-head';
   const title = document.createElement('span');
   title.className = 'rail-title';
-  const attn = attentionCount();
+  const attn = agents.filter((a) => a.attention).length;
   title.textContent = attn ? `Agents · ${attn} need you` : 'Agents';
   if (attn) title.classList.add('has-attn');
   const grid = document.createElement('button');
@@ -40,7 +40,6 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   root.appendChild(head);
 
   const cur = focused();
-  const agents = list();
   if (!agents.length) {
     const empty = document.createElement('div');
     empty.className = 'rail-empty';

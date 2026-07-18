@@ -13,6 +13,7 @@ export interface Agent {
   title?: string;
   tokens?: number;
   key?: string; // persistence key; tmux session = tt-<key>
+  project?: string; // project path this agent belongs to (its tab/panel)
 }
 
 const agents = new Map<string, Agent>();

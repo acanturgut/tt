@@ -29,10 +29,13 @@ button { font-family: inherit; }
 .icobtn:hover { color: var(--accent-hi); background: var(--elev); }
 .proj-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .proj-label { color: var(--muted); flex: 0 0 auto; }
+#projtabs { display: flex; align-items: flex-end; gap: 3px; height: 40px; flex: 0 0 40px; padding: 7px 12px 0; background: var(--bg); overflow-x: auto; }
 .proj-tabs { display: flex; align-items: center; gap: 4px; }
-.proj-tab { background: var(--elev); color: var(--muted); border: none; border-radius: 7px; padding: 6px 12px; cursor: pointer; font: inherit; white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
-.proj-tab:hover { background: var(--elev-2); color: var(--text); }
+.proj-tab { background: var(--elev); color: var(--muted); border: none; border-radius: 9px 9px 0 0; padding: 8px 16px; cursor: pointer; font: inherit; font-weight: 600; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
+.proj-tab:hover:not(.active) { background: var(--elev-2); color: var(--text); }
 .proj-tab.active { background: var(--accent); color: #fff; }
+.addproj-tab { display: inline-flex; align-items: center; gap: 4px; background: transparent; color: var(--muted); border: 1px dashed #262b36; border-radius: 8px 8px 0 0; padding: 7px 12px; cursor: pointer; font: inherit; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
+.addproj-tab:hover { color: var(--text); background: var(--elev); }
 .proj-none { color: var(--muted); padding: 0 6px; }
 .addproj, .spawnbtn { display: inline-flex; align-items: center; gap: 4px; border: none; border-radius: 7px; padding: 6px 9px; cursor: pointer; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
 .addproj { background: var(--accent); color: #fff; }

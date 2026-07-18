@@ -26,7 +26,7 @@ import {
 import { AgentTerminal } from './terminal';
 import { syncTiles } from './tiles';
 import { renderSidebar } from './sidebar';
-import { renderTopbar } from './topbar';
+import { renderTopbar, renderProjectTabs } from './topbar';
 import { renderTree } from './tree';
 import { mountBroadcast, updateBroadcast } from './broadcast';
 import { openPalette, type Command } from './palette';
@@ -41,6 +41,7 @@ const terms = new Map<string, AgentTerminal>();
 const pending = new Map<string, Uint8Array[]>();
 
 const topbarEl = document.getElementById('topbar')!;
+const projtabsEl = document.getElementById('projtabs')!;
 const sidebarEl = document.getElementById('sidebar')!;
 const stageEl = document.getElementById('stage')!;
 const treeEl = document.getElementById('tree')!;
@@ -87,13 +88,22 @@ function closeAgent(id: string) {
   remove(id);
 }
 
+// Agents belonging to the current project tab — each tab is its own panel.
+function curProjPath(): string | null {
+  return currentProject()?.path ?? null;
+}
+function visibleAgents() {
+  const p = curProjPath();
+  return list().filter((a) => a.project === p);
+}
+
 // Broadcast: write the text + Enter to every selected agent's PTY.
 function broadcast(ids: string[], text: string, numbered: boolean) {
-  const all = list();
-  const total = all.length;
+  const vis = visibleAgents();
+  const total = vis.length;
   for (const id of ids) {
     markInput(id);
-    const num = all.findIndex((a) => a.id === id) + 1; // same number shown on the tile/rail
+    const num = vis.findIndex((a) => a.id === id) + 1; // same number shown on the tile/rail
     const msg = numbered ? `You are agent ${num} of ${total}. ${text}` : text;
     void invoke('write_agent', { id, data: msg });
     // Send Enter as a SEPARATE write a beat later so TUIs (claude/codex) submit
@@ -112,7 +122,7 @@ async function runTemplate(t: Template) {
 function showTemplates() {
   openTemplates({
     onRun: (t) => void runTemplate(t),
-    currentAgents: () => list().map((a) => ({ agentId: a.agentId, dir: a.dir, label: a.label })),
+    currentAgents: () => visibleAgents().map((a) => ({ agentId: a.agentId, dir: a.dir, label: a.label })),
   });
 }
 
@@ -124,7 +134,7 @@ function buildCommands(): Command[] {
       cmds.push({ label: `Spawn ${ag}`, hint: p.name, run: () => void spawn(ag, p.path) });
     }
   }
-  for (const a of list()) {
+  for (const a of visibleAgents()) {
     cmds.push({
       label: `Focus ${a.name}`,
       hint: a.agentId,
@@ -165,27 +175,29 @@ function toggleOled() {
 
 // Agent-driven UI — re-renders on every agent store change.
 function renderAgents() {
-  renderSidebar(sidebarEl, {
+  const vis = visibleAgents();
+  renderSidebar(sidebarEl, vis, {
     onFocusToggle: toggleFocus,
     onClose: closeAgent,
     onSetLabel: setLabel,
     onReorder: reorder,
     onGrid: () => focus(null),
   });
-  syncTiles(stageEl, list(), focused(), terms, {
+  syncTiles(stageEl, vis, focused(), terms, {
     onToggleFocus: toggleFocus,
     onClose: closeAgent,
     onSetLabel: setLabel,
     onRename: setName,
     onReorder: reorder,
   });
-  updateBroadcast(list());
+  updateBroadcast(vis);
   syncNotifications();
   persistAgents();
 }
 
 // Project-driven UI — topbar + tree, only re-renders on project change.
 function renderProject() {
+  renderProjectTabs(projtabsEl);
   renderTopbar(topbarEl, {
     onSpawn: (agentId) => {
       const p = currentProject();
@@ -228,6 +240,7 @@ async function spawn(agentId: string, dir: string, label?: WorkflowLabel) {
       dir,
       status: 'working',
       key,
+      project: curProjPath() ?? undefined,
       label: label ?? (st.autoPlanning ? 'planning' : undefined),
     });
     if (st.autoFocus) focus(id);
@@ -240,12 +253,12 @@ async function spawn(agentId: string, dir: string, label?: WorkflowLabel) {
 function persistAgents() {
   const data = list()
     .filter((a) => a.key)
-    .map((a) => ({ agentId: a.agentId, name: a.name, dir: a.dir, label: a.label, key: a.key }));
+    .map((a) => ({ agentId: a.agentId, name: a.name, dir: a.dir, label: a.label, key: a.key, project: a.project }));
   localStorage.setItem('tt.agents', JSON.stringify(data));
 }
 
 async function restoreAgents() {
-  let saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string }> = [];
+  let saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string }> = [];
   try {
     const raw = JSON.parse(localStorage.getItem('tt.agents') ?? '[]');
     if (Array.isArray(raw)) saved = raw;
@@ -277,6 +290,7 @@ async function restoreAgents() {
         dir: rec.dir,
         status: 'working',
         key: rec.key,
+        project: rec.project,
         label: rec.label as WorkflowLabel | undefined,
       });
     } catch {
@@ -304,14 +318,17 @@ listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
 );
 
 subscribe(renderAgents);
-subscribeProjects(renderProject);
+subscribeProjects(() => {
+  renderProject();
+  renderAgents(); // switching tabs changes which agents are visible
+});
 window.addEventListener('resize', fitAll);
 
 // Keyboard shortcuts (⌘): 1-9 focus agent, 0 grid, +/- zoom all, B/\ panels.
 window.addEventListener('keydown', (e) => {
   if (!e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key >= '1' && e.key <= '9') {
-    const a = list()[Number(e.key) - 1];
+    const a = visibleAgents()[Number(e.key) - 1];
     if (a) {
       clearAttention(a.id);
       focus(a.id);

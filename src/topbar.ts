@@ -22,37 +22,22 @@ function iconBtn(name: string, title: string, onClick: () => void, extra = ''): 
   return b;
 }
 
-export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
+// Project tabs live on their own row above the nav; each tab is its own panel.
+export function renderProjectTabs(root: HTMLElement) {
   root.innerHTML = '';
-
-  const left = iconBtn('sidebar-simple', 'toggle agents panel', () => h.onToggleLeft());
-
-  const wrap = document.createElement('div');
-  wrap.className = 'proj-wrap';
-
-  // Project tabs
-  const tabs = document.createElement('div');
-  tabs.className = 'proj-tabs';
   const projs = listProjects();
   const cur = current();
-  if (!projs.length) {
-    const none = document.createElement('span');
-    none.className = 'proj-none';
-    none.textContent = 'No projects';
-    tabs.appendChild(none);
-  }
   for (const p of projs) {
     const tab = document.createElement('button');
     tab.className = 'proj-tab' + (cur && p.path === cur.path ? ' active' : '');
     tab.textContent = p.name;
     tab.title = p.path;
     tab.onclick = () => selectProject(p.path);
-    tabs.appendChild(tab);
+    root.appendChild(tab);
   }
-
   const add = document.createElement('button');
-  add.className = 'addproj';
-  add.append(icon('folder-plus'), document.createTextNode(' Add'));
+  add.className = 'addproj-tab';
+  add.append(icon('plus'), document.createTextNode(' Add project'));
   add.onclick = async () => {
     try {
       const picked = await open({ directory: true, multiple: false });
@@ -61,9 +46,18 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
       alert(`add project failed: ${e}`);
     }
   };
-  wrap.append(tabs, add);
+  root.appendChild(add);
+}
 
-  // Quick-spawn in the selected project's root.
+export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
+  root.innerHTML = '';
+
+  const left = iconBtn('sidebar-simple', 'toggle agents panel', () => h.onToggleLeft());
+
+  const wrap = document.createElement('div');
+  wrap.className = 'proj-wrap';
+
+  const cur = current();
   const hasProj = !!cur;
   for (const agent of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal']) {
     const b = document.createElement('button');
