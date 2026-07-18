@@ -73,6 +73,7 @@ pub fn spawn_agent(
     state: State<AppState>,
     project_dir: String,
     agent_id: String,
+    perm_mode: Option<String>,
 ) -> Result<String, String> {
     let cmd =
         registry::command_for(&agent_id).ok_or_else(|| format!("unknown agent: {agent_id}"))?;
@@ -86,6 +87,13 @@ pub fn spawn_agent(
     let mut args = cmd.args;
     let mut session_id = String::new();
     if agent_id == "claude" {
+        if let Some(mode) = perm_mode {
+            if let Some(i) = args.iter().position(|a| a == "--permission-mode") {
+                if i + 1 < args.len() {
+                    args[i + 1] = mode;
+                }
+            }
+        }
         session_id = uuid::Uuid::new_v4().to_string();
         args.push("--session-id".to_string());
         args.push(session_id.clone());

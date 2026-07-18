@@ -110,10 +110,13 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
     const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
     row.append(top, pill);
 
-    if (a.title) {
+    const metaParts: string[] = [];
+    if (a.title) metaParts.push(a.title);
+    if (a.tokens) metaParts.push(`${fmtTokens(a.tokens)} tok`);
+    if (metaParts.length) {
       const meta = document.createElement('div');
       meta.className = 'rail-meta';
-      meta.textContent = a.title + (a.tokens ? ` · ${fmtTokens(a.tokens)}` : '');
+      meta.textContent = metaParts.join(' · ');
       row.appendChild(meta);
     }
     root.appendChild(row);

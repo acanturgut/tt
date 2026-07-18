@@ -168,9 +168,10 @@ export function syncTiles(
     t.header.style.borderTopColor = col ?? '';
     t.header.style.background = col ? tint(col, 0.16) : '';
 
-    t.meta.textContent = a.title
-      ? a.title + (a.tokens ? ` · ${fmtTokens(a.tokens)}` : '')
-      : '';
+    const parts: string[] = [];
+    if (a.title) parts.push(a.title);
+    if (a.tokens) parts.push(`${fmtTokens(a.tokens)} tok`);
+    t.meta.textContent = parts.join(' · ');
     updatePill(t.pill, a);
   }
 

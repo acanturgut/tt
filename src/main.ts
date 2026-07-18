@@ -30,6 +30,8 @@ import { renderTree } from './tree';
 import { mountBroadcast, updateBroadcast } from './broadcast';
 import { openPalette, type Command } from './palette';
 import { subscribeProjects, current as currentProject } from './projects';
+import { getSettings, openSettings } from './settings';
+import { chime } from './sound';
 import './styles.css';
 
 const terms = new Map<string, AgentTerminal>();
@@ -63,8 +65,11 @@ function syncNotifications() {
   for (const a of list()) {
     if (a.attention && !notified.has(a.id)) {
       notified.add(a.id);
-      if (a.id !== cur && notifOk) {
-        sendNotification({ title: `${a.name} needs you`, body: a.title ?? a.dir });
+      if (a.id !== cur) {
+        if (getSettings().sound) chime();
+        if (notifOk && getSettings().notifications) {
+          sendNotification({ title: `${a.name} needs you`, body: a.title ?? a.dir });
+        }
       }
     } else if (!a.attention) {
       notified.delete(a.id);
@@ -170,6 +175,7 @@ function renderProject() {
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
     onToggleOled: toggleOled,
+    onSettings: openSettings,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, {
     onOpenAgent: (folder, agentId) => void spawn(agentId, folder),
@@ -177,8 +183,13 @@ function renderProject() {
 }
 
 async function spawn(agentId: string, dir: string) {
+  const st = getSettings();
   try {
-    const id = await invoke<string>('spawn_agent', { projectDir: dir, agentId });
+    const id = await invoke<string>('spawn_agent', {
+      projectDir: dir,
+      agentId,
+      permMode: agentId === 'claude' ? st.claudeMode : undefined,
+    });
     const t = new AgentTerminal(id);
     terms.set(id, t);
     const q = pending.get(id);
@@ -186,7 +197,15 @@ async function spawn(agentId: string, dir: string) {
       pending.delete(id);
       for (const b of q) t.write(b);
     }
-    add({ id, agentId, name: agentId, dir, status: 'working' });
+    add({
+      id,
+      agentId,
+      name: agentId,
+      dir,
+      status: 'working',
+      label: st.autoPlanning ? 'planning' : undefined,
+    });
+    if (st.autoFocus) focus(id);
   } catch (e) {
     alert(`spawn failed: ${e}`);
   }
@@ -241,6 +260,9 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'k') {
     openPalette(buildCommands());
+    e.preventDefault();
+  } else if (e.key === ',') {
+    openSettings();
     e.preventDefault();
   }
 });

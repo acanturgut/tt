@@ -139,8 +139,18 @@ body.right-collapsed #tree { display: none; }
 .palette-hint { font-size: 11px; color: var(--muted); flex: 0 0 auto; }
 .palette-item.sel .palette-hint, .palette-item:hover .palette-hint { color: rgba(255, 255, 255, .8); }
 
+/* ── settings ────────────────────────────────────────── */
+.settings { width: 460px; max-width: 92vw; background: var(--elev); border-radius: 12px; box-shadow: 0 24px 70px rgba(0, 0, 0, .75); padding: 18px 20px; }
+.settings-title { font-weight: 800; font-size: 16px; margin-bottom: 14px; }
+.settings-section { margin-bottom: 12px; }
+.settings-section-title { color: var(--muted); font-weight: 600; margin-bottom: 4px; text-transform: uppercase; font-size: 11px; letter-spacing: .5px; }
+.settings-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; padding: 8px 0; cursor: pointer; }
+.settings-row > span { flex: 1; }
+.settings-row input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+.settings-select { background: var(--elev-2); color: var(--text); border: none; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+
 /* ── broadcast bar ───────────────────────────────────── */
-#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--bg); }
+#broadcast { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 8px 22px 8px 12px; background: var(--bg); }
 .bc-tag { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-hi); font-weight: 700; flex: 0 0 auto; }
 .bc-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; max-width: 42%; }
 .bc-chip { font-size: 11px; padding: 4px 11px; border-radius: 999px; border: none; background: var(--elev); color: var(--muted); cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
