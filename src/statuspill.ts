@@ -8,8 +8,11 @@ const LABELS: { key: WorkflowLabel; text: string; color: string }[] = [
   { key: 'done', text: 'Done', color: '#3fb950' },
 ];
 
+// Task-board-only statuses (not offered on the agent status pill) still need a color.
+const TASK_STATUS_COLORS: Partial<Record<WorkflowLabel, string>> = { 'needs-human': '#f0883e' };
+
 export function labelColor(label?: WorkflowLabel): string | null {
-  return LABELS.find((l) => l.key === label)?.color ?? null;
+  return LABELS.find((l) => l.key === label)?.color ?? (label ? TASK_STATUS_COLORS[label] ?? null : null);
 }
 
 export function updatePill(pill: HTMLElement, agent: Agent) {

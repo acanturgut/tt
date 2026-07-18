@@ -1,11 +1,13 @@
-import { listTasks, subscribeTasks, type TaskStatus } from './tasks';
+import { listTasks, removeTask, subscribeTasks, type TaskStatus } from './tasks';
 import { subscribeProjects } from './projects';
 import { labelColor } from './statuspill';
+import { icon } from './icon';
 
 const COLUMNS: { key: TaskStatus; text: string }[] = [
   { key: 'planning', text: 'Planning' },
   { key: 'in-progress', text: 'In progress' },
   { key: 'in-review', text: 'In review' },
+  { key: 'needs-human', text: 'Needs you' },
   { key: 'done', text: 'Done' },
 ];
 
@@ -63,13 +65,27 @@ function render(): void {
     c.className = 'board-col';
     c.style.setProperty('--col', labelColor(col.key) ?? '#888');
 
+    const colTasks = tasks.filter((t) => t.status === col.key);
     const head = document.createElement('div');
     head.className = 'board-col-head';
-    const n = tasks.filter((t) => t.status === col.key).length;
-    head.textContent = `${col.text} (${n})`;
+    const lbl = document.createElement('span');
+    lbl.textContent = `${col.text} (${colTasks.length})`;
+    head.appendChild(lbl);
+    if (colTasks.length) {
+      const del = document.createElement('button');
+      del.className = 'board-col-del';
+      del.title = `Delete all ${colTasks.length} task(s) in ${col.text}`;
+      del.appendChild(icon('trash'));
+      del.onclick = () => {
+        if (confirm(`Delete all ${colTasks.length} task(s) in "${col.text}"?`)) {
+          colTasks.forEach((t) => removeTask(t.id));
+        }
+      };
+      head.appendChild(del);
+    }
     c.appendChild(head);
 
-    for (const t of tasks.filter((x) => x.status === col.key)) {
+    for (const t of colTasks) {
       const card = document.createElement('div');
       card.className = 'board-card';
 

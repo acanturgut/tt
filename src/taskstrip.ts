@@ -35,7 +35,7 @@ export function renderTaskStrip(): void {
   label.textContent = `Tasks ${s.done}/${s.total}`;
   const bar = document.createElement('span');
   bar.className = 'strip-bar';
-  const seg = (n: number, status: 'done' | 'in-review' | 'in-progress' | 'planning') => {
+  const seg = (n: number, status: 'done' | 'in-review' | 'needs-human' | 'in-progress' | 'planning') => {
     if (!s.total || !n) return;
     const i = document.createElement('i');
     i.style.width = `${(n / s.total) * 100}%`;
@@ -44,6 +44,7 @@ export function renderTaskStrip(): void {
   };
   seg(s.done, 'done');
   seg(s['in-review'], 'in-review');
+  seg(s['needs-human'], 'needs-human');
   seg(s['in-progress'], 'in-progress');
   seg(s.planning, 'planning');
   const openHint = document.createElement('span');

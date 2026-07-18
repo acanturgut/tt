@@ -24,7 +24,8 @@ Board tools:
 - add_task(title, description?) — creates a task in the Planning column, returns its id (e.g. \"t3\").
 - list_tasks() — returns the current project's tasks: id, title, status, assignee, result.
 - update_task(id, status?, assignee?, result?) — changes a task.
-Statuses: planning, in-progress, in-review, done. The board follows the human's active project.
+Statuses: planning, in-progress, in-review, needs-human, done. Set status=needs-human when a task \
+is blocked and needs the human to act. The board follows the human's active project.
 
 As a LEAD agent: break the work into tasks with add_task. Dispatch a task to a specific \
 worker with send(agent_number, \"...work task t3...\"), or let idle workers pull. Watch \
@@ -294,12 +295,12 @@ fn tool_defs() -> Value {
         },
         {
             "name": "list_tasks",
-            "description": "List the current project's tasks as JSON: id, title, status, assignee, result. status is one of planning, in-progress, in-review, done.",
+            "description": "List the current project's tasks as JSON: id, title, status, assignee, result. status is one of planning, in-progress, in-review, needs-human, done.",
             "inputSchema": { "type": "object", "properties": {} }
         },
         {
             "name": "update_task",
-            "description": "Update a task by id. Claim it by setting status=in-progress and assignee to your agent number; finish by setting status=done and result. status is one of planning, in-progress, in-review, done.",
+            "description": "Update a task by id. Claim it by setting status=in-progress and assignee to your agent number; finish by setting status=done and result. Set status=needs-human when the task is blocked and needs the human to act. status is one of planning, in-progress, in-review, needs-human, done.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

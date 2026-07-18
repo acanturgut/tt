@@ -51,7 +51,7 @@ describe('tasks store', () => {
     const c = store.addTask('/p', 'c');
     store.updateTask(c.id, { status: 'done' });
     const s = store.taskStats(store.listTasks('/p'));
-    expect(s).toEqual({ planning: 1, 'in-progress': 1, 'in-review': 0, done: 1, total: 3 });
+    expect(s).toEqual({ planning: 1, 'in-progress': 1, 'in-review': 0, 'needs-human': 0, done: 1, total: 3 });
   });
 
   it('snapshotFor emits a compact JSON array for the project', () => {

@@ -17,6 +17,7 @@ export interface TaskStats {
   planning: number;
   'in-progress': number;
   'in-review': number;
+  'needs-human': number;
   done: number;
   total: number;
 }
@@ -77,7 +78,7 @@ export function loadTasks(saved: Task[]): void {
 }
 
 export function taskStats(input: Task[]): TaskStats {
-  const s: TaskStats = { planning: 0, 'in-progress': 0, 'in-review': 0, done: 0, total: input.length };
+  const s: TaskStats = { planning: 0, 'in-progress': 0, 'in-review': 0, 'needs-human': 0, done: 0, total: input.length };
   for (const t of input) s[t.status]++;
   return s;
 }

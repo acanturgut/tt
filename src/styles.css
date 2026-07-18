@@ -305,7 +305,10 @@ body.board-open #board { display: flex; flex-direction: column; flex: 1; min-hei
 .board-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px; overflow: auto; flex: 1; min-height: 0; }
 .board-col { display: flex; flex-direction: column; gap: 8px; background: #111; border: 1px solid #242424; border-top: 2px solid var(--col); border-radius: 6px; padding: 8px; min-height: 0; }
 .board-col.drag-over { background: #14181f; }
-.board-col-head { color: var(--col); font-size: 12px; font-weight: 600; }
+.board-col-head { color: var(--col); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+.board-col-del { background: none; border: none; color: #6b7480; cursor: pointer; padding: 0 2px; display: flex; opacity: 0; transition: opacity 0.12s; }
+.board-col:hover .board-col-del { opacity: 1; }
+.board-col-del:hover { color: #f85149; }
 .board-card { position: relative; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 5px; padding: 6px 8px; cursor: grab; }
 .board-card-title { color: #ddd; font-size: 13px; padding-right: 14px; }
 .board-card-who { color: #7aa2d6; font-size: 11px; }

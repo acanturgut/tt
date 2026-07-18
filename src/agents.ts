@@ -1,5 +1,5 @@
 export type Status = 'working' | 'idle' | 'exited';
-export type WorkflowLabel = 'planning' | 'in-progress' | 'in-review' | 'done';
+export type WorkflowLabel = 'planning' | 'in-progress' | 'in-review' | 'needs-human' | 'done';
 
 export interface Agent {
   id: string;

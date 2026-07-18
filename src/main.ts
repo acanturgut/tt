@@ -481,7 +481,7 @@ listen<{ id: string; title: string; description: string }>('mcp-task-add', (e) =
   const p = curProjPath();
   if (p) addTask(p, e.payload.title, e.payload.description || undefined, e.payload.id);
 });
-const TASK_STATUSES: WorkflowLabel[] = ['planning', 'in-progress', 'in-review', 'done'];
+const TASK_STATUSES: WorkflowLabel[] = ['planning', 'in-progress', 'in-review', 'needs-human', 'done'];
 listen<{ id: string; status?: string; assignee?: string; result?: string }>('mcp-task-update', (e) => {
   const { id, ...patch } = e.payload;
   // Drop an out-of-enum status from an agent (e.g. "in progress") — an invalid
