@@ -1,5 +1,6 @@
 mod claude_watch;
 mod commands;
+mod mcp;
 mod pty;
 mod registry;
 
@@ -12,6 +13,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init()) // native folder picker (dialog:default)
         .plugin(tauri_plugin_notification::init()) // native notifications (notification:default)
         .manage(AppState::default())
+        .setup(|app| {
+            mcp::start(app.handle().clone()); // MCP server so agents can spawn agents
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::spawn_agent,
             commands::write_agent,
@@ -20,7 +25,8 @@ pub fn run() {
             commands::list_dir,
             commands::make_dir,
             commands::search_dirs,
-            commands::session_alive
+            commands::session_alive,
+            commands::mcp_set_agents
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

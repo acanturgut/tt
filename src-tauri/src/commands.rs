@@ -12,6 +12,8 @@ pub struct AppState {
     // blocking PTY op — one stuck child must not freeze every other agent.
     agents: Mutex<HashMap<String, Arc<PtySession>>>,
     counter: AtomicU64,
+    // JSON snapshot of the frontend's agent list, for the MCP list_agents tool.
+    pub mcp_agents: Mutex<String>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -258,6 +260,15 @@ pub fn session_alive(session_key: String) -> bool {
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
+}
+
+// The frontend pushes its live agent list here (JSON) so the MCP server's
+// list_agents tool can report it.
+#[tauri::command]
+pub fn mcp_set_agents(state: State<AppState>, json: String) {
+    if let Ok(mut g) = state.mcp_agents.lock() {
+        *g = json;
+    }
 }
 
 #[derive(serde::Serialize)]

@@ -201,6 +201,12 @@ function renderAgents() {
   updateBroadcast(vis);
   syncNotifications();
   persistAgents();
+  // Push a snapshot for the MCP server's list_agents tool (number = position in list()).
+  void invoke('mcp_set_agents', {
+    json: JSON.stringify(
+      list().map((a, i) => ({ number: i + 1, name: a.name, kind: a.agentId, dir: a.dir, status: a.status })),
+    ),
+  }).catch(() => {});
 }
 
 // Project-driven UI — topbar + tree, only re-renders on project change.
@@ -349,6 +355,25 @@ listen<{ id: string }>('agent-exit', (e) => {
 listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
   markClaude(e.payload.id, e.payload.title, e.payload.tokens),
 );
+
+// MCP server -> UI: an agent (via the tt MCP tools) asked to spawn/send/broadcast/close.
+// Numbers are 1-based positions in list() (matches the list_agents snapshot).
+listen<{ agent: string; dir: string }>('mcp-spawn', (e) => void spawn(e.payload.agent, e.payload.dir));
+listen<{ number: number; text: string }>('mcp-send', (e) => {
+  const a = list()[e.payload.number - 1];
+  if (a) broadcast([a.id], e.payload.text, false);
+});
+listen<{ text: string; numbered: boolean }>('mcp-broadcast', (e) =>
+  broadcast(
+    list().map((a) => a.id),
+    e.payload.text,
+    e.payload.numbered,
+  ),
+);
+listen<{ number: number }>('mcp-close', (e) => {
+  const a = list()[e.payload.number - 1];
+  if (a) closeAgent(a.id);
+});
 
 subscribe(renderAgents);
 subscribeProjects(() => {

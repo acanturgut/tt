@@ -73,4 +73,10 @@ url = "http://127.0.0.1:4127/mcp"
 
 ## Status
 
-Server implementation is the next build. This doc is the contract it targets.
+**Implemented.** While tt is running it serves the tools above at
+`http://127.0.0.1:4127/mcp`. An agent spawned via `spawn_agent` shows up as a
+normal tile; `list_agents` numbers match the tile numbers. Add it to Claude:
+
+```sh
+claude mcp add tt --transport http http://127.0.0.1:4127/mcp
+```
