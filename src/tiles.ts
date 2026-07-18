@@ -30,6 +30,7 @@ interface TileEls {
 }
 
 const tiles = new Map<string, TileEls>();
+let lastOrder = '';
 
 function fmtTokens(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
@@ -128,11 +129,17 @@ export function syncTiles(
     }
   }
 
-  // Keep tile DOM order in sync with agent order (drag-reorder in the rail).
-  // appendChild on an existing node just moves it, so this re-sequences cheaply.
-  for (const a of agents) {
-    const t = tiles.get(a.id);
-    if (t) stage.appendChild(t.root);
+  // Re-sequence tile DOM to match agent order — ONLY when the order actually
+  // changed. appendChild moves the node, and moving a tile that contains the
+  // focused xterm textarea BLURS it; doing that on every output/status tick made
+  // the terminals impossible to type in.
+  const order = agents.map((a) => a.id).join(',');
+  if (order !== lastOrder) {
+    lastOrder = order;
+    for (const a of agents) {
+      const t = tiles.get(a.id);
+      if (t) stage.appendChild(t.root);
+    }
   }
 
   const focusMode = !!focusedId;
