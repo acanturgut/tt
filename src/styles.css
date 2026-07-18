@@ -60,7 +60,7 @@ button { font-family: inherit; }
 .sc-item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── left rail (agents) ──────────────────────────────── */
-#sidebar { width: 280px; flex: 0 0 280px; background: var(--bg); padding: 8px; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid #15181e; }
+#sidebar { width: 280px; flex: 0 0 280px; background: var(--bg); padding: 8px; display: flex; flex-direction: column; overflow: hidden; }
 .rail-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
 .rail-otter { flex: 0 0 auto; height: 132px; margin-top: 8px; background: url(/otter-corner.png) center bottom / contain no-repeat; opacity: .9; }
 body.left-collapsed #sidebar { display: none; }
@@ -121,7 +121,7 @@ body.left-collapsed #sidebar { display: none; }
 .pill:hover { background: #22262e; }
 
 /* ── right tree ──────────────────────────────────────── */
-#tree { width: 268px; flex: 0 0 268px; background: var(--bg); padding: 6px; overflow-y: auto; overflow-x: hidden; border-right: 1px solid #15181e; }
+#tree { width: 268px; flex: 0 0 268px; background: var(--bg); padding: 6px; overflow-y: auto; overflow-x: hidden; }
 body.right-collapsed #tree { display: none; }
 .tree-search { width: 100%; background: var(--elev); color: var(--text); border: none; border-radius: 7px; padding: 7px 10px; margin-bottom: 6px; font: inherit; }
 .tree-search:focus { outline: none; background: var(--elev-2); }
