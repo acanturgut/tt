@@ -127,8 +127,10 @@ pub fn spawn_agent(
             .map(|a| sh_quote(&a))
             .collect::<Vec<_>>()
             .join(" ");
+        // unset TMUX so we never nest inside the tmux tt itself was launched from
+        // (nested attach garbles the tile); our sessions live on the default server.
         let full = format!(
-            "tmux has-session -t {name} 2>/dev/null || tmux new-session -d -s {name} -c {dir} {cmdq}; tmux set -t {name} status off 2>/dev/null; exec tmux attach -t {name}",
+            "unset TMUX; tmux has-session -t {name} 2>/dev/null || tmux new-session -d -s {name} -c {dir} {cmdq}; tmux set -t {name} status off 2>/dev/null; exec tmux attach -t {name}",
             name = name,
             dir = sh_quote(&project_dir),
             cmdq = cmdq,
