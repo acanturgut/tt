@@ -85,7 +85,7 @@ export function syncTiles(
     const star = document.createElement('span');
     star.className = 'attn';
     star.title = 'waiting for you';
-    star.appendChild(icon('star'));
+    star.appendChild(icon('bell-ringing'));
     const name = editableName(a, (nm) => h.onRename(a.id, nm));
     const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
     const meta = document.createElement('span');

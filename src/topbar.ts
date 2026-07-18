@@ -73,10 +73,6 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   left.appendChild(icon('sidebar-simple'));
   left.onclick = () => h.onToggleLeft();
 
-  const brand = document.createElement('span');
-  brand.className = 'brand';
-  brand.textContent = 'tt';
-
   const wrap = document.createElement('div');
   wrap.className = 'proj-wrap';
   const lbl = document.createElement('span');
@@ -129,5 +125,5 @@ export function renderTopbar(root: HTMLElement, h: TopbarHandlers) {
   right.appendChild(icon('sidebar-simple', 'flip'));
   right.onclick = () => h.onToggleRight();
 
-  root.append(left, brand, wrap, spacer, zoomOut, zoomIn, right);
+  root.append(left, wrap, spacer, zoomOut, zoomIn, right);
 }

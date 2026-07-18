@@ -15,6 +15,8 @@ export interface Agent {
 
 const agents = new Map<string, Agent>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
+const attnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const ATTENTION_MS = 8000; // quiet this long after working -> "needs you" (avoids brief-pause false positives)
 const listeners = new Set<() => void>();
 let focusedId: string | null = null;
 
@@ -59,10 +61,22 @@ export function markOutput(id: string) {
       const cur = agents.get(id);
       if (cur && cur.status !== 'exited') {
         cur.status = 'idle';
-        cur.attention = true; // finished a turn -> waiting on you
         emit();
       }
     }, 2000),
+  );
+  // Separate, longer timer for "needs you" so a brief thinking pause doesn't flag it.
+  const prevA = attnTimers.get(id);
+  if (prevA) clearTimeout(prevA);
+  attnTimers.set(
+    id,
+    setTimeout(() => {
+      const cur = agents.get(id);
+      if (cur && cur.status !== 'exited' && !cur.attention) {
+        cur.attention = true;
+        emit();
+      }
+    }, ATTENTION_MS),
   );
   if (changed) emit();
 }
@@ -74,10 +88,14 @@ export function markExit(id: string) {
   a.attention = false;
   const prev = timers.get(id);
   if (prev) clearTimeout(prev);
+  const prevA = attnTimers.get(id);
+  if (prevA) clearTimeout(prevA);
   emit();
 }
 
 export function clearAttention(id: string) {
+  const prevA = attnTimers.get(id);
+  if (prevA) clearTimeout(prevA); // cancel a pending flag so it can't fire while you're looking
   const a = agents.get(id);
   if (!a || !a.attention) return;
   a.attention = false;
@@ -130,6 +148,9 @@ export function remove(id: string) {
   const t = timers.get(id);
   if (t) clearTimeout(t);
   timers.delete(id);
+  const ta = attnTimers.get(id);
+  if (ta) clearTimeout(ta);
+  attnTimers.delete(id);
   if (focusedId === id) focusedId = null;
   emit();
 }
@@ -138,6 +159,7 @@ export function remove(id: string) {
 export function __resetForTest() {
   agents.clear();
   timers.clear();
+  attnTimers.clear();
   listeners.clear();
   focusedId = null;
 }

@@ -44,7 +44,15 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
   if (!agents.length) {
     const empty = document.createElement('div');
     empty.className = 'rail-empty';
-    empty.textContent = 'Open an agent from the tree →';
+    const ic = icon('robot');
+    ic.classList.add('rail-empty-ic');
+    const t1 = document.createElement('div');
+    t1.className = 'rail-empty-title';
+    t1.textContent = 'No agents running';
+    const t2 = document.createElement('div');
+    t2.className = 'rail-empty-hint';
+    t2.textContent = 'Spawn one from a folder in the tree, or the top bar';
+    empty.append(ic, t1, t2);
     root.appendChild(empty);
     return;
   }
@@ -93,7 +101,7 @@ export function renderSidebar(root: HTMLElement, h: SidebarHandlers) {
     if (a.attention) {
       const star = document.createElement('span');
       star.className = 'attn';
-      star.appendChild(icon('star'));
+      star.appendChild(icon('bell-ringing'));
       top.append(dot, star, label, close);
     } else {
       top.append(dot, label, close);
