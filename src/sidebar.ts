@@ -105,7 +105,7 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
     };
     const num = document.createElement('span');
     num.className = 'rnum';
-    num.textContent = String(idx);
+    num.textContent = `#${idx}`;
     if (a.attention) {
       const star = document.createElement('span');
       star.className = 'attn';
