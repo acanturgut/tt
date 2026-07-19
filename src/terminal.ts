@@ -1,5 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { invoke } from '@tauri-apps/api/core';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
@@ -60,10 +61,18 @@ export class AgentTerminal {
     if (this.opened) return;
     this.opened = true;
     this.term.open(this.el);
-    // ponytail: no WebGL renderer — on some GPU/driver combos xterm's WebGL addon drops
-    // whole glyph classes (punctuation like `>` renders blank), across every terminal.
-    // The default renderer is plenty fast for these tiles. Re-add WebGL only if
-    // large-output perf ever demands it (and gate it behind a working-glyph check).
+    // WebGL renderer: the DOM renderer reflows a <div>-per-row on every scroll tick,
+    // which janks hard in WKWebView. WebGL scrolls by blitting a texture instead.
+    // ponytail: guarded, not gated — xterm's WebGL has dropped glyph classes (blank
+    // punctuation) on some GPU/driver combos, so fall back to the DOM renderer if the
+    // context can't be created or is lost. If blank glyphs ever show, gate per-GPU.
+    try {
+      const gl = new WebglAddon();
+      gl.onContextLoss(() => gl.dispose()); // GPU reset → xterm reverts to the DOM renderer
+      this.term.loadAddon(gl);
+    } catch {
+      /* no WebGL context → stay on the DOM renderer */
+    }
     this.fitNow();
   }
 
