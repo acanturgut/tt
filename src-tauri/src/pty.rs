@@ -141,6 +141,9 @@ impl PtySession {
         self.stop.store(true, Ordering::Relaxed);
         if let Ok(mut c) = self.child.lock() {
             let _ = c.kill();
+            // Reap it. portable-pty's Child has no reaping Drop, so without this every
+            // closed agent leaves a <defunct> process behind for the app's whole life.
+            let _ = c.wait();
         }
     }
 }

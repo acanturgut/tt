@@ -62,7 +62,7 @@ import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
 import { showInstallHelp } from './installs';
 import { randomName } from './naming';
-import { visibleProviders, subscribeProviders, spawnModelArgs, providerModels, fallbackModel } from './providers';
+import { visibleProviders, subscribeProviders, spawnModelArgs, providerModels, fallbackModel, isLocalRuntime, localModelsReady } from './providers';
 import { setQuota, subscribeQuota, type QuotaWindow } from './quota';
 import { renderWelcome } from './welcome';
 import './styles.css';
@@ -163,12 +163,18 @@ function setAgentModel(id: string, model?: string, effort?: string) {
 
 // Relaunch an agent with its recorded model/effort — the way effort/non-claude
 // model changes take effect. Loses the session (fresh CLI), same dir/name.
-function restartAgent(id: string) {
+async function restartAgent(id: string) {
   const a = list().find((x) => x.id === id);
   if (!a) return;
-  const { agentId, dir, name, model, effort, label } = a;
+  const { agentId, dir, name, model, effort, label, session, parentId, spawned } = a;
+  // Was this the session's lead? The orchestrator points at the old id, which is
+  // about to die — it has to follow the replacement or the session loses its root.
+  const wasRoot = session && getOrchestrator(session)?.rootAgentId === id;
   closeAgent(id);
-  void spawn(agentId, dir, label, { name, model, effort });
+  // Carry session/parentId across: without them the new agent lands in General and
+  // its tile vanishes from the session view while the process keeps running.
+  const next = await spawn(agentId, dir, label, { name, model, effort, session, parentId, spawned });
+  if (next && wasRoot && session) setOrchestratorRoot(session, next);
 }
 
 // Agents belonging to the current project tab — each tab is its own panel.
@@ -196,10 +202,12 @@ function broadcast(ids: string[], text: string, numbered: boolean) {
     markInput(id);
     const num = labels.get(id) ?? '?'; // hierarchical number shown on the tile/rail
     const msg = numbered ? `You are agent ${num} of ${total}. ${text}` : text;
-    void invoke('write_agent', { id, data: msg });
+    // .catch: write_agent rejects for an unknown id, and the agent can be closed
+    // between these two writes — an unhandled rejection either way.
+    void invoke('write_agent', { id, data: msg }).catch(() => {});
     // Send Enter as a SEPARATE write a beat later so TUIs (claude/codex) submit
     // instead of treating the \r as a newline inside the input box.
-    setTimeout(() => void invoke('write_agent', { id, data: '\r' }), 90);
+    setTimeout(() => void invoke('write_agent', { id, data: '\r' }).catch(() => {}), 90);
   }
 }
 
@@ -440,6 +448,9 @@ async function spawn(
 ) {
   const st = getSettings();
   const key = crypto.randomUUID();
+  // The local-model list arrives asynchronously; spawning before it lands would pass
+  // no model at all and `ollama run` errors out bare.
+  if (isLocalRuntime(agentId)) await localModelsReady;
   // Template slot > provider default > CLI's own default (local runtimes have
   // none, so fallbackModel picks the first model on the machine instead).
   const model = opts?.model || defaultModel(agentId) || fallbackModel(agentId);
@@ -522,10 +533,15 @@ function persistTasks() {
 function pushTasks() {
   void invoke('mcp_set_tasks', { json: snapshotFor(curProjPath() ?? '') }).catch(() => {});
 }
+const TASK_STATUSES: WorkflowLabel[] = ['planning', 'in-progress', 'in-review', 'needs-human', 'done'];
 function restoreTasks() {
   try {
     const raw = JSON.parse(localStorage.getItem('tt.tasks') ?? '[]');
-    if (Array.isArray(raw)) loadTasks(raw as Task[]);
+    // Drop out-of-enum statuses (older schema, hand-edited store): they match no
+    // board column, so the card would be invisible while still counting in the totals.
+    if (Array.isArray(raw)) {
+      loadTasks((raw as Task[]).filter((t) => t && TASK_STATUSES.includes(t.status)));
+    }
   } catch {
     /* ignore corrupt store */
   }
@@ -640,7 +656,7 @@ void getCurrentWebview().onDragDropEvent((e) => {
   if (!id || !terms.has(id)) return;
   const quote = (p: string) => (/\s/.test(p) ? `'${p.replace(/'/g, "'\\''")}'` : p);
   markInput(id);
-  void invoke('write_agent', { id, data: e.payload.paths.map(quote).join(' ') + ' ' });
+  void invoke('write_agent', { id, data: e.payload.paths.map(quote).join(' ') + ' ' }).catch(() => {});
 });
 
 // MCP server -> UI: an agent (via the tt MCP tools) asked to spawn/send/broadcast/close.
@@ -693,7 +709,6 @@ listen<{ id: string; title: string; description: string }>('mcp-task-add', (e) =
   const p = curProjPath();
   if (p) addTask(p, e.payload.title, e.payload.description || undefined, e.payload.id);
 });
-const TASK_STATUSES: WorkflowLabel[] = ['planning', 'in-progress', 'in-review', 'needs-human', 'done'];
 listen<{ id: string; status?: string; assignee?: string; result?: string }>('mcp-task-update', (e) => {
   const { id, ...patch } = e.payload;
   // Drop an out-of-enum status from an agent (e.g. "in progress") — an invalid

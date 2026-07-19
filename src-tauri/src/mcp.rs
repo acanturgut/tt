@@ -60,6 +60,19 @@ pub fn start(app: AppHandle) {
         };
         eprintln!("[mcp] listening on http://127.0.0.1:{PORT}/mcp");
         for mut req in server.incoming_requests() {
+            // These tools spawn agents and type into their PTYs, so a request from a web
+            // page is arbitrary code execution. A browser always stamps Origin on a
+            // cross-origin fetch — including the CORS-"simple" text/plain POST that skips
+            // preflight — while local MCP clients never send one. So: no Origin, no entry.
+            // (This also covers DNS rebinding: the rebound page still sends its own Origin.)
+            if req
+                .headers()
+                .iter()
+                .any(|h| h.field.equiv("Origin"))
+            {
+                let _ = req.respond(Response::from_string("").with_status_code(403));
+                continue;
+            }
             let is_post = *req.method() == Method::Post;
             let mut body = String::new();
             if is_post {
@@ -69,13 +82,9 @@ pub fn start(app: AppHandle) {
                 Some(v) => {
                     let ct = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..])
                         .unwrap();
-                    let cors =
-                        Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap();
-                    let _ = req.respond(
-                        Response::from_string(v.to_string())
-                            .with_header(ct)
-                            .with_header(cors),
-                    );
+                    // No Access-Control-Allow-Origin: nothing browser-based should be able
+                    // to read these responses either.
+                    let _ = req.respond(Response::from_string(v.to_string()).with_header(ct));
                 }
                 // Notification or non-POST: acknowledge with no JSON-RPC body.
                 None => {
@@ -198,7 +207,11 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
                     "error: no agent {n}, or it isn't running in tmux (its output can't be captured)"
                 );
             }
-            match std::process::Command::new("tmux")
+            // Absolute path — a bare "tmux" doesn't resolve on a packaged app's PATH.
+            let Some(tmux) = crate::commands::tmux_path() else {
+                return "error: could not run tmux".to_string();
+            };
+            match std::process::Command::new(tmux)
                 .args(["capture-pane", "-p", "-t", &session, "-S", &format!("-{lines}")])
                 .output()
             {

@@ -73,6 +73,9 @@ export function openGit(): void {
   open = true;
   document.body.classList.add('git-open');
   hStatus = hLog = hWt = hSig = ''; // force a fresh paint
+  // Drop the previous repo's data — the project may have changed while we were closed,
+  // and stale `sel`/`status` would paint another repo's diff (and route staging at its root).
+  sel = null; diffText = ''; status = null; commits = []; worktrees = []; diffReq++;
   render(); // build the shell now; refresh() fills each region granularly
   const root = getRoot();
   // Warm git's commit-graph once (fire-and-forget) — makes `git log` ~17x faster on deep
@@ -408,13 +411,20 @@ function renderTree(): HTMLElement {
   list.style.position = 'relative';
   list.style.height = `${H}px`;
 
-  // Text rows are cheap DOM (content-visibility skips off-screen ones). The graph itself is drawn
-  // ONCE onto a single <canvas> appended below — a bitmap that just translates on scroll (GPU),
-  // not per-row SVG that re-rasterizes its vector paths every frame. This is what lets native git
-  // clients scroll instantly.
-  rows.forEach((r, i) => {
+  // Only the visible band of rows exists in the DOM, and the canvas is only as tall as
+  // that band. Drawing the whole history onto one canvas silently broke on real repos:
+  // canvas area is capped (~16.7M px² in WKWebView), so past roughly 1500 commits the
+  // allocation fails and the graph draws NOTHING — lanes and dots vanish, text stays.
+  // Windowing also drops the rebuild-on-every-commit cost from O(all) to O(~70 rows).
+  // ponytail: the full log still crosses IPC on each refresh; git_log_graph already
+  // takes a `limit` if that ever becomes the bottleneck.
+  const buildRow = (r: (typeof rows)[number], i: number) => {
     const row = document.createElement('div');
     row.className = 'git-tree-row' + (sel?.kind === 'commit' && sel.hash === r.commit.hash ? ' on' : '');
+    row.style.position = 'absolute';
+    row.style.top = `${i * ROW_H}px`;
+    row.style.left = '0';
+    row.style.right = '0';
     row.style.height = `${ROW_H}px`;
     row.style.paddingLeft = `${gutters[i]}px`;
     row.onclick = () => void selectCommit(r.commit.hash);
@@ -447,24 +457,36 @@ function renderTree(): HTMLElement {
     meta.append(subj, info);
 
     row.appendChild(meta);
-    list.appendChild(row);
-  });
+    return row;
+  };
 
-  // Draw the whole graph once onto a single canvas overlaid on the gutter (pointer-events: none,
-  // transparent except the lanes — row clicks pass through and the text shows through).
+  // The canvas covers only the drawn band and is repositioned as it scrolls
+  // (pointer-events: none, transparent except the lanes — row clicks pass through).
   const dpr = window.devicePixelRatio || 1;
   const canvas = document.createElement('canvas');
   canvas.className = 'git-tree-canvas';
-  canvas.width = Math.ceil(graphW * dpr);
-  canvas.height = Math.ceil(H * dpr);
   canvas.style.width = `${graphW}px`;
-  canvas.style.height = `${H}px`;
   const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.scale(dpr, dpr);
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0a0b0d';
+
+  const BUF = 15; // rows drawn beyond each edge, so a fast flick doesn't show a blank band
+  let raf = 0;
+  const drawWindow = () => {
+    raf = 0;
+    const vis = Math.ceil((wrap.clientHeight || 800) / ROW_H); // 0 before attach — assume a screenful
+    const start = Math.max(0, Math.floor(wrap.scrollTop / ROW_H) - BUF);
+    const end = Math.min(rows.length, start + vis + 2 * BUF);
+    const bandH = (end - start) * ROW_H;
+    canvas.width = Math.ceil(graphW * dpr);
+    canvas.height = Math.ceil(bandH * dpr);
+    canvas.style.height = `${bandH}px`;
+    canvas.style.top = `${start * ROW_H}px`;
+    list.replaceChildren(canvas, ...rows.slice(start, end).map((r, k) => buildRow(r, start + k)));
+    if (!ctx) return;
+    // Shift the origin so the per-row draw code below keeps using absolute row offsets.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, -start * ROW_H * dpr);
     ctx.lineWidth = 2;
-    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0a0b0d';
-    for (let i = 0; i < rows.length; i++) {
+    for (let i = start; i < end; i++) {
       const r = rows[i];
       const y0 = i * ROW_H, ny = i * ROW_H + ROW_H / 2, y1 = (i + 1) * ROW_H;
       for (const e of r.edges) {
@@ -483,7 +505,7 @@ function renderTree(): HTMLElement {
         ctx.stroke();
       }
     }
-    for (let i = 0; i < rows.length; i++) {
+    for (let i = start; i < end; i++) {
       const r = rows[i];
       const ny = i * ROW_H + ROW_H / 2, nx = x(r.lane);
       const isMerge = r.commit.parents.length > 1;
@@ -501,8 +523,15 @@ function renderTree(): HTMLElement {
         ctx.stroke();
       }
     }
-  }
-  list.appendChild(canvas);
+  };
+
+  wrap.addEventListener(
+    'scroll',
+    () => { if (!raf) raf = requestAnimationFrame(drawWindow); },
+    { passive: true },
+  );
+  drawWindow(); // pre-attach: clientHeight is 0, so this uses the fallback height
+  requestAnimationFrame(drawWindow); // attached now — redraw against the real viewport
 
   wrap.appendChild(list);
   return wrap;
@@ -548,31 +577,17 @@ function renderDiff(): HTMLElement {
   const lang = langForPath(langPath);
   const body = document.createElement('div');
   body.className = 'git-diff-body';
-  let oldLn = 0, newLn = 0;
-  for (const raw of diffText.split('\n')) {
-    if (raw === '') continue; // trailing split artifact (git diff ends with a newline)
+  for (const d of parseDiff(diffText)) {
+    const { cls, text } = d;
     const line = document.createElement('div');
-    let cls = 'dl';
-    let text = raw;
-    if (raw.startsWith('@@')) {
-      cls = 'dl hunk';
-      const m = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
-      if (m) { oldLn = parseInt(m[1], 10); newLn = parseInt(m[2], 10); }
-    } else if (raw.startsWith('+') && !raw.startsWith('+++')) {
-      cls = 'dl add'; text = raw.slice(1);
-    } else if (raw.startsWith('-') && !raw.startsWith('---')) {
-      cls = 'dl del'; text = raw.slice(1);
-    } else if (raw.startsWith('diff ') || raw.startsWith('index ') || raw.startsWith('+++') || raw.startsWith('---') || raw.startsWith('new file') || raw.startsWith('deleted file') || raw.startsWith('rename ') || raw.startsWith('similarity ')) {
-      cls = 'dl meta';
-    }
     line.className = cls;
 
     const gutO = document.createElement('span');
     gutO.className = 'dl-no';
     const gutN = document.createElement('span');
     gutN.className = 'dl-no';
-    if (cls === 'dl' || cls === 'dl del') gutO.textContent = String(oldLn++);
-    if (cls === 'dl' || cls === 'dl add') gutN.textContent = String(newLn++);
+    if (d.oldNo !== null) gutO.textContent = String(d.oldNo);
+    if (d.newNo !== null) gutN.textContent = String(d.newNo);
 
     const code = document.createElement('span');
     code.className = 'dl-code';
@@ -588,15 +603,86 @@ function renderDiff(): HTMLElement {
   return wrap;
 }
 
+// Guards against a slow diff landing after a newer selection and painting the wrong
+// content under the current header. Same pattern as the viewer's reqId.
+let diffReq = 0;
+
+export interface DiffLine {
+  cls: string;
+  text: string;
+  oldNo: number | null; // gutter numbers; null = no number on that side
+  newNo: number | null;
+}
+
+// Split a unified diff into renderable lines.
+//
+// Inside a hunk a line's TYPE IS ITS FIRST CHARACTER — never a prefix like `---`/`+++`,
+// which only mean anything in the header. Matching on those prefixes misread real
+// content: deleting a `---` markdown rule classified as metadata, which also skipped
+// the oldLn++ and desynced every line number below it in that hunk.
+export function parseDiff(diffText: string): DiffLine[] {
+  const out: DiffLine[] = [];
+  let oldLn = 0, newLn = 0, inHunk = false;
+  // Width of the marker column(s). 1 for an ordinary diff; a COMBINED diff (`git show`
+  // on a merge → `diff --cc`, `@@@ -a -b +c @@@`) carries one column per parent, so its
+  // rows look like " -old" / "+ new" and reading only char 0 renders every change as
+  // context. The @-run in the hunk header tells us how many.
+  let cols = 1;
+  for (const raw of diffText.split('\n')) {
+    if (raw === '') continue; // trailing split artifact (git diff ends with a newline)
+    let cls = 'dl';
+    let text = raw;
+    const hm = /^(@{2,}) (.*?) \1/.exec(raw);
+    if (hm) {
+      cls = 'dl hunk';
+      inHunk = true;
+      cols = hm[1].length - 1;
+      // Ranges are "-old [-old2 …] +new"; take the first minus and the plus.
+      const parts = hm[2].split(' ');
+      const minus = parts.find((p) => p.startsWith('-'));
+      const plus = parts.find((p) => p.startsWith('+'));
+      oldLn = minus ? parseInt(minus.slice(1), 10) : 0;
+      newLn = plus ? parseInt(plus.slice(1), 10) : 0;
+    } else if (raw.startsWith('diff ')) {
+      cls = 'dl meta'; inHunk = false; cols = 1; // next file in a multi-file diff — header mode
+    } else if (!inHunk) {
+      cls = 'dl meta'; // everything before the first @@ is header (index/+++/---/new file/…)
+    } else if (raw.startsWith('\\')) {
+      cls = 'dl meta'; // "\ No newline at end of file" — counts for neither side
+    } else {
+      // Any marker column holding +/- decides the line; the rest is content.
+      const mark = raw.slice(0, cols);
+      text = raw.slice(cols);
+      if (mark.includes('+')) cls = 'dl add';
+      else if (mark.includes('-')) cls = 'dl del';
+    }
+    // A combined diff carries one old-side numbering PER PARENT, and there are only two
+    // gutter columns — any single number there would be wrong for at least one parent.
+    // Show the (unambiguous) new side only rather than print a confident lie.
+    const combined = cols > 1;
+    out.push({
+      cls,
+      text,
+      oldNo: !combined && (cls === 'dl' || cls === 'dl del') ? oldLn++ : null,
+      newNo: cls === 'dl' || cls === 'dl add' ? newLn++ : null,
+    });
+  }
+  return out;
+}
+
 async function selectFile(path: string, staged: boolean): Promise<void> {
   sel = { kind: 'file', path, staged };
   treeEl?.querySelectorAll('.git-tree-row.on').forEach((e) => e.classList.remove('on'));
   paintRail(); // instant file-row highlight; don't rebuild the graph for a file click
+  const my = ++diffReq;
+  let next: string;
   try {
-    diffText = await invoke<string>('git_diff', { root: repoRoot(), path, staged });
+    next = await invoke<string>('git_diff', { root: repoRoot(), path, staged });
   } catch (e) {
-    diffText = String(e);
+    next = String(e);
   }
+  if (my !== diffReq) return; // superseded by a later click
+  diffText = next;
   paintDiff();
 }
 
@@ -604,11 +690,15 @@ async function selectCommit(hash: string): Promise<void> {
   sel = { kind: 'commit', hash };
   railEl?.querySelectorAll('.git-file.on').forEach((e) => e.classList.remove('on'));
   paintTree(); // instant commit-row highlight
+  const my = ++diffReq;
+  let next: string;
   try {
-    diffText = await invoke<string>('git_show', { root: repoRoot(), hash });
+    next = await invoke<string>('git_show', { root: repoRoot(), hash });
   } catch (e) {
-    diffText = String(e);
+    next = String(e);
   }
+  if (my !== diffReq) return;
+  diffText = next;
   paintDiff();
 }
 

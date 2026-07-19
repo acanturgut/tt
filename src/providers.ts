@@ -125,7 +125,11 @@ export async function refreshLocalModels(): Promise<void> {
     // no Tauri — leave the lists empty
   }
 }
-void refreshLocalModels();
+// Kicked off at import, but awaitable: it shells out through a login shell, which can
+// take seconds. Spawning a local runtime before it lands picks no model, so `ollama run`
+// dies bare and the UI then blames the user's PATH. Await this before reading the
+// catalog for a local provider.
+export const localModelsReady: Promise<void> = refreshLocalModels();
 export function providerModels(id: string): ProviderModels | undefined {
   return MODEL_CATALOG[id];
 }

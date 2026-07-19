@@ -3,6 +3,13 @@ import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import { marked } from 'marked';
 
+// Raw HTML inside markdown renders as escaped TEXT, never as DOM. The files shown here
+// are not the user's own trusted prose — they're whatever is in the repo (a clone,
+// node_modules, a file an agent just wrote), and an <img onerror> in a README would
+// otherwise run with the page's access to the Tauri IPC. The CSP in tauri.conf.json is
+// the second layer; this is the first.
+marked.use({ renderer: { html: ({ text }) => escapeHtml(text) } });
+
 export interface AgentTarget { id: string; label: string; name: string; }
 export interface ViewerSend {
   agents: () => AgentTarget[];
@@ -228,8 +235,6 @@ function render(path: string, content: string, isError: boolean): void {
 function renderMarkdown(body: HTMLElement, content: string): void {
   const md = document.createElement('div');
   md.className = 'viewer-md';
-  // ponytail: no HTML sanitization — the viewer only shows the user's own local
-  // project files, which are trusted. Add DOMPurify if untrusted files ever load here.
   md.innerHTML = marked.parse(content, { async: false }) as string;
   md.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el as HTMLElement));
   body.appendChild(md);
@@ -339,6 +344,10 @@ function lineAt(text: string, charOffset: number): number {
 }
 
 function onSelect(relPath: string): void {
+  // Typing in the menu's "Ask about this selection…" box fires selectionchange (the
+  // caret IS a selection). Rebuilding here would tear the menu out from under the user
+  // mid-sentence, so once focus is inside it, the menu owns the interaction.
+  if (agentMenu && (agentMenu.contains(document.activeElement) || document.activeElement === agentMenu)) return;
   const sel = window.getSelection();
   const text = sel?.toString() ?? '';
   if (!sel || sel.isCollapsed || !text.trim() || !sel.anchorNode || !sel.focusNode) {

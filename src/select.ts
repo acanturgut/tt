@@ -38,7 +38,11 @@ export function scSelect(
     document.removeEventListener('mousedown', onDown, true);
     document.removeEventListener('keydown', onKey, true);
   }
+  // The listbox lives on <body>, so closing the host panel (⌘, over an open Settings)
+  // removes the trigger and orphans it — still painted, and its capture-phase listeners
+  // still eating every keystroke. If the trigger is gone, so are we.
   function onDown(e: MouseEvent) {
+    if (!trigger.isConnected) { close(); return; }
     if (content && !content.contains(e.target as Node) && !trigger.contains(e.target as Node)) close();
   }
   function highlight() {
@@ -56,6 +60,7 @@ export function scSelect(
     onChange(v);
   }
   function onKey(e: KeyboardEvent) {
+    if (!trigger.isConnected) { close(); return; }
     if (!content) return;
     if (e.key === 'ArrowDown') { activeIdx = Math.min(opts.length - 1, activeIdx + 1); highlight(); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { activeIdx = Math.max(0, activeIdx - 1); highlight(); e.preventDefault(); }

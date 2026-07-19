@@ -677,12 +677,12 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 
 /* ── git commit graph (DAG) ─ */
 .git-tree-list { padding: 0; }
-/* text rows are cheap (the graph is one canvas below), so paint them all — no content-visibility
-   blank-in on fast scroll */
+/* rows are virtualized: only the visible band exists, absolutely positioned by index
+   inside .git-tree-list, which holds the full scroll height as a spacer */
 .git-tree-row { display: flex; align-items: center; cursor: pointer; }
 .git-tree-row:hover { background: var(--elev); }
 .git-tree-row.on { background: color-mix(in srgb, var(--accent) 20%, transparent); }
-/* one bitmap canvas over the gutter — scrolls as a composited layer (no per-frame re-raster) */
+/* bitmap canvas over the gutter, sized to the drawn band and repositioned as it scrolls */
 .git-tree-canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
 .git-tree-meta { display: flex; align-items: center; gap: 8px; min-width: 0; padding-right: 12px; }
 .git-ref { display: inline-flex; align-items: center; gap: 4px; background: color-mix(in srgb, var(--c, var(--accent)) 20%, transparent); color: color-mix(in srgb, var(--c, var(--accent)) 55%, var(--text)); border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 40%, transparent); border-radius: var(--r-sm); padding: 1px 7px 1px 6px; font-size: 11px; font-weight: 550; white-space: nowrap; }
