@@ -31,7 +31,7 @@ let worktrees: Worktree[] = [];
 let hStatus = '', hLog = '', hWt = '';
 
 let commitMsg = ''; // preserved across re-renders
-let wtOpen = true; // worktrees section expanded
+let wtOpen = false; // worktrees section starts collapsed
 // Current selection shown in the diff pane.
 type Sel = { kind: 'file'; path: string; staged: boolean } | { kind: 'commit'; hash: string } | null;
 let sel: Sel = null;
@@ -326,8 +326,6 @@ function renderTree(): HTMLElement {
   if (!commits.length) return wrap;
 
   const rows = layoutGraph(commits);
-  const maxCols = rows.reduce((m, r) => Math.max(m, r.cols), 1);
-  const gw = maxCols * LANE_W + LANE_W / 2;
   const x = (lane: number) => LANE_W / 2 + lane * LANE_W;
 
   const list = document.createElement('div');
@@ -343,9 +341,13 @@ function renderTree(): HTMLElement {
     row.style.height = `${ROW_H}px`;
     row.onclick = () => void selectCommit(r.commit.hash);
 
+    // Text hugs the graph: this row's gutter is only as wide as the lanes active in THIS row
+    // (+ one lane of breathing room), so linear commits sit close to the graph instead of at a
+    // fixed far gutter sized to the widest row.
+    const rowW = r.cols * LANE_W + LANE_W;
     const svg = document.createElementNS(SVGNS, 'svg');
     svg.setAttribute('class', 'git-tree-svg');
-    svg.setAttribute('width', String(gw));
+    svg.setAttribute('width', String(rowW));
     svg.setAttribute('height', String(ROW_H));
     for (const e of r.edges) {
       const p = document.createElementNS(SVGNS, 'path');
@@ -381,7 +383,7 @@ function renderTree(): HTMLElement {
 
     const graphCell = document.createElement('div');
     graphCell.className = 'git-tree-graph';
-    graphCell.style.width = `${gw}px`;
+    graphCell.style.width = `${rowW}px`;
     graphCell.appendChild(svg);
 
     const meta = document.createElement('div');
