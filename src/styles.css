@@ -62,6 +62,8 @@ button { font-family: inherit; }
 kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10.5px; line-height: 1; color: var(--muted); background: var(--elev-2); border-radius: 4px; box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .5); }
 /* toggle: hide the always-visible shortcut chips on buttons/tabs (Settings) */
 body.hide-btn-kbd .ico-kbd, body.hide-btn-kbd .proj-tab-kbd { display: none; }
+body.focus-mode #topbar, body.focus-mode #statusline, body.focus-mode #taskstrip { display: none; }
+body.hide-bottom #statusline, body.hide-bottom #taskstrip { display: none; }
 
 /* shared hover/focus tooltip (label + kbd chips) */
 .tip { position: fixed; z-index: 200; display: none; align-items: center; gap: 8px; max-width: 280px; background: var(--elev-2); color: var(--text); padding: 5px 9px; border-radius: var(--r); font-size: 11.5px; box-shadow: var(--shadow); pointer-events: none; white-space: nowrap; }
@@ -115,13 +117,16 @@ body.no-project #broadcast { visibility: hidden; }
 /* padding-left clears the macOS traffic lights; empty area drags the window */
 #projtabs { display: flex; align-items: flex-end; gap: 4px; height: 40px; flex: 0 0 40px; padding: 8px 12px 0 82px; background: var(--bg); }
 .proj-tabs { display: flex; align-items: center; gap: 4px; }
-.proj-tab { display: inline-flex; align-items: center; gap: 7px; background: var(--elev); color: var(--dim); border: none; border-radius: var(--r) var(--r) 0 0; padding: 8px 14px; cursor: pointer; font: inherit; font-weight: 550; white-space: nowrap; max-width: 210px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; position: relative; transition: color .12s ease, background .12s ease; }
+.proj-tab { display: inline-flex; align-items: center; gap: 7px; background: var(--elev); color: var(--dim); border: none; border-radius: var(--r) var(--r) 0 0; padding: 8px 14px; cursor: pointer; font: inherit; font-weight: 550; white-space: nowrap; min-width: 160px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; position: relative; transition: color .12s ease, background .12s ease; }
 .proj-tab:hover:not(.active) { background: var(--elev-2); color: var(--text); }
 /* active project: painted with its own color, connecting into the toolbar below */
 .proj-tab.active { background: color-mix(in srgb, var(--tab-accent) 70%, transparent); color: #fff; backdrop-filter: blur(18px) saturate(1.9); -webkit-backdrop-filter: blur(18px) saturate(1.9); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); }
 .proj-tab-name { overflow: hidden; text-overflow: ellipsis; }
-.proj-tab-ic { font-size: 15px; flex: 0 0 auto; opacity: .85; cursor: pointer; border-radius: var(--r-sm); }
-.proj-tab-ic:hover { opacity: 1; background: rgba(255, 255, 255, .14); }
+.proj-tab-ic { font-size: 15px; flex: 0 0 auto; opacity: .85; border-radius: var(--r-sm); }
+.proj-tab-actions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; max-width: 0; padding-left: 0; overflow: hidden; opacity: 0; pointer-events: none; flex: 0 0 auto; transition: max-width .14s ease, padding-left .14s ease, opacity .12s ease; }
+.proj-tab:hover .proj-tab-actions { max-width: 60px; padding-left: 6px; opacity: 1; pointer-events: auto; }
+.proj-tab-act { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: var(--r-sm); color: inherit; opacity: .65; cursor: pointer; font-size: 13px; transition: background .12s ease, opacity .12s ease; }
+.proj-tab-act:hover { opacity: 1; background: rgba(255, 255, 255, .16); }
 .proj-tab-kbd { flex: 0 0 auto; margin-left: 2px; background: rgba(255, 255, 255, .08); color: inherit; opacity: .75; box-shadow: none; }
 .proj-tab.active .proj-tab-kbd { background: rgba(255, 255, 255, .18); opacity: .9; }
 .addproj-tab { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; background: transparent; color: var(--dim); border: none; border-radius: var(--r) var(--r) 0 0; padding: 8px 12px; cursor: pointer; font: inherit; font-weight: 550; white-space: nowrap; flex: 0 0 auto; transition: color .12s ease, background .12s ease; }
@@ -157,21 +162,31 @@ body.no-project #broadcast { visibility: hidden; }
 
 /* Account plan quota, one pill per provider. Follows .modelpill's chip look. */
 .quota-wrap { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-.quota-pill { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: 999px; padding: 4px 9px; background: rgba(0, 0, 0, .22); color: var(--muted); cursor: pointer; white-space: nowrap; flex: 0 0 auto; transition: background .12s ease, color .12s ease; }
+.quota-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; border: none; border-radius: var(--r); padding: 0 10px; background: rgba(0, 0, 0, .22); color: var(--muted); cursor: pointer; white-space: nowrap; flex: 0 0 auto; transition: background .12s ease, color .12s ease; }
 .quota-pill:hover { background: rgba(255, 255, 255, .16); color: #fff; }
-.quota-pill .agent-ico, .quota-pill i { width: 13px; height: 13px; font-size: 13px; }
-.quota-val { font-size: 10.5px; font-family: var(--font-mono); }
+.quota-pill .agent-ico, .quota-pill i { width: 15px; height: 15px; font-size: 15px; }
+.quota-val { font-size: 12px; font-family: var(--font-mono); }
+.quota-pill:not(.quota-stale):not(.quota-low) .quota-val { color: #fff; }
 /* Dimmed = we can't vouch for the number (stale cache or rolled-over window), so
    a hours-old claude reading never reads as current beside a fresh codex one. */
 .quota-pill.quota-stale { color: var(--dim); }
 .quota-pill.quota-low .quota-val { color: var(--danger); }
-.quota-menu { min-width: 250px; }
-.quota-row { cursor: default; gap: 10px; }
-.quota-row:hover { background: transparent; color: inherit !important; }
+.quota-menu { min-width: 280px; padding: 8px; }
+.quota-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 8px; border-bottom: 1px solid rgba(255, 255, 255, .06); margin-bottom: 6px; }
+.quota-head .agent-ico, .quota-head i { width: 15px; height: 15px; font-size: 15px; color: var(--muted); }
+.quota-head-title { font-size: 12px; font-weight: 600; color: var(--text); text-transform: capitalize; letter-spacing: .02em; }
+.quota-row { padding: 8px 6px; display: flex; flex-direction: column; gap: 6px; border-radius: var(--r); }
+.quota-row-line { display: flex; align-items: baseline; gap: 8px; }
+.quota-row-name { color: var(--text); font-size: 12px; font-weight: 500; }
 .quota-row-reset { margin-left: auto; color: var(--dim); font-size: 10.5px; }
-.quota-row-val { font-family: var(--font-mono); font-size: 11px; min-width: 42px; text-align: right; }
-.quota-age { padding: 5px 10px 3px; color: var(--dim); font-size: 10.5px; line-height: 1.45; border-top: 1px solid rgba(255, 255, 255, .08); margin-top: 4px; }
-.quota-reread { color: var(--muted); font-size: 11.5px; }
+.quota-row-val { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); min-width: 42px; text-align: right; }
+.quota-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .06); overflow: hidden; }
+.quota-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .3s ease; }
+.quota-bar-warn i { background: var(--amber); }
+.quota-bar-danger i { background: var(--danger); }
+.quota-bar-unknown { background: repeating-linear-gradient(45deg, rgba(255,255,255,.05), rgba(255,255,255,.05) 4px, rgba(255,255,255,.02) 4px, rgba(255,255,255,.02) 8px); }
+.quota-age { padding: 8px 6px 4px; color: var(--dim); font-size: 10.5px; line-height: 1.45; border-top: 1px solid rgba(255, 255, 255, .06); margin-top: 4px; }
+.quota-reread { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
 .proj-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .proj-label { color: rgba(255, 255, 255, .7); flex: 0 0 auto; }
 
@@ -201,13 +216,16 @@ body.no-project #broadcast { visibility: hidden; }
 .sc-item-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── left rail (agents) ──────────────────────────────── */
-#sidebar { width: 280px; flex: 0 0 280px; background: var(--bg); padding: 8px; display: flex; flex-direction: column; overflow: hidden; }
+/* ponytail: flat solid panels, no glass. The backdrop-filter blur re-rasterized
+   on every terminal-scroll repaint in WKWebView and tanked scroll perf; the inset
+   white highlights were the other "glass" tell. Just a plain elevated card now. */
+#sidebar { width: 280px; flex: 0 0 280px; margin: 6px 6px 6px 0; border-radius: var(--r-lg); background: color-mix(in srgb, var(--elev) 22%, var(--bg)); padding: 8px; display: flex; flex-direction: column; overflow: hidden; transition: width .22s cubic-bezier(.4,.2,.2,1), flex-basis .22s cubic-bezier(.4,.2,.2,1), padding .22s ease, margin .22s ease; }
 .rail-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
 /* Collapsed agents panel: a thin rail keeping each agent's status dot + #number,
    still clickable to focus. Everything else (name, task, pill, close) is hidden. */
-body.left-collapsed #sidebar { width: 48px; flex-basis: 48px; padding: 8px 0; }
+body.left-collapsed #sidebar { width: 48px; flex-basis: 48px; padding: 8px 4px; }
 body.left-collapsed .rail-head { display: none; }
-body.left-collapsed .agentrow { padding: 9px 0 !important; }
+body.left-collapsed .agentrow { padding: 9px 4px !important; }
 body.left-collapsed .agentrow-top { flex-direction: column; gap: 5px; }
 body.left-collapsed .agentrow .label,
 body.left-collapsed .agentrow .close,
@@ -300,8 +318,10 @@ body.left-collapsed .rail-empty { display: none; }
 .tile-header .modelpill.modelpill-default { color: var(--dim); }
 
 /* ── right tree ──────────────────────────────────────── */
-#tree { width: 268px; flex: 0 0 268px; background: var(--bg); padding: 6px; display: flex; flex-direction: column; overflow: hidden; }
-body.right-collapsed #tree { display: none; }
+/* ponytail: flat solid panel, no glass — see #sidebar. */
+#tree { width: 268px; flex: 0 0 268px; margin: 6px 0 6px 6px; border-radius: var(--r-lg); background: color-mix(in srgb, var(--elev) 22%, var(--bg)); padding: 6px; display: flex; flex-direction: column; overflow: hidden; transition: width .22s cubic-bezier(.4,.2,.2,1), flex-basis .22s cubic-bezier(.4,.2,.2,1), padding .22s ease, margin .22s ease, opacity .18s ease; }
+body.right-collapsed #tree { width: 0; flex-basis: 0; padding: 6px 0; margin: 6px 0; opacity: 0; pointer-events: none; }
+.tree-title { flex: 0 0 auto; padding: 0 4px; margin-bottom: 8px; color: var(--muted); font-weight: 600; font-size: 12px; }
 .tree-search-wrap { flex: 0 0 auto; position: relative; margin-bottom: 6px; }
 .tree-search-ic { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none; }
 .tree-search { width: 100%; background: var(--elev); color: var(--text); border: none; border-radius: var(--r); padding: 7px 10px 7px 30px; font: inherit; transition: background .12s ease; }
@@ -315,6 +335,7 @@ body.right-collapsed #tree { display: none; }
 .tree-row .fico { color: var(--muted); flex: 0 0 auto; font-size: 14px; }
 .ficon { width: 16px; height: 16px; flex: 0 0 auto; object-fit: contain; }
 .tree-file .fico, .tree-file .ficon { margin-left: 14px; } /* files have no chevron; align with folder rows */
+.tree-file .ficon { width: 18px; height: 18px; } /* file (Seti) icons a touch bigger; folders stay 16px */
 .tree-flash { animation: treeflash 1.2s ease; }
 @keyframes treeflash { from { background: color-mix(in srgb, var(--accent) 30%, transparent); } to { background: transparent; } }
 .tree-file { cursor: pointer; }
@@ -359,11 +380,13 @@ body.right-collapsed #tree { display: none; }
 .install-ok:hover { background: var(--accent-hi); }
 
 .palette { width: 560px; max-width: 92vw; background: var(--elev); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; }
-.palette-input { width: 100%; background: transparent; color: var(--text); border: none; padding: 15px 18px; font: 14px var(--font-ui); }
+.palette-input { width: 100%; background: transparent; color: var(--text); border: none; outline: none; padding: 15px 18px; font: 14px var(--font-ui); }
 .palette-list { max-height: 46vh; overflow-y: auto; padding: 6px; overscroll-behavior: contain; }
-.palette-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: var(--r); cursor: pointer; }
+.palette-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--r); cursor: pointer; }
 .palette-item.sel, .palette-item:hover { background: var(--accent); color: #fff; }
-.palette-hint { font-size: 11px; color: var(--muted); flex: 0 0 auto; font-family: var(--font-mono); }
+.palette-icon { flex: 0 0 auto; width: 16px; font-size: 16px; text-align: center; color: var(--muted); }
+.palette-item.sel .palette-icon, .palette-item:hover .palette-icon { color: rgba(255, 255, 255, .9); }
+.palette-hint { margin-left: auto; font-size: 11px; color: var(--muted); flex: 0 0 auto; font-family: var(--font-mono); }
 .palette-item.sel .palette-hint, .palette-item:hover .palette-hint { color: rgba(255, 255, 255, .85); }
 
 /* ── settings ────────────────────────────────────────── */
@@ -524,7 +547,6 @@ body.board-open #board { display: flex; flex-direction: column; flex: 1; min-hei
 #taskstrip:hover { background: var(--elev); }
 .strip-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--elev-2); overflow: hidden; display: flex; }
 .strip-bar i { display: block; height: 100%; }
-.strip-open { color: var(--accent-hi); }
 
 /* ── code viewer — read-only pane docked left of the terminals ─ */
 #viewer { display: none; }

@@ -1,0 +1,17 @@
+version: '3'
+
+tasks:
+  run:
+    desc: Native Mac app (Tauri dev). Uses dev.sh so nvm/cargo PATH is fixed.
+    cmds:
+      - ./dev.sh
+
+  web:
+    desc: Vite dev server only, in the browser.
+    cmds:
+      - ./dev.sh web
+
+  build:
+    desc: Production build.
+    cmds:
+      - ./node_modules/.bin/tsc && ./node_modules/.bin/vite build

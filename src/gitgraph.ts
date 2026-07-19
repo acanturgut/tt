@@ -146,21 +146,6 @@ export function layoutGraph(commits: Commit[]): GraphRow[] {
   return rows;
 }
 
-// Which row indices a virtualized list must keep in the DOM for a given scroll offset.
-// Returns [first, last) — a half-open range clamped to [0, n], padded by `overscan` rows on
-// each side so a fast flick doesn't reveal blank gaps before the next frame renders.
-export function visibleRange(
-  scrollTop: number,
-  viewH: number,
-  rowH: number,
-  n: number,
-  overscan: number,
-): [number, number] {
-  const first = Math.max(0, Math.floor(scrollTop / rowH) - overscan);
-  const last = Math.min(n, Math.ceil((scrollTop + viewH) / rowH) + overscan);
-  return [first, Math.max(first, last)];
-}
-
 // The running agent (if any) whose working dir sits inside this worktree.
 export function agentForWorktree(agents: RunningAgent[], wtPath: string): RunningAgent | undefined {
   const base = wtPath.replace(/\/$/, '');

@@ -122,6 +122,14 @@ const EXT_LANG: Record<string, string> = {
   ini: 'ini', sql: 'sql', md: 'markdown', markdown: 'markdown', swift: 'swift',
   kt: 'kotlin', dockerfile: 'dockerfile',
 };
+// The hljs language for a path, or null when we don't know it. Callers pass null through to plain
+// (escaped) text instead of paying for hljs.highlightAuto — which tries EVERY registered language
+// and, called per diff line, is what made commit/large diffs freeze the git view.
+export function langForPath(path: string): string | null {
+  const ext = path.includes('.') ? path.split('.').pop()!.toLowerCase() : '';
+  const lang = EXT_LANG[ext];
+  return lang && hljs.getLanguage(lang) ? lang : null;
+}
 export function highlight(path: string, code: string): string {
   const ext = path.includes('.') ? path.split('.').pop()!.toLowerCase() : '';
   const lang = EXT_LANG[ext];

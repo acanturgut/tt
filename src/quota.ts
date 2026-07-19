@@ -154,22 +154,38 @@ function openQuotaMenu(anchor: HTMLElement, provider: string, ws: QuotaWindow[],
   menu.className = 'popmenu quota-menu';
 
   const head = document.createElement('div');
-  head.className = 'popmenu-head';
-  head.textContent = `${provider} · remaining`;
+  head.className = 'quota-head';
+  head.append(providerIcon(provider));
+  const htitle = document.createElement('span');
+  htitle.className = 'quota-head-title';
+  htitle.textContent = `${provider} · usage`;
+  head.append(htitle);
   menu.append(head);
 
   for (const w of ws) {
+    const st = displayState(w, now);
+    const used = Math.max(0, Math.min(100, Math.round(w.percent_used)));
     const row = document.createElement('div');
-    row.className = 'popmenu-item quota-row';
+    row.className = 'quota-row';
+    const line = document.createElement('div');
+    line.className = 'quota-row-line';
     const name = document.createElement('span');
+    name.className = 'quota-row-name';
     name.textContent = w.label;
-    const val = document.createElement('span');
-    val.className = 'quota-row-val';
-    val.textContent = fmtState(displayState(w, now));
     const reset = document.createElement('span');
     reset.className = 'quota-row-reset';
     reset.textContent = fmtReset(w, now);
-    row.append(name, reset, val);
+    const val = document.createElement('span');
+    val.className = 'quota-row-val';
+    val.textContent = fmtState(st);
+    line.append(name, reset, val);
+    const bar = document.createElement('div');
+    bar.className = 'quota-bar' + (used >= 90 ? ' quota-bar-danger' : used >= 70 ? ' quota-bar-warn' : '');
+    if (st.kind === 'unknown') bar.classList.add('quota-bar-unknown');
+    const fill = document.createElement('i');
+    fill.style.width = st.kind === 'unknown' ? '0%' : `${used}%`;
+    bar.append(fill);
+    row.append(line, bar);
     menu.append(row);
   }
 

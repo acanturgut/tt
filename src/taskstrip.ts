@@ -28,11 +28,11 @@ export function renderTaskStrip(): void {
   const s = taskStats(tasks);
   const { working, idle } = getAgents();
 
-  // Progress strip: count + segmented bar (done | in-review | in-progress | planning-as-todo).
+  // Merged bar: agents + tasks count + segmented progress bar in one strip.
   stripEl.innerHTML = '';
   const label = document.createElement('span');
   label.className = 'strip-label';
-  label.textContent = `Tasks ${s.done}/${s.total}`;
+  label.textContent = `${working} working · ${idle} idle · Tasks ${s.done}/${s.total}`;
   const bar = document.createElement('span');
   bar.className = 'strip-bar';
   const seg = (n: number, status: 'done' | 'in-review' | 'needs-human' | 'in-progress' | 'planning') => {
@@ -47,11 +47,8 @@ export function renderTaskStrip(): void {
   seg(s['needs-human'], 'needs-human');
   seg(s['in-progress'], 'in-progress');
   seg(s.planning, 'planning');
-  const openHint = document.createElement('span');
-  openHint.className = 'strip-open';
-  openHint.textContent = '▸ open board';
-  stripEl.append(label, bar, openHint);
+  stripEl.append(label, bar);
 
-  // Status line: agents + task count, compact.
-  statusEl.textContent = `${working} working · ${idle} idle · ${s.done}/${s.total} tasks`;
+  // Legacy statusline: superseded by the merged strip; kept empty so :empty hides it.
+  statusEl.textContent = '';
 }

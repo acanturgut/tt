@@ -163,16 +163,31 @@ export function renderProjectTabs(
     tab.title = p.path;
     const ic = icon(p.icon ?? 'folder');
     ic.classList.add('proj-tab-ic');
-    tip(ic, 'Project icon & color');
-    ic.onclick = (e) => {
-      e.stopPropagation();
-      openStylePicker(p.path, tab);
-    };
     const nm = document.createElement('span');
     nm.className = 'proj-tab-name';
     nm.textContent = p.name;
     tab.append(ic, nm);
     if (i < 9) tab.append(kbdChip(`⌘${i + 1}`, 'proj-tab-kbd')); // ⌘1–9 switch projects
+
+    // Hover-only action buttons: gear (style/color/icon) + pencil (rename).
+    const actions = document.createElement('span');
+    actions.className = 'proj-tab-actions';
+    const gear = document.createElement('span');
+    gear.className = 'proj-tab-act';
+    gear.append(icon('gear'));
+    tip(gear, 'Project icon & color');
+    gear.onclick = (e) => { e.stopPropagation(); openStylePicker(p.path, tab); };
+    const del = document.createElement('span');
+    del.className = 'proj-tab-act';
+    del.append(icon('x'));
+    tip(del, 'Remove project');
+    del.onclick = (e) => {
+      e.stopPropagation();
+      if (confirm(`Remove "${p.name}" from tt? Its running agents keep running.`)) removeProject(p.path);
+    };
+    actions.append(gear, del);
+    tab.append(actions);
+
     tab.onclick = () => { selectSession(null); selectProject(p.path); };
     root.appendChild(tab);
 
@@ -180,6 +195,20 @@ export function renderProjectTabs(
     // the selected project shows its fleet (chips) + the new-orchestrator button.
     if (!cur || p.path !== cur.path) return;
     const orchs = listOrchestrators().filter((o) => o.project === p.path);
+    const newOrch = document.createElement('button');
+    newOrch.className = 'addproj-tab orch-new';
+    // Collapse to a bare "+" once this project has orchestrators — the chips make
+    // the affordance obvious; the "Orchestrator" label is only a first-time hint.
+    if (orchs.length) {
+      newOrch.className = 'addproj-tab orch-new icon-only';
+      newOrch.append(icon('plus'));
+      tip(newOrch, 'New orchestrator');
+    } else {
+      newOrch.append(icon('plus'), document.createTextNode(' Orchestrator'));
+    }
+    newOrch.onclick = () => h.onNewOrchestrator();
+    root.appendChild(newOrch);
+
     for (const o of orchs) {
       const chip = document.createElement('button');
       chip.className = 'orch-chip' + (o.id === active ? ' active' : '');
@@ -200,19 +229,6 @@ export function renderProjectTabs(
       chip.onclick = () => selectSession(o.id);
       root.appendChild(chip);
     }
-    const newOrch = document.createElement('button');
-    newOrch.className = 'addproj-tab orch-new';
-    // Collapse to a bare "+" once this project has orchestrators — the chips make
-    // the affordance obvious; the "Orchestrator" label is only a first-time hint.
-    if (orchs.length) {
-      newOrch.className = 'addproj-tab orch-new icon-only';
-      newOrch.append(icon('plus'));
-      tip(newOrch, 'New orchestrator');
-    } else {
-      newOrch.append(icon('plus'), document.createTextNode(' Orchestrator'));
-    }
-    newOrch.onclick = () => h.onNewOrchestrator();
-    root.appendChild(newOrch);
   });
 
   const tools = document.createElement('div');
