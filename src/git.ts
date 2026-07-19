@@ -245,7 +245,12 @@ function renderRail(): HTMLElement {
   bname.textContent = status.branch || '(detached)';
   bname.title = 'Switch branch';
   bname.onclick = (e) => { e.stopPropagation(); openBranchMenu(bname); };
-  br.append(bicon, bname);
+  const newBr = document.createElement('button');
+  newBr.className = 'git-branch-pick git-newbranch';
+  newBr.append(icon('git-branch'), icon('plus'));
+  newBr.title = 'New branch from HEAD';
+  newBr.onclick = (e) => { e.stopPropagation(); promptNewBranch(null); };
+  br.append(bicon, bname, newBr);
   if (status.ahead || status.behind) {
     const ab = document.createElement('span');
     ab.className = 'git-ab';
@@ -428,6 +433,7 @@ function renderTree(): HTMLElement {
     row.style.height = `${ROW_H}px`;
     row.style.paddingLeft = `${gutters[i]}px`;
     row.onclick = () => void selectCommit(r.commit.hash);
+    row.oncontextmenu = (e) => { e.preventDefault(); openCommitMenu(e.clientX, e.clientY, r.commit); };
 
     const meta = document.createElement('div');
     meta.className = 'git-tree-meta';
@@ -714,22 +720,36 @@ function toast(msg: string): void {
   setTimeout(() => t.remove(), 2200);
 }
 
-// Small popover anchored under `anchor`. `render` fills it; a document-level click
-// (outside the popover) closes it. Also closes on Escape. Ponytail: reused for both
-// branches and stash-save — a proper design-system component can come later.
+// Prompt for a name and create+checkout a branch. `from` = base (a hash/ref), or null for HEAD.
+// Shared by the rail's New-branch button, the branch switcher, and the commit context menu.
+function promptNewBranch(from: string | null): void {
+  const name = prompt('New branch name');
+  if (!name || !name.trim()) return;
+  act(async () => {
+    await invoke('git_branch_create', { root: repoRoot(), name: name.trim(), checkout: true, from });
+    toast(`Switched to ${name.trim()}`);
+  });
+}
+
+// Small popover placed at a viewport point. `render` fills it; a document-level click
+// (outside the popover) closes it. Also closes on Escape. Reused by the branch switcher
+// (anchored under its button) and the commit context menu (anchored at the cursor).
 let popoverEl: HTMLElement | null = null;
-function openPopover(anchor: HTMLElement, render: (close: () => void) => HTMLElement): void {
+function openPopover(pos: { left: number; top: number }, render: (close: () => void) => HTMLElement): void {
   popoverEl?.remove();
   const pop = document.createElement('div');
   pop.className = 'git-pop';
-  const rect = anchor.getBoundingClientRect();
-  pop.style.left = `${Math.round(rect.left)}px`;
-  pop.style.top = `${Math.round(rect.bottom + 4)}px`;
+  pop.style.left = `${Math.round(pos.left)}px`;
+  pop.style.top = `${Math.round(pos.top)}px`;
   const close = () => { pop.remove(); if (popoverEl === pop) popoverEl = null; document.removeEventListener('mousedown', off, true); document.removeEventListener('keydown', esc, true); };
   const off = (e: MouseEvent) => { if (!pop.contains(e.target as Node)) close(); };
   const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
   pop.appendChild(render(close));
   document.body.appendChild(pop);
+  // Keep it on-screen — a click near the bottom/right edge would otherwise overflow.
+  const r = pop.getBoundingClientRect();
+  if (pos.left + r.width > window.innerWidth) pop.style.left = `${Math.max(8, window.innerWidth - r.width - 8)}px`;
+  if (pos.top + r.height > window.innerHeight) pop.style.top = `${Math.max(8, window.innerHeight - r.height - 8)}px`;
   popoverEl = pop;
   setTimeout(() => {
     document.addEventListener('mousedown', off, true);
@@ -737,8 +757,54 @@ function openPopover(anchor: HTMLElement, render: (close: () => void) => HTMLEle
   }, 0);
 }
 
+// Right-click a commit row → Fork-style actions. Checkout/branch-here reuse existing
+// commands (git_checkout detaches HEAD at a hash; git_branch_create branches from one);
+// cherry-pick/revert/reset/tag are the thin new commands.
+function openCommitMenu(x: number, y: number, c: Commit): void {
+  openPopover({ left: x, top: y }, (close) => {
+    const box = document.createElement('div');
+    box.className = 'git-menu';
+    const short = c.hash.slice(0, 8);
+    const item = (label: string, ico: string, onClick: () => void, danger = false) => {
+      const b = document.createElement('button');
+      b.className = 'git-menu-item' + (danger ? ' danger' : '');
+      b.append(icon(ico), document.createTextNode(label));
+      b.onclick = () => { close(); onClick(); };
+      box.appendChild(b);
+    };
+    const sep = () => { const s = document.createElement('div'); s.className = 'git-menu-sep'; box.appendChild(s); };
+
+    item('Checkout commit', 'git-commit', () =>
+      act(async () => { await invoke('git_checkout', { root: repoRoot(), name: c.hash }); toast(`Checked out ${short}`); }));
+    item('Create branch here…', 'git-branch', () => promptNewBranch(c.hash));
+    item('Create tag here…', 'tag', () => {
+      const name = prompt('New tag name');
+      if (!name || !name.trim()) return;
+      act(async () => { await invoke('git_tag_create', { root: repoRoot(), name: name.trim(), hash: c.hash }); toast(`Tagged ${short}`); });
+    });
+    sep();
+    item('Cherry-pick onto HEAD', 'git-commit', () =>
+      act(async () => { const out = await invoke<string>('git_cherry_pick', { root: repoRoot(), hash: c.hash }); toast(out || 'Cherry-picked'); }));
+    item('Revert commit', 'arrow-counter-clockwise', () =>
+      act(async () => { const out = await invoke<string>('git_revert', { root: repoRoot(), hash: c.hash }); toast(out || 'Reverted'); }));
+    sep();
+    const reset = (mode: 'soft' | 'mixed' | 'hard') => {
+      if (mode === 'hard' && !confirm(`Hard reset to ${short}? This discards uncommitted changes and every commit after it.`)) return;
+      act(async () => { await invoke('git_reset', { root: repoRoot(), hash: c.hash, mode }); toast(`Reset (${mode}) to ${short}`); });
+    };
+    item('Reset — soft (keep index + tree)', 'arrow-down', () => reset('soft'));
+    item('Reset — mixed (keep tree)', 'arrow-down', () => reset('mixed'));
+    item('Reset — hard (discard)', 'arrow-down', () => reset('hard'), true);
+    sep();
+    item('Copy SHA', 'copy', () => { void navigator.clipboard?.writeText(c.hash); toast('Copied SHA'); });
+    item('Copy message', 'copy', () => { void navigator.clipboard?.writeText(c.subject); toast('Copied message'); });
+    return box;
+  });
+}
+
 function openBranchMenu(anchor: HTMLElement): void {
-  openPopover(anchor, (close) => {
+  const r = anchor.getBoundingClientRect();
+  openPopover({ left: r.left, top: r.bottom + 4 }, (close) => {
     const box = document.createElement('div');
     box.className = 'git-branch-menu';
 
@@ -760,15 +826,7 @@ function openBranchMenu(anchor: HTMLElement): void {
       const nb = document.createElement('button');
       nb.className = 'git-branch-item git-branch-new';
       nb.append(icon('plus'), document.createTextNode(' New branch…'));
-      nb.onclick = () => {
-        const name = prompt('New branch name');
-        close();
-        if (!name || !name.trim()) return;
-        act(async () => {
-          await invoke('git_branch_create', { root: repoRoot(), name: name.trim(), checkout: true, from: null });
-          toast(`Switched to ${name.trim()}`);
-        });
-      };
+      nb.onclick = () => { close(); promptNewBranch(null); };
       list.appendChild(nb);
 
       const locals = branches.filter((b) => b.kind === 'local' && match(b.name));

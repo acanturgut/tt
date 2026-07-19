@@ -710,6 +710,10 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 /* ── branch picker ─ */
 .git-branch-pick { background: none; border: 1px solid transparent; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; padding: 2px 8px; border-radius: var(--r-sm); }
 .git-branch-pick:hover { background: var(--elev); border-color: var(--line); }
+.git-newbranch { display: inline-flex; align-items: center; gap: 1px; padding: 3px 6px; color: var(--muted); }
+.git-newbranch:hover { color: var(--text); }
+.git-newbranch .ph { font-size: 13px; }
+.git-newbranch .ph-plus { font-size: 10px; margin-left: -2px; align-self: flex-start; }
 .git-pop { position: fixed; z-index: 300; background: var(--chrome); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); min-width: 260px; max-width: 360px; max-height: 60vh; display: flex; flex-direction: column; overflow: hidden; }
 .git-branch-menu { display: flex; flex-direction: column; min-height: 0; }
 .git-branch-search { margin: 8px; background: var(--elev); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 8px; font: inherit; font-size: 12.5px; }
@@ -729,6 +733,14 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 .git-branch-mini { background: var(--elev); border: 1px solid var(--line); color: var(--muted); border-radius: var(--r-sm); padding: 2px 8px; font: inherit; font-size: 11px; cursor: pointer; }
 .git-branch-mini:hover { color: var(--text); border-color: var(--line-strong); }
 .git-branch-mini.danger:hover { color: #ff6b6b; border-color: #ff6b6b; }
+
+/* ── commit context menu ─ */
+.git-menu { display: flex; flex-direction: column; padding: 4px 0; overflow: auto; }
+.git-menu-item { display: flex; align-items: center; gap: 8px; background: none; border: none; color: var(--text); font: inherit; font-size: 12.5px; text-align: left; padding: 5px 12px; cursor: pointer; }
+.git-menu-item:hover { background: var(--elev); }
+.git-menu-item.danger:hover { color: #ff6b6b; }
+.git-menu-item .ph { color: var(--muted); }
+.git-menu-sep { height: 1px; background: var(--line); margin: 4px 0; }
 
 /* ── stashes ─ */
 .git-stashes { border-bottom: 1px solid var(--line); }

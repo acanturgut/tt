@@ -515,6 +515,41 @@ pub fn git_discard(root: String, path: String) -> Result<(), String> {
     }
 }
 
+// ── commit context-menu actions (checkout/branch-here reuse git_checkout/git_branch_create) ──
+
+// Cherry-pick a commit onto HEAD. On conflict git stops mid-pick and exits non-zero;
+// the stderr surfaces as a toast and the conflicted files show up in status.
+#[tauri::command]
+pub fn git_cherry_pick(root: String, hash: String) -> Result<String, String> {
+    git_out(&root, &["cherry-pick", &hash])
+}
+
+// Revert a commit as a new commit. --no-edit so it never blocks on $EDITOR (there's no
+// terminal — an editor prompt would hang the subprocess).
+#[tauri::command]
+pub fn git_revert(root: String, hash: String) -> Result<String, String> {
+    git_out(&root, &["revert", "--no-edit", &hash])
+}
+
+// Move the current branch to `hash`. mode is validated here — anything but the three
+// known values is rejected rather than passed to git as an arbitrary flag.
+#[tauri::command]
+pub fn git_reset(root: String, hash: String, mode: String) -> Result<String, String> {
+    let flag = match mode.as_str() {
+        "soft" => "--soft",
+        "mixed" => "--mixed",
+        "hard" => "--hard",
+        _ => return Err(format!("bad reset mode: {mode}")),
+    };
+    git_out(&root, &["reset", flag, &hash])
+}
+
+// Lightweight tag at `hash`.
+#[tauri::command]
+pub fn git_tag_create(root: String, name: String, hash: String) -> Result<(), String> {
+    git_out(&root, &["tag", &name, &hash]).map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -668,5 +703,37 @@ bare
         assert_eq!(v[0].head, "abc");
         assert!(v[1].detached);
         assert!(v[2].bare);
+    }
+
+    #[test]
+    fn revert_tag_reset_roundtrip() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_string_lossy().to_string();
+        let run = |args: &[&str]| { Command::new("git").arg("-C").arg(&dir).args(args).output().unwrap(); };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "t@t"]);
+        run(&["config", "user.name", "t"]);
+        let commit = |content: &str, msg: &str| {
+            std::fs::write(tmp.path().join("a.txt"), content).unwrap();
+            git_stage(dir.clone(), "a.txt".into()).unwrap();
+            git_commit(dir.clone(), msg.into()).unwrap();
+        };
+        commit("1\n", "c1");
+        commit("2\n", "c2");
+
+        // tag at HEAD → it lists
+        git_tag_create(dir.clone(), "v2".into(), "HEAD".into()).unwrap();
+        assert!(git_out(&dir, &["tag", "-l"]).unwrap().contains("v2"));
+
+        // revert the last commit → content rolls back to "1", history grows
+        git_revert(dir.clone(), "HEAD".into()).unwrap();
+        assert_eq!(std::fs::read_to_string(tmp.path().join("a.txt")).unwrap(), "1\n");
+
+        // bad reset mode is rejected before git runs
+        assert!(git_reset(dir.clone(), "HEAD".into(), "bogus".into()).is_err());
+
+        // hard reset back one commit discards the revert, restoring "2"
+        git_reset(dir.clone(), "HEAD~1".into(), "hard".into()).unwrap();
+        assert_eq!(std::fs::read_to_string(tmp.path().join("a.txt")).unwrap(), "2\n");
     }
 }
