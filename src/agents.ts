@@ -16,6 +16,7 @@ export interface Agent {
   project?: string; // project path this agent belongs to (its tab/panel)
   spawned?: boolean; // created by another agent via MCP (a sub-agent)
   parentId?: string; // best-effort: the agent focused when this one was spawned
+  session?: string; // orchestrator session id this agent belongs to (undefined = General)
   model?: string; // CLI model this agent launched with (or was live-switched to)
   effort?: string; // claude reasoning effort it launched with
 }
