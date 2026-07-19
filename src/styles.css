@@ -619,8 +619,9 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 
 /* ── git commit graph (DAG) ─ */
 .git-tree-list { padding: 0; }
-/* content-visibility: skip rendering off-screen text rows; the graph is one canvas (below) */
-.git-tree-row { display: flex; align-items: center; cursor: pointer; content-visibility: auto; contain-intrinsic-size: 0 28px; }
+/* text rows are cheap (the graph is one canvas below), so paint them all — no content-visibility
+   blank-in on fast scroll */
+.git-tree-row { display: flex; align-items: center; cursor: pointer; }
 .git-tree-row:hover { background: var(--elev); }
 .git-tree-row.on { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 /* one bitmap canvas over the gutter — scrolls as a composited layer (no per-frame re-raster) */
