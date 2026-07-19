@@ -48,6 +48,13 @@ describe('displayState', () => {
     expect(displayState(w({ fetched_at: NOW - STALE_AFTER - 1 }), NOW).kind).toBe('atMost');
   });
 
+  // Review catch: a 15min grace let a hard-running fleet burn quota while the pill
+  // still claimed an exact figure — overstating remaining, the dangerous direction.
+  it('does not claim precision for a reading minutes old', () => {
+    expect(displayState(w({ fetched_at: NOW - 899 }), NOW).kind).toBe('atMost');
+    expect(displayState(w({ fetched_at: NOW - 300 }), NOW).kind).toBe('atMost');
+  });
+
   it('missing resets_at is unknown rather than an epoch-0 comparison', () => {
     expect(displayState(w({ resets_at: 0 }), NOW)).toEqual({ kind: 'unknown' });
   });

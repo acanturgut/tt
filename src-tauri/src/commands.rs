@@ -65,16 +65,25 @@ fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+// Agent CLIs live in dirs a GUI-launched app never sees: launched from Finder/dock
+// we inherit PATH=/usr/bin:/bin:/usr/sbin:/sbin, which has neither ~/.local/bin
+// (claude, codex) nor /opt/homebrew/bin (tmux, gemini, opencode). Resolving a bare
+// "codex" against that fails even when codex is installed — the tile dies instantly
+// and we tell the user to install something they already have. So everything we
+// spawn goes through a LOGIN shell, which sources the user's real PATH.
+fn login_shell() -> String {
+    std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
+}
+
+// Deliberately NOT cached: this used to memoize in a OnceLock, so a tt launched
+// before tmux was installed answered "no" for the rest of its life and silently
+// lost session persistence. One ~50ms shell per spawn is cheaper than that.
 fn tmux_available() -> bool {
-    use std::sync::OnceLock;
-    static AVAIL: OnceLock<bool> = OnceLock::new();
-    *AVAIL.get_or_init(|| {
-        std::process::Command::new("tmux")
-            .arg("-V")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-    })
+    std::process::Command::new(login_shell())
+        .args(["-lc", "command -v tmux"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 fn get_session(state: &State<AppState>, id: &str) -> Result<Arc<PtySession>, String> {
@@ -142,9 +151,16 @@ pub fn spawn_agent(
             dir = sh_quote(&project_dir),
             cmdq = cmdq,
         );
-        ("sh".to_string(), vec!["-c".to_string(), full])
+        (login_shell(), vec!["-lc".to_string(), full])
     } else {
-        (cmd.program.clone(), args.clone())
+        // Same reason as the tmux branch: exec through a login shell so the CLI is
+        // found on the user's PATH, not on the app's stunted inherited one.
+        let cmdq = std::iter::once(cmd.program.clone())
+            .chain(args.iter().cloned())
+            .map(|a| sh_quote(&a))
+            .collect::<Vec<_>>()
+            .join(" ");
+        (login_shell(), vec!["-lc".to_string(), format!("exec {cmdq}")])
     };
 
     // One flag stops the claude-watch poller. on_exit flips it, so BOTH a natural
@@ -244,6 +260,15 @@ pub fn start_quota_tick(app: AppHandle) {
         let _ = app.emit("quota-changed", crate::quota::read_all());
         thread::sleep(Duration::from_secs(60));
     });
+}
+
+// Read quota on demand instead of waiting out the 60s tick. Note this re-reads the
+// files — it cannot make claude's cache newer, since only Claude Code refreshes that
+// (see quota.rs). It still helps: a claude session may have refreshed the cache since
+// our last tick, and codex writes a fresh reading every turn.
+#[tauri::command]
+pub fn quota_now() -> Vec<crate::quota::Window> {
+    crate::quota::read_all()
 }
 
 #[tauri::command]

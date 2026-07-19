@@ -48,6 +48,14 @@ pub fn parse_iso_epoch(s: &str) -> Option<i64> {
     let n = |a: usize, z: usize| s.get(a..z)?.parse::<i64>().ok();
     let (y, mo, d) = (n(0, 4)?, n(5, 7)?, n(8, 10)?);
     let (h, mi, sec) = (n(11, 13)?, n(14, 16)?, n(17, 19)?);
+    // Range-check before trusting the arithmetic: days_from_civil happily turns
+    // month 13 or hour 99 into a real epoch, and a corrupt provider timestamp
+    // becoming a plausible reset time is worse than treating it as unknown.
+    // ponytail: range check only — 2025-02-29 still slips through as Mar 1, which
+    // costs a day on a date that shouldn't exist. Full leap validation if it ever matters.
+    if !(1..=12).contains(&mo) || !(1..=31).contains(&d) || h > 23 || mi > 59 || sec > 60 {
+        return None;
+    }
     let mut t = days_from_civil(y, mo, d) * 86400 + h * 3600 + mi * 60 + sec;
     // Trailing offset: Z (or absent) = UTC; otherwise ±HH:MM, which we subtract to get UTC.
     let tail = &s[19..];
@@ -181,6 +189,9 @@ pub fn parse_codex(jsonl: &str) -> Vec<Window> {
         let (key, label) = match mins {
             300 => ("session".to_string(), "Session (5h)".to_string()),
             10080 => ("weekly_all".to_string(), "Weekly".to_string()),
+            // Real and common on free plans (100 occurrences across this machine's
+            // rollouts) — name it rather than letting it fall through to "30d window".
+            43200 => ("monthly".to_string(), "Monthly".to_string()),
             m if m % 1440 == 0 => (format!("{}d", m / 1440), format!("{}d window", m / 1440)),
             m if m % 60 == 0 => (format!("{}h", m / 60), format!("{}h window", m / 60)),
             m => (format!("{m}m"), format!("{m}m window")),
@@ -197,11 +208,21 @@ pub fn parse_codex(jsonl: &str) -> Vec<Window> {
     out
 }
 
-// Newest rollout under today's date dir, falling back to yesterday (just after
-// midnight the newest session still lives in yesterday's folder).
+// Newest rollout, walking back day-dirs until one has a session.
+//
+// Not just today/yesterday: codex windows outlive a quiet spell — weekly (10080m)
+// and monthly (43200m, real: 100 occurrences on this machine) stay binding for days
+// after your last session. Stopping at yesterday makes quota vanish after two idle
+// days while the weekly cap is still very much in force.
+//
+// 31 days covers the longest observed window; older than that the reading is dead
+// regardless. Cost is bounded: one read_dir per empty day, and we stop at the first
+// hit, so an active user does exactly one.
+const MAX_LOOKBACK_DAYS: i64 = 31;
+
 fn newest_rollout(root: &Path, now: i64) -> Option<PathBuf> {
     let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
-    for day_off in [0, 1] {
+    for day_off in 0..=MAX_LOOKBACK_DAYS {
         let days = (now - day_off * 86400) / 86400;
         let dir = root.join(ymd_path(days));
         let rd = match std::fs::read_dir(&dir) {
@@ -341,6 +362,36 @@ not json at all
         let w = parse_codex(s);
         assert_eq!(w.len(), 1);
         assert_eq!(w[0].percent_used, 9.0); // latest wins, junk lines skipped
+    }
+
+    // 43200-minute windows are real free-plan data (100 occurrences on this machine).
+    #[test]
+    fn codex_names_the_monthly_window() {
+        let s = r#"{"payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":7.0,"window_minutes":43200,"resets_at":1786223244}}}}"#;
+        let w = parse_codex(s);
+        assert_eq!(w[0].key, "monthly");
+        assert_eq!(w[0].label, "Monthly");
+    }
+
+    // Both slots null is real (8 of 260 newest events — free plan, no premium
+    // allowance). No window means no percentage exists, so we report nothing
+    // rather than inventing a pill; see the note in quota.ts.
+    #[test]
+    fn codex_null_slots_yield_no_windows() {
+        let s = r#"{"payload":{"type":"token_count","rate_limits":{"limit_id":"premium","plan_type":"free","primary":null,"secondary":null}}}"#;
+        assert!(parse_codex(s).is_empty());
+    }
+
+    #[test]
+    fn rejects_impossible_timestamps_instead_of_inventing_epochs() {
+        // a corrupt reset time that parses is worse than one that doesn't
+        assert_eq!(parse_iso_epoch("2026-13-40T99:99:99Z"), None);
+        assert_eq!(parse_iso_epoch("2026-00-10T00:00:00Z"), None);
+        assert_eq!(parse_iso_epoch("2026-07-19T24:00:00Z"), None);
+        assert_eq!(parse_iso_epoch("2026-07-19T12:60:00Z"), None);
+        // still accepts the real shapes, including a leap second
+        assert!(parse_iso_epoch("2026-07-19T13:49:59.688421+00:00").is_some());
+        assert!(parse_iso_epoch("2016-12-31T23:59:60Z").is_some());
     }
 
     #[test]

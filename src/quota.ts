@@ -1,4 +1,6 @@
+import { invoke } from '@tauri-apps/api/core';
 import { providerIcon } from './providers';
+import { icon } from './icon';
 import { placeMenu } from './menu';
 
 // Account-level plan quota per provider ("how much have I got left"), as opposed
@@ -45,7 +47,12 @@ export type QuotaState =
   | { kind: 'atMost'; remaining: number } // stale but window hasn't rolled: a true upper bound
   | { kind: 'unknown' };
 
-export const STALE_AFTER = 15 * 60; // seconds; beyond this we stop claiming precision
+// Only a near-instant reading earns an exact claim. 15min was too generous: a
+// fleet running hard can burn real quota in that time, so "74%" could already be
+// "0%" — the dangerous direction. Strictly, anything older than *now* is only an
+// upper bound; this threshold just keeps the ≤ glyph meaningful instead of
+// decorating every pill forever.
+export const STALE_AFTER = 120; // seconds
 
 export function displayState(w: QuotaWindow, now: number): QuotaState {
   if (!w.resets_at || now >= w.resets_at) return { kind: 'unknown' };
@@ -178,6 +185,23 @@ function openQuotaMenu(anchor: HTMLElement, provider: string, ws: QuotaWindow[],
     }
     menu.append(age);
   }
+
+  // Re-read now rather than waiting out the 60s tick. Deliberately labelled
+  // "Re-read", not "Refresh": it cannot make claude's cache newer (only Claude
+  // Code does that), and a button implying otherwise would be a lie the moment
+  // the number didn't move.
+  const reread = document.createElement('div');
+  reread.className = 'popmenu-item quota-reread';
+  reread.append(icon('arrows-clockwise'), document.createTextNode(' Re-read now'));
+  reread.onclick = (ev) => {
+    ev.stopPropagation();
+    reread.classList.add('git-busy'); // reuse the existing spinner rather than add a second one
+    void invoke<QuotaWindow[]>('quota_now')
+      .then(setQuota)
+      .catch(() => {})
+      .finally(cleanup);
+  };
+  menu.append(reread);
 
   document.body.appendChild(menu);
   placeMenu(menu, anchor.getBoundingClientRect());
