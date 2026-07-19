@@ -101,8 +101,7 @@ export function openSettings() {
   const general = section('General');
   general.append(
     choice('Default agent', 'Spawned by ⌘N and the New-agent button.',
-      ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal'],
-      s.defaultAgent, (v) => set('defaultAgent', v)),
+      PROVIDERS, s.defaultAgent, (v) => set('defaultAgent', v)),
     toggle('Tag new agents as Planning', 'New agents start with a Planning status.', s.autoPlanning, (v) => set('autoPlanning', v)),
     toggle('Auto-focus the newest agent', 'Zoom to an agent the moment it spawns.', s.autoFocus, (v) => set('autoFocus', v)),
     toggle('Desktop notifications', 'Notify you when an agent needs attention.', s.notifications, (v) => set('notifications', v)),
@@ -167,7 +166,7 @@ export function openSettings() {
     }
   });
   provs.append(el('settings-note',
-    'Claude, Codex, Cursor, Gemini, opencode and Antigravity are trademarks of their respective owners. tt is an independent tool, not affiliated with, endorsed by, or sponsored by any of them.'));
+    'Claude, Codex, Cursor, Gemini, opencode, Antigravity, Ollama and LM Studio are trademarks of their respective owners. tt is an independent tool, not affiliated with, endorsed by, or sponsored by any of them.'));
   body.append(provs);
 
   box.append(body);

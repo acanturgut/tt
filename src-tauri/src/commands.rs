@@ -129,6 +129,60 @@ pub fn check_clis(agent_ids: Vec<String>) -> HashMap<String, bool> {
         .collect()
 }
 
+// `ollama list` prints a NAME/ID/SIZE/MODIFIED table; the first column is the tag
+// you pass to `ollama run`. It has no type column, so embedders are dropped by name.
+// ponytail: name heuristic — every published embedder has "embed" in its tag; if
+// one slips through it just fails visibly in its own tile.
+pub fn parse_ollama_list(out: &str) -> Vec<String> {
+    out.lines()
+        .skip(1) // header
+        .filter_map(|l| l.split_whitespace().next())
+        .filter(|n| !n.to_lowercase().contains("embed"))
+        .map(|s| s.to_string())
+        .collect()
+}
+
+// `lms ls --json` is an array of model objects; modelKey is what `lms chat` takes.
+pub fn parse_lms_json(out: &str) -> Vec<String> {
+    serde_json::from_str::<serde_json::Value>(out)
+        .ok()
+        .and_then(|v| v.as_array().cloned())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|m| {
+            m.get("modelKey")
+                .or_else(|| m.get("path"))
+                .and_then(|k| k.as_str())
+                .map(|s| s.to_string())
+        })
+        .collect()
+}
+
+// Models available on THIS machine for the local runtimes. Hardcoding names would
+// be wrong for everyone — what you can run is what you've pulled. Login shell for
+// the same PATH reason as check_clis; a missing CLI just yields an empty list.
+#[tauri::command]
+pub fn local_models() -> HashMap<String, Vec<String>> {
+    let run = |script: &str| {
+        std::process::Command::new(login_shell())
+            .args(["-lc", script])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+            .unwrap_or_default()
+    };
+    HashMap::from([
+        (
+            "ollama".to_string(),
+            parse_ollama_list(&run("ollama list 2>/dev/null")),
+        ),
+        (
+            "lmstudio".to_string(),
+            // --llm: `lms chat` can't run the embedding models a bare ls also lists.
+            parse_lms_json(&run("lms ls --llm --json 2>/dev/null")),
+        ),
+    ])
+}
+
 fn get_session(state: &State<AppState>, id: &str) -> Result<Arc<PtySession>, String> {
     state
         .agents
@@ -600,6 +654,20 @@ mod tests {
     // Guards the `&&`-short-circuit trick: a MISSING cli prints nothing, so every
     // requested id must still come back keyed false rather than vanish from the map
     // (a dropped key reads as "unknown" in the UI and never warns).
+    #[test]
+    fn ollama_list_drops_the_header_and_embedding_models() {
+        let out = "NAME              ID     SIZE   MODIFIED\nllama3.2:latest   abc    2 GB   2 days ago\nnomic-embed-text  def    274 MB 1 day ago\n";
+        assert_eq!(parse_ollama_list(out), vec!["llama3.2:latest"]);
+        assert!(parse_ollama_list("").is_empty());
+    }
+
+    #[test]
+    fn lms_json_prefers_model_key_and_survives_garbage() {
+        let out = r#"[{"modelKey":"qwen3-8b"},{"path":"lmstudio/gemma"}]"#;
+        assert_eq!(parse_lms_json(out), vec!["qwen3-8b", "lmstudio/gemma"]);
+        assert!(parse_lms_json("lms: command not found").is_empty());
+    }
+
     #[test]
     fn check_clis_answers_for_every_known_id() {
         let ids: Vec<String> = ["claude", "codex", "terminal", "nope"]
