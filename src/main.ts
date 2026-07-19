@@ -321,6 +321,7 @@ function toggleOled() {
 }
 
 // Agent-driven UI — re-renders on every agent store change.
+let lastMcpJson = '';
 function renderAgents() {
   const vis = visibleAgents();
   renderSidebar(sidebarEl, vis, {
@@ -343,19 +344,23 @@ function renderAgents() {
   syncNotifications();
   persistAgents();
   // Push a snapshot for the MCP server's list_agents tool (hierarchical numbers).
+  // ponytail: cache last JSON so a burst of no-op renders (token counts changing on
+  // agents whose id/name/status didn't) doesn't fire IPC every microtask.
   const mcpLabels = new Map(agentTree(list()).map((n) => [n.agent.id, n.label]));
-  void invoke('mcp_set_agents', {
-    json: JSON.stringify(
-      list().map((a) => ({
-        number: mcpLabels.get(a.id) ?? '',
-        name: a.name,
-        kind: a.agentId,
-        dir: a.dir,
-        status: a.status,
-        session: a.key ? `tt-${a.key}` : '', // tmux session, for read_agent capture
-      })),
-    ),
-  }).catch(() => {});
+  const mcpJson = JSON.stringify(
+    list().map((a) => ({
+      number: mcpLabels.get(a.id) ?? '',
+      name: a.name,
+      kind: a.agentId,
+      dir: a.dir,
+      status: a.status,
+      session: a.key ? `tt-${a.key}` : '', // tmux session, for read_agent capture
+    })),
+  );
+  if (mcpJson !== lastMcpJson) {
+    lastMcpJson = mcpJson;
+    void invoke('mcp_set_agents', { json: mcpJson }).catch(() => {});
+  }
   renderTaskStrip();
 }
 
@@ -757,7 +762,7 @@ setInterval(() => {
   const path = curProjPath();
   if (!path) return;
   void renderTree(treeEl, path, treeHandlers());
-}, 3000);
+}, 6000); // ponytail: 6s polling, upgrade to tauri-plugin-fs-watch if this ever burns real cpu
 
 // Keyboard shortcuts (⌘): 1-9 focus agent, 0 grid, +/- zoom all, B/\ panels.
 window.addEventListener('keydown', (e) => {

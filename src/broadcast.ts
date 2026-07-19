@@ -55,7 +55,8 @@ let slashCmds: Slash[] = [];
 let slashIdx = 0;
 
 const reduceMotion = () =>
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+  document.hidden;
 
 function selectedIds(): string[] {
   return currentAgents.filter((a) => !excluded.has(a.id)).map((a) => a.id);

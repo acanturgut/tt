@@ -232,11 +232,23 @@ function render(path: string, content: string, isError: boolean): void {
   viewerEl.appendChild(body);
 }
 
+// ponytail: single-slot cache — Raw/Rendered toggle re-renders the same file, and
+// the same file often gets reopened. One entry avoids re-parsing marked + rewalking
+// hljs on toggle. Bigger LRU if we ever cache more views.
+let mdCache: { key: string; html: string } | null = null;
+let codeCache: { key: string; html: string } | null = null;
+
 function renderMarkdown(body: HTMLElement, content: string): void {
   const md = document.createElement('div');
   md.className = 'viewer-md';
-  md.innerHTML = marked.parse(content, { async: false }) as string;
-  md.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el as HTMLElement));
+  const key = `${curPath}\0${content.length}\0${content.slice(0, 200)}`;
+  if (mdCache && mdCache.key === key) {
+    md.innerHTML = mdCache.html;
+  } else {
+    md.innerHTML = marked.parse(content, { async: false }) as string;
+    md.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el as HTMLElement));
+    mdCache = { key, html: md.innerHTML };
+  }
   body.appendChild(md);
   curTextEl = md; // selections in rendered prose copy/send as plain text
 }
@@ -259,7 +271,13 @@ function renderCode(body: HTMLElement, path: string, content: string): void {
   pre.className = 'code-pre';
   const codeEl = document.createElement('code');
   codeEl.className = 'hljs';
-  codeEl.innerHTML = highlight(path, content);
+  const key = `${path}\0${content.length}\0${content.slice(0, 200)}`;
+  if (codeCache && codeCache.key === key) {
+    codeEl.innerHTML = codeCache.html;
+  } else {
+    codeEl.innerHTML = highlight(path, content);
+    codeCache = { key, html: codeEl.innerHTML };
+  }
   pre.appendChild(codeEl);
   curCodeEl = codeEl;
 
