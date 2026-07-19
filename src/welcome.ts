@@ -33,7 +33,7 @@ function el(cls: string, text?: string): HTMLElement {
   return d;
 }
 
-export function renderWelcome(root: HTMLElement, onNewOrchestrator: () => void) {
+export function renderWelcome(root: HTMLElement) {
   root.innerHTML = '';
   const card = el('welcome-card');
 
@@ -52,11 +52,6 @@ export function renderWelcome(root: HTMLElement, onNewOrchestrator: () => void) 
     }
   };
 
-  const orchBtn = document.createElement('button');
-  orchBtn.className = 'welcome-btn welcome-btn-ghost';
-  orchBtn.append(icon('brain'), document.createTextNode(' Start an orchestrator'));
-  orchBtn.onclick = () => onNewOrchestrator();
-
   const feats = el('welcome-features');
   for (const f of FEATURES) {
     const item = el('welcome-feat');
@@ -73,7 +68,6 @@ export function renderWelcome(root: HTMLElement, onNewOrchestrator: () => void) 
     el('welcome-title', 'Welcome to tt'),
     el('welcome-sub', 'Run and coordinate many coding agents side by side.'),
     btn,
-    orchBtn,
     feats,
   );
   root.append(card);

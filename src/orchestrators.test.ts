@@ -21,7 +21,7 @@ function ag(id: string, over: Partial<Agent> = {}): Agent {
 }
 
 test('store: add / get / list / setRoot / remove', () => {
-  addOrchestrator({ id: 'o1', name: 'Ship auth', dir: '/x', goal: 'ship auth' });
+  addOrchestrator({ id: 'o1', name: 'Ship auth', dir: '/x', project: '/x', goal: 'ship auth' });
   expect(listOrchestrators().map((o) => o.id)).toEqual(['o1']);
   setOrchestratorRoot('o1', 'claude-3');
   expect(getOrchestrator('o1')?.rootAgentId).toBe('claude-3');

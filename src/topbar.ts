@@ -142,10 +142,9 @@ export function renderProjectTabs(
   const cur = current();
   // Current project's color drives the selected tab + toolbar (via a CSS var).
   document.documentElement.style.setProperty('--tab-accent', cur?.color ?? DEFAULT_COLOR);
-  const sessActive = activeSession() !== null;
   projs.forEach((p, i) => {
     const tab = document.createElement('button');
-    tab.className = 'proj-tab' + (!sessActive && cur && p.path === cur.path ? ' active' : '');
+    tab.className = 'proj-tab' + (cur && p.path === cur.path ? ' active' : '');
     tab.title = p.path;
     const ic = icon(p.icon ?? 'folder');
     ic.classList.add('proj-tab-ic');
@@ -163,7 +162,7 @@ export function renderProjectTabs(
     root.appendChild(tab);
   });
   const active = activeSession();
-  for (const o of listOrchestrators()) {
+  for (const o of listOrchestrators().filter((o) => o.project === cur?.path)) {
     const chip = document.createElement('button');
     chip.className = 'orch-chip' + (o.id === active ? ' active' : '');
     chip.title = o.goal;

@@ -1,13 +1,13 @@
-import { open } from '@tauri-apps/plugin-dialog';
 import { icon } from './icon';
 import type { Agent } from './agents';
 
 export interface Orchestrator {
-  id: string; // crypto.randomUUID(); this value is the agents' `session` tag
-  name: string; // short label for the chip (derived from the goal)
-  dir: string; // working directory the lead runs in
-  goal: string; // the front-loaded task
-  rootAgentId?: string; // backend PTY id of the live claude lead once spawned
+  id: string;
+  name: string;
+  dir: string;
+  project: string; // owning project path — the chip shows only when this project is active
+  goal: string;
+  rootAgentId?: string;
 }
 
 const KEY = 'tt.orchestrators';
@@ -92,11 +92,11 @@ export function childAttribution(
 // lead-specific layer + the goal.
 export function orchestratorPrompt(goal: string): string {
   return (
-    '[tt orchestrator] You are the LEAD orchestrator for this session. Workers you ' +
-    'spawn automatically join your session. Break the goal into board tasks (add_task), ' +
-    'spawn the right workers with spawn_agent, dispatch work with send, watch progress ' +
-    'with list_tasks / read_agent, and synthesize when they finish. Keep your status pill ' +
-    'current with set_status.\n\nGoal: ' +
+    '[tt orchestrator] You are the LEAD orchestrator for this session. Break the goal into ' +
+    'board tasks (add_task), then spawn the right workers with spawn_agent — pass ' +
+    'parent=<your own agent number> so each worker joins your session. Dispatch work with ' +
+    'send, watch progress with list_tasks / read_agent, and synthesize when they finish. ' +
+    'Keep your status pill current with set_status.\n\nGoal: ' +
     goal
   );
 }
@@ -107,8 +107,9 @@ export function __resetOrchestratorsForTest() {
   listeners.clear();
 }
 
-// Modal: pick a directory + type a goal → onCreate(dir, goal).
-export function openNewOrchestrator(onCreate: (dir: string, goal: string) => void): void {
+// Modal: type a goal → onCreate(goal). Runs in `dir` (the current project's folder,
+// shown for context — no picker; orchestrators are created from a project).
+export function openNewOrchestrator(dir: string, onCreate: (goal: string) => void): void {
   const back = document.createElement('div');
   back.className = 'modal-back';
 
@@ -119,23 +120,12 @@ export function openNewOrchestrator(onCreate: (dir: string, goal: string) => voi
   title.className = 'orch-modal-title';
   title.textContent = 'New orchestrator';
 
-  let dir = '';
-  const dirRow = document.createElement('button');
+  // Static context row: which project folder the orchestrator will run in.
+  const dirRow = document.createElement('div');
   dirRow.className = 'orch-dir';
   const dirLabel = document.createElement('span');
-  dirLabel.textContent = 'Choose a folder…';
+  dirLabel.textContent = dir;
   dirRow.append(icon('folder'), dirLabel);
-  dirRow.onclick = async () => {
-    try {
-      const picked = await open({ directory: true, multiple: false });
-      if (typeof picked === 'string') {
-        dir = picked;
-        dirLabel.textContent = picked;
-      }
-    } catch (e) {
-      alert(`choose folder failed: ${e}`);
-    }
-  };
 
   const goal = document.createElement('textarea');
   goal.className = 'orch-goal';
@@ -158,16 +148,12 @@ export function openNewOrchestrator(onCreate: (dir: string, goal: string) => voi
   };
   create.onclick = () => {
     const g = goal.value.trim();
-    if (!dir) {
-      alert('Choose a folder for the orchestrator to work in.');
-      return;
-    }
     if (!g) {
       alert('Describe the goal.');
       return;
     }
     close();
-    onCreate(dir, g);
+    onCreate(g);
   };
 
   actions.append(cancel, create);

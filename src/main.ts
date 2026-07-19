@@ -371,7 +371,14 @@ function renderProject() {
   renderProjectTabs(projtabsEl, {
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
-    onNewOrchestrator: () => openNewOrchestrator(handleCreateOrchestrator),
+    onNewOrchestrator: () => {
+      const p = currentProject();
+      if (!p) {
+        alert('Open a project first — an orchestrator runs in the current project.');
+        return;
+      }
+      openNewOrchestrator(p.path, (goal) => handleCreateOrchestrator(p.path, goal));
+    },
     onCloseOrchestrator: closeOrchestrator,
   });
   renderTopbar(tbLeftEl, tbRightEl, {
@@ -462,7 +469,7 @@ async function spawn(
 async function handleCreateOrchestrator(dir: string, goal: string) {
   const id = crypto.randomUUID();
   const name = goal.split('\n')[0].slice(0, 32) || 'Orchestrator';
-  addOrchestrator({ id, name, dir, goal });
+  addOrchestrator({ id, name, dir, goal, project: dir });
   selectSession(id); // switch the view to the new session before the tile appears
   const agentId = await spawn('claude', dir, undefined, { prompt: orchestratorPrompt(goal), session: id });
   if (agentId) setOrchestratorRoot(id, agentId);
@@ -496,13 +503,13 @@ function persistAgents() {
   if (restoring) return; // don't clobber the saved list before restoreAgents() reads it
   const data = list()
     .filter((a) => a.key)
-    .map((a) => ({ agentId: a.agentId, name: a.name, dir: a.dir, label: a.label, key: a.key, project: a.project, model: a.model, effort: a.effort }));
+    .map((a) => ({ agentId: a.agentId, name: a.name, dir: a.dir, label: a.label, key: a.key, project: a.project, session: a.session, model: a.model, effort: a.effort }));
   localStorage.setItem('tt.agents', JSON.stringify(data));
 }
 
 async function restoreAgents() {
   try {
-    let saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string }> = [];
+    let saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string; session?: string }> = [];
     try {
       const raw = JSON.parse(localStorage.getItem('tt.agents') ?? '[]');
       if (Array.isArray(raw)) saved = raw;
@@ -517,7 +524,7 @@ async function restoreAgents() {
 }
 
 async function reattachAll(
-  saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string; model?: string; effort?: string }>,
+  saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string; session?: string; model?: string; effort?: string }>,
 ) {
   for (const rec of saved) {
     if (!rec?.key || !rec?.agentId || !rec?.dir) continue;
@@ -545,6 +552,7 @@ async function reattachAll(
         status: 'working',
         key: rec.key,
         project: rec.project,
+        session: rec.session,
         label: rec.label as WorkflowLabel | undefined,
         model: rec.model,
         effort: rec.effort,
@@ -764,7 +772,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && isGitOpen()) closeGit();
 });
 mountTaskStrip(taskstripEl, statuslineEl, { getProject: () => curProjPath(), getAgents: agentCounts });
-renderWelcome(welcomeEl, () => openNewOrchestrator(handleCreateOrchestrator));
+renderWelcome(welcomeEl);
 renderProject();
 renderAgents();
 restoreTasks();
