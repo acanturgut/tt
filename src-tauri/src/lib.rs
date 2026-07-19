@@ -1,5 +1,6 @@
 mod claude_watch;
 mod commands;
+mod git;
 mod mcp;
 mod pty;
 mod registry;
@@ -31,7 +32,16 @@ pub fn run() {
             commands::search_paths,
             commands::session_alive,
             commands::mcp_set_agents,
-            commands::mcp_set_tasks
+            commands::mcp_set_tasks,
+            git::git_status,
+            git::git_diff,
+            git::git_show,
+            git::git_stage,
+            git::git_unstage,
+            git::git_commit,
+            git::git_push,
+            git::git_log_graph,
+            git::git_worktrees
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

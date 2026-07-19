@@ -20,6 +20,7 @@ export interface TopbarHandlers {
   onToggleLeft: () => void;
   onToggleRight: () => void;
   onBoard: () => void;
+  onGit: () => void;
   onTemplates: () => void;
 }
 
@@ -209,6 +210,7 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
   }
 
   const boardBtn = iconBtn('kanban', 'Task board', () => h.onBoard(), '⌘ J');
+  const gitBtn = iconBtn('git-branch', 'Git', () => h.onGit(), '⌘ G');
   const templatesBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates(), '⌘ F');
 
   const sep = document.createElement('span');
@@ -217,5 +219,5 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
   sep2.className = 'tb-sep';
 
   left.append(treeToggle, sep, wrap);
-  right.append(templatesBtn, boardBtn, sep2, agentsToggle);
+  right.append(templatesBtn, boardBtn, gitBtn, sep2, agentsToggle);
 }

@@ -33,6 +33,7 @@ import { mountBroadcast, updateBroadcast, openComposer } from './broadcast';
 import { openPalette, type Command } from './palette';
 import { mountBoard, openBoard, closeBoard, isBoardOpen } from './board';
 import { mountViewer, openViewer, closeViewer, isViewerOpen } from './viewer';
+import { mountGit, openGit, closeGit, isGitOpen } from './git';
 import { mountTaskStrip, renderTaskStrip } from './taskstrip';
 import {
   subscribeProjects,
@@ -76,6 +77,7 @@ const treeEl = document.getElementById('tree')!;
 const broadcastEl = document.getElementById('broadcast')!;
 const boardMountEl = document.getElementById('board')!;
 const viewerEl = document.getElementById('viewer')!;
+const gitEl = document.getElementById('git')!;
 const statuslineEl = document.getElementById('statusline')!;
 const taskstripEl = document.getElementById('taskstrip')!;
 const welcomeEl = document.getElementById('welcome')!;
@@ -185,6 +187,12 @@ function showTemplates() {
   });
 }
 
+function showGit() {
+  closeBoard();
+  closeViewer();
+  openGit();
+}
+
 function buildCommands(): Command[] {
   const cmds: Command[] = [];
   const p = currentProject();
@@ -229,7 +237,8 @@ function buildCommands(): Command[] {
   cmds.push({ label: 'Toggle tree panel', run: () => toggleSide('tt.right') });
   cmds.push({ label: 'Toggle OLED / dim mode', run: toggleOled });
   cmds.push({ label: 'Fleet templates…', run: showTemplates });
-  cmds.push({ label: 'Open task board', run: () => { closeViewer(); openBoard(); } });
+  cmds.push({ label: 'Open task board', run: () => { closeViewer(); closeGit(); openBoard(); } });
+  cmds.push({ label: 'Open git', run: showGit });
   return cmds;
 }
 
@@ -295,6 +304,7 @@ function treeHandlers() {
     onOpenAgent: (folder: string, agentId: string) => void spawn(agentId, folder),
     onOpenFile: (p: string) => {
       closeBoard();
+      closeGit();
       void openViewer(p);
     },
   };
@@ -318,6 +328,7 @@ async function fileSearchProvider(q: string): Promise<Command[]> {
       if (e.dir) void revealInTree(treeEl, p.path, treeHandlers(), e.path);
       else {
         closeBoard();
+        closeGit();
         void openViewer(e.path);
       }
     },
@@ -339,8 +350,9 @@ function renderProject() {
     },
     onToggleLeft: () => toggleSide('tt.left'),
     onToggleRight: () => toggleSide('tt.right'),
-    onBoard: () => { closeViewer(); openBoard(); },
     onTemplates: showTemplates,
+    onBoard: () => { closeViewer(); closeGit(); openBoard(); },
+    onGit: showGit,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, treeHandlers());
   pushTasks();
@@ -619,7 +631,11 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'j') {
     if (isBoardOpen()) closeBoard();
-    else { closeViewer(); openBoard(); }
+    else { closeViewer(); closeGit(); openBoard(); }
+    e.preventDefault();
+  } else if (e.key.toLowerCase() === 'g') {
+    if (isGitOpen()) closeGit();
+    else showGit();
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'k') {
     openPalette(buildCommands(), fileSearchProvider);
@@ -656,9 +672,24 @@ mountViewer(viewerEl, () => curProjPath(), {
   agents: () => agentTree(visibleAgents()).map((n) => ({ id: n.agent.id, label: n.label, name: n.agent.name })),
   to: (id, text) => broadcast([id], text, false),
 });
+mountGit(gitEl, () => curProjPath(), {
+  getAgents: () => visibleAgents().map((a) => ({ id: a.id, name: a.name, dir: a.dir, status: a.status })),
+  revealFolder: (p) => {
+    closeGit();
+    const proj = currentProject();
+    if (proj) void revealInTree(treeEl, proj.path, treeHandlers(), p);
+  },
+  openFile: (p) => {
+    closeGit();
+    void openViewer(p);
+  },
+});
 // Escape closes the code viewer (matches settings/palette/etc.).
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && isViewerOpen()) closeViewer();
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && isGitOpen()) closeGit();
 });
 mountTaskStrip(taskstripEl, statuslineEl, { getProject: () => curProjPath(), getAgents: agentCounts });
 renderWelcome(welcomeEl);

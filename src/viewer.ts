@@ -122,7 +122,7 @@ const EXT_LANG: Record<string, string> = {
   ini: 'ini', sql: 'sql', md: 'markdown', markdown: 'markdown', swift: 'swift',
   kt: 'kotlin', dockerfile: 'dockerfile',
 };
-function highlight(path: string, code: string): string {
+export function highlight(path: string, code: string): string {
   const ext = path.includes('.') ? path.split('.').pop()!.toLowerCase() : '';
   const lang = EXT_LANG[ext];
   try {
@@ -133,7 +133,7 @@ function highlight(path: string, code: string): string {
     return escapeHtml(code);
   }
 }
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
