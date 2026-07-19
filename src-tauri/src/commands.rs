@@ -233,6 +233,19 @@ fn start_claude_watch(
     });
 }
 
+// Account quota, both providers, one thread. Not tied to any agent's lifetime —
+// your plan usage is meaningful (and keeps draining from other terminals) with
+// zero agents running. 60s because the freshness ceiling is the provider's, not
+// ours: claude's cache refreshes on its own schedule and codex writes once a turn.
+pub fn start_quota_tick(app: AppHandle) {
+    thread::spawn(move || loop {
+        // Emit unconditionally: cheap, and it lets the UI re-evaluate staleness
+        // (a window can roll over with no change to the underlying file).
+        let _ = app.emit("quota-changed", crate::quota::read_all());
+        thread::sleep(Duration::from_secs(60));
+    });
+}
+
 #[tauri::command]
 pub fn write_agent(state: State<AppState>, id: String, data: String) -> Result<(), String> {
     // Clone the Arc out and release the map lock before the (blocking) write.

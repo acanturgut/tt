@@ -9,6 +9,7 @@ import {
   removeProject,
 } from './projects';
 import { icon } from './icon';
+import { quotaPills } from './quota';
 import { listOrchestrators, activeSession, selectSession } from './orchestrators';
 import { placeMenu } from './menu';
 import { visibleProviders, providerIcon } from './providers';
@@ -260,5 +261,9 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
   sep2.className = 'tb-sep';
 
   left.append(treeToggle, sep, wrap);
+  // Account quota sits with the tools, not on tiles: it's a per-provider fact, and
+  // repeating it on every tile would read as a per-agent number.
+  const quota = quotaPills();
+  if (quota) right.append(quota);
   right.append(templatesBtn, boardBtn, gitBtn, sep2, agentsToggle);
 }

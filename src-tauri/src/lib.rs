@@ -3,6 +3,7 @@ mod commands;
 mod git;
 mod mcp;
 mod pty;
+mod quota;
 mod registry;
 
 use commands::AppState;
@@ -17,6 +18,7 @@ pub fn run() {
         .manage(AppState::default())
         .setup(|app| {
             mcp::start(app.handle().clone()); // MCP server so agents can spawn agents
+            commands::start_quota_tick(app.handle().clone()); // account quota polling
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
