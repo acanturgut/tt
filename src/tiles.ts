@@ -57,6 +57,7 @@ export function syncTiles(
 
     const root = document.createElement('div');
     root.className = 'tile';
+    root.dataset.agentId = a.id; // used to route OS file-drops to this agent's PTY
 
     const header = document.createElement('div');
     header.className = 'tile-header';

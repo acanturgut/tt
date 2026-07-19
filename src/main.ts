@@ -1,6 +1,7 @@
 import '@phosphor-icons/web/regular';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import {
   isPermissionGranted,
   requestPermission,
@@ -330,7 +331,6 @@ function renderProject() {
   renderProjectTabs(projtabsEl, {
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
-    onTemplates: showTemplates,
   });
   renderTopbar(tbLeftEl, tbRightEl, {
     onSpawn: (agentId) => {
@@ -340,6 +340,7 @@ function renderProject() {
     onToggleLeft: () => toggleSide('tt.left'),
     onToggleRight: () => toggleSide('tt.right'),
     onBoard: () => { closeViewer(); openBoard(); },
+    onTemplates: showTemplates,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, treeHandlers());
   pushTasks();
@@ -393,13 +394,12 @@ async function spawn(
     // ponytail: fixed 2.5s delay to let the CLI boot before typing the first
     // prompt — TUIs eat input sent before they're ready. Swap for a readiness
     // signal (claude jsonl / prompt-detected) if this proves flaky.
-    if (agentId !== 'terminal') {
-      const msg = opts?.prompt ? `${ORIENT}\n\n${opts.prompt}` : ORIENT;
-      setTimeout(() => broadcast([id], msg, false), 2500);
-    } else if (opts?.prompt) {
-      const p = opts.prompt;
-      setTimeout(() => broadcast([id], p, false), 2500);
-    }
+    // Orient only fleet-spawned agents (via the tt MCP). A human spawning an
+    // agent themselves doesn't need the nudge — just send their prompt, if any.
+    const msg = opts?.spawned
+      ? (opts.prompt ? `${ORIENT}\n\n${opts.prompt}` : ORIENT)
+      : opts?.prompt;
+    if (msg) setTimeout(() => broadcast([id], msg, false), 2500);
   } catch (e) {
     alert(`spawn failed: ${e}`);
   }
@@ -512,6 +512,21 @@ listen<{ id: string }>('agent-exit', (e) => {
 listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
   markClaude(e.payload.id, e.payload.title, e.payload.tokens),
 );
+
+// OS file drop -> type the path(s) into the PTY of the agent tile under the
+// cursor, so dragging an image onto an agent hands it the path (claude reads
+// image paths from its prompt). Needs dragDropEnabled:true in tauri.conf — a
+// webview never exposes real filesystem paths to a plain DOM drop.
+void getCurrentWebview().onDragDropEvent((e) => {
+  if (e.payload.type !== 'drop') return;
+  const r = window.devicePixelRatio || 1; // drop position is physical px
+  const el = document.elementFromPoint(e.payload.position.x / r, e.payload.position.y / r);
+  const id = el?.closest<HTMLElement>('.tile')?.dataset.agentId;
+  if (!id || !terms.has(id)) return;
+  const quote = (p: string) => (/\s/.test(p) ? `'${p.replace(/'/g, "'\\''")}'` : p);
+  markInput(id);
+  void invoke('write_agent', { id, data: e.payload.paths.map(quote).join(' ') + ' ' });
+});
 
 // MCP server -> UI: an agent (via the tt MCP tools) asked to spawn/send/broadcast/close.
 // Numbers are 1-based positions in list() (matches the list_agents snapshot).

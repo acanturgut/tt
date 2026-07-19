@@ -20,6 +20,7 @@ export interface TopbarHandlers {
   onToggleLeft: () => void;
   onToggleRight: () => void;
   onBoard: () => void;
+  onTemplates: () => void;
 }
 
 // Inline shortcut chip (always visible, not just in the hover tooltip). `keys`
@@ -132,7 +133,7 @@ function toolBtn(name: string, label: string, onClick: () => void, keys?: string
 // Project tabs live on their own row above the nav; each tab is its own panel.
 export function renderProjectTabs(
   root: HTMLElement,
-  h: { onZoomIn: () => void; onZoomOut: () => void; onTemplates: () => void },
+  h: { onZoomIn: () => void; onZoomOut: () => void },
 ) {
   root.innerHTML = '';
   const projs = listProjects();
@@ -178,7 +179,6 @@ export function renderProjectTabs(
     toolBtn('minus', 'Zoom out', h.onZoomOut, '⌘ -'),
     toolBtn('plus', 'Zoom in', h.onZoomIn, '⌘ +'),
     toolBtn('gear-six', 'Settings', () => openSettings(), '⌘ ,'),
-    toolBtn('stack', 'Fleet templates', () => h.onTemplates(), '⌘ F'),
   );
   root.appendChild(tools);
 }
@@ -209,7 +209,13 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
   }
 
   const boardBtn = iconBtn('kanban', 'Task board', () => h.onBoard(), '⌘ J');
+  const templatesBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates(), '⌘ F');
 
-  left.append(treeToggle, wrap);
-  right.append(boardBtn, agentsToggle);
+  const sep = document.createElement('span');
+  sep.className = 'tb-sep';
+  const sep2 = document.createElement('span');
+  sep2.className = 'tb-sep';
+
+  left.append(treeToggle, sep, wrap);
+  right.append(templatesBtn, boardBtn, sep2, agentsToggle);
 }

@@ -1,6 +1,5 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { invoke } from '@tauri-apps/api/core';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
@@ -12,7 +11,6 @@ export class AgentTerminal {
   el: HTMLDivElement;
   private opened = false;
   private fontSize = 12;
-  private webgl?: WebglAddon;
 
   constructor(public id: string) {
     this.term = new Terminal({
@@ -62,17 +60,11 @@ export class AgentTerminal {
     if (this.opened) return;
     this.opened = true;
     this.term.open(this.el);
-    this.loadWebgl();
+    // ponytail: no WebGL renderer — on some GPU/driver combos xterm's WebGL addon drops
+    // whole glyph classes (punctuation like `>` renders blank), across every terminal.
+    // The default renderer is plenty fast for these tiles. Re-add WebGL only if
+    // large-output perf ever demands it (and gate it behind a working-glyph check).
     this.fitNow();
-  }
-
-  private loadWebgl() {
-    try {
-      this.webgl = new WebglAddon();
-      this.term.loadAddon(this.webgl);
-    } catch {
-      this.webgl = undefined; // webgl unavailable — canvas fallback is fine
-    }
   }
 
   write(data: Uint8Array) {
@@ -90,17 +82,6 @@ export class AgentTerminal {
   setFontSize(px: number) {
     this.fontSize = Math.max(6, Math.min(32, px));
     this.term.options.fontSize = this.fontSize;
-    // WebGL caches cell dimensions at the old font size; reload it so rows
-    // re-measure at the new size (otherwise lines pack together after a zoom).
-    if (this.webgl && this.opened) {
-      try {
-        this.webgl.dispose();
-      } catch {
-        /* ignore */
-      }
-      this.webgl = undefined;
-      this.loadWebgl();
-    }
     // Defer the fit a frame so the char re-measure lands before we compute rows.
     requestAnimationFrame(() => this.fitNow());
   }
