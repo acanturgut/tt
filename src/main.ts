@@ -46,6 +46,7 @@ import {
   sessionAgents, activeSession, subscribeOrchestrators,
   addOrchestrator, setOrchestratorRoot, selectSession, orchestratorPrompt,
   openNewOrchestrator, removeOrchestrator, getOrchestrator, childAttribution,
+  type OrchestratorConfig,
 } from './orchestrators';
 import {
   addTask,
@@ -377,7 +378,7 @@ function renderProject() {
         alert('Open a project first — an orchestrator runs in the current project.');
         return;
       }
-      openNewOrchestrator(p.path, (goal) => handleCreateOrchestrator(p.path, goal));
+      openNewOrchestrator(p.path, (cfg) => handleCreateOrchestrator(p.path, cfg));
     },
     onCloseOrchestrator: closeOrchestrator,
   });
@@ -466,12 +467,17 @@ async function spawn(
 
 // Create a live orchestrator: a claude lead in its own session, handed the lead
 // role prompt + goal. It spawns its own workers into this session via MCP.
-async function handleCreateOrchestrator(dir: string, goal: string) {
+async function handleCreateOrchestrator(dir: string, cfg: OrchestratorConfig) {
   const id = crypto.randomUUID();
-  const name = goal.split('\n')[0].slice(0, 32) || 'Orchestrator';
-  addOrchestrator({ id, name, dir, goal, project: dir });
+  const name = cfg.goal.split('\n')[0].slice(0, 32) || 'Orchestrator';
+  addOrchestrator({ id, name, dir, goal: cfg.goal, project: dir });
   selectSession(id); // switch the view to the new session before the tile appears
-  const agentId = await spawn('claude', dir, undefined, { prompt: orchestratorPrompt(goal), session: id });
+  const agentId = await spawn(cfg.agentId, dir, undefined, {
+    prompt: orchestratorPrompt(cfg.goal),
+    session: id,
+    model: cfg.model,
+    effort: cfg.effort,
+  });
   if (agentId) setOrchestratorRoot(id, agentId);
 }
 

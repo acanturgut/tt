@@ -654,22 +654,57 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 .git-wt-btn { display: inline-flex; align-items: center; gap: 4px; background: var(--chrome); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--muted); padding: 2px 8px; cursor: pointer; font: inherit; font-size: 11.5px; }
 .git-wt-btn:hover { color: var(--text); border-color: var(--line-strong); }
 
-/* Orchestrator creation modal */
-.modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
-.orch-modal { width: 460px; max-width: 92vw; background: var(--elev); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
-.orch-modal-title { font-size: 15px; font-weight: 600; }
-.orch-dir { display: flex; align-items: center; gap: 8px; padding: 9px 11px; background: var(--elev-2); border: 1px solid var(--line); border-radius: var(--r); color: var(--text); font: inherit; text-align: left; cursor: pointer; overflow: hidden; }
-.orch-dir span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.orch-goal { background: var(--elev-2); border: 1px solid var(--line); border-radius: var(--r); color: var(--text); font: inherit; padding: 9px 11px; resize: vertical; }
-.orch-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.orch-btn { padding: 8px 16px; border-radius: var(--r); border: 1px solid var(--line); background: var(--elev-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
-.orch-btn.primary { background: #fff; color: #0a0b0d; border: none; }
+/* ── New-orchestrator modal ──────────────────────────────────────────── */
+.modal-back { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(6, 9, 14, .58); backdrop-filter: blur(7px) saturate(1.2); -webkit-backdrop-filter: blur(7px) saturate(1.2); animation: orch-back-in .18s ease both; }
+@keyframes orch-back-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes orch-modal-in { from { opacity: 0; transform: translateY(10px) scale(.982); } to { opacity: 1; transform: none; } }
+
+.orch-modal { width: 484px; max-width: 100%; max-height: calc(100vh - 48px); display: flex; flex-direction: column; background: color-mix(in srgb, var(--elev) 90%, var(--tab-accent)); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 28px 80px -24px rgba(0, 0, 0, .75), inset 0 1px 0 rgba(255, 255, 255, .05); overflow: hidden; animation: orch-modal-in .22s cubic-bezier(.2, .8, .2, 1) both; }
+
+.orch-head { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 18px 18px 15px; border-bottom: 1px solid var(--line); }
+.orch-badge { flex: 0 0 auto; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 11px; font-size: 19px; color: #fff; background: color-mix(in srgb, var(--tab-accent) 85%, transparent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 16px -8px var(--tab-accent); }
+.orch-head-text { min-width: 0; flex: 1; padding-top: 1px; }
+.orch-modal-title { font-size: 15px; font-weight: 650; letter-spacing: -.01em; color: var(--text); }
+.orch-modal-sub { margin-top: 3px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.orch-close { position: absolute; top: 13px; right: 13px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: none; background: none; color: var(--dim); border-radius: 7px; cursor: pointer; font-size: 15px; transition: color .12s ease, background .12s ease; }
+.orch-close:hover { color: var(--text); background: var(--elev-2); }
+
+.orch-body { display: flex; flex-direction: column; gap: 15px; padding: 16px 18px; overflow-y: auto; }
+.orch-dir { display: flex; align-items: center; gap: 8px; padding: 9px 11px; background: rgba(0, 0, 0, .22); border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 12.5px; overflow: hidden; }
+.orch-dir > i { font-size: 14px; opacity: .8; flex: 0 0 auto; }
+.orch-dir-tag { color: var(--dim); flex: 0 0 auto; }
+.orch-dir .path { color: var(--text); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.orch-cfg { display: flex; gap: 8px; }
+.orch-cfg-field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 0; min-width: 0; }
+.orch-cfg-label { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); padding-left: 1px; }
+.orch-cfg .sc-trigger { min-width: 0; width: 100%; }
+
+.orch-goal-field { display: flex; flex-direction: column; gap: 6px; }
+.orch-goal { background: rgba(0, 0, 0, .22); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font: inherit; font-size: 13.5px; line-height: 1.5; padding: 10px 12px; resize: vertical; min-height: 88px; transition: border-color .12s ease, box-shadow .12s ease; }
+.orch-goal::placeholder { color: var(--dim); }
+.orch-goal:focus { outline: none; border-color: color-mix(in srgb, var(--tab-accent) 72%, var(--line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tab-accent) 28%, transparent); }
+
+.orch-actions { display: flex; align-items: center; gap: 10px; padding: 13px 18px; border-top: 1px solid var(--line); background: rgba(0, 0, 0, .16); }
+.orch-hint { margin-right: auto; font-size: 11.5px; color: var(--dim); }
+.orch-hint kbd { font-family: var(--font-mono); font-size: 11px; background: var(--elev-2); color: var(--muted); border-radius: 4px; padding: 1px 5px; box-shadow: none; min-width: 0; height: auto; }
+.orch-btn { padding: 8px 15px; border-radius: 9px; border: 1px solid var(--line); background: var(--elev-2); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .12s ease, border-color .12s ease, opacity .12s ease; }
+.orch-btn:hover { background: var(--elev); }
+.orch-btn.primary { background: #fff; color: #0a0b0d; border-color: transparent; }
+.orch-btn.primary:hover { background: rgba(255, 255, 255, .9); }
+.orch-btn:disabled { opacity: .4; cursor: default; }
+.orch-btn:disabled:hover { background: #fff; }
 
 /* Orchestrator chips in the project-tabs row */
-.orch-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px; margin-left: 4px; background: var(--elev-2); border: 1px solid var(--line); border-radius: var(--r); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
-.orch-chip.active { color: var(--text); border-color: var(--tab-accent); }
-.orch-chip-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tab-accent); }
+/* Orchestrator chips wear the current project's accent (a shade off the tab) and
+   float slightly above the bottom edge so they read as pills, not anchored tabs. */
+.orch-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; margin: 0 0 4px 4px; background: color-mix(in srgb, var(--tab-accent) 38%, transparent); border: 1px solid color-mix(in srgb, var(--tab-accent) 50%, transparent); border-radius: var(--r); color: color-mix(in srgb, #fff 62%, transparent); font: inherit; font-size: 13px; cursor: pointer; transition: background .12s ease, color .12s ease; }
+.orch-chip:hover { color: #fff; }
+.orch-chip.active { background: color-mix(in srgb, var(--tab-accent) 88%, transparent); color: #fff; border-color: transparent; backdrop-filter: blur(18px) saturate(1.9); -webkit-backdrop-filter: blur(18px) saturate(1.9); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
+.orch-chip-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .6); }
 .orch-chip-name { max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .orch-chip-x { display: inline-flex; opacity: .5; }
 .orch-chip-x:hover { opacity: 1; }
 .orch-new { margin-left: 4px; }
+/* Collapsed (icon-only) new-orchestrator button: a centered square pill that floats with the chips. */
+.orch-new.icon-only { width: 30px; height: 30px; padding: 0; margin: 0 0 4px 4px; justify-content: center; border-radius: var(--r); font-size: 15px; }

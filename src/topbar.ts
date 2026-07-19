@@ -142,6 +142,20 @@ export function renderProjectTabs(
   const cur = current();
   // Current project's color drives the selected tab + toolbar (via a CSS var).
   document.documentElement.style.setProperty('--tab-accent', cur?.color ?? DEFAULT_COLOR);
+  const active = activeSession();
+  // "Add project" sits at the far left of the rail, before the project tabs.
+  const add = document.createElement('button');
+  add.className = 'addproj-tab';
+  add.append(icon('plus'), document.createTextNode(' Add project'));
+  add.onclick = async () => {
+    try {
+      const picked = await open({ directory: true, multiple: false });
+      if (typeof picked === 'string') addProject(picked);
+    } catch (e) {
+      alert(`add project failed: ${e}`);
+    }
+  };
+  root.appendChild(add);
   projs.forEach((p, i) => {
     const tab = document.createElement('button');
     tab.className = 'proj-tab' + (cur && p.path === cur.path ? ' active' : '');
@@ -160,45 +174,45 @@ export function renderProjectTabs(
     if (i < 9) tab.append(kbdChip(`⌘${i + 1}`, 'proj-tab-kbd')); // ⌘1–9 switch projects
     tab.onclick = () => { selectSession(null); selectProject(p.path); };
     root.appendChild(tab);
-  });
-  const active = activeSession();
-  for (const o of listOrchestrators().filter((o) => o.project === cur?.path)) {
-    const chip = document.createElement('button');
-    chip.className = 'orch-chip' + (o.id === active ? ' active' : '');
-    chip.title = o.goal;
-    const dot = document.createElement('span');
-    dot.className = 'orch-chip-dot';
-    const nm = document.createElement('span');
-    nm.className = 'orch-chip-name';
-    nm.textContent = o.name;
-    const x = document.createElement('span');
-    x.className = 'orch-chip-x';
-    x.append(icon('x'));
-    x.onclick = (e) => {
-      e.stopPropagation();
-      if (confirm(`Close orchestrator "${o.name}" and kill its agents?`)) h.onCloseOrchestrator(o.id);
-    };
-    chip.append(dot, nm, x);
-    chip.onclick = () => selectSession(o.id);
-    root.appendChild(chip);
-  }
-  const newOrch = document.createElement('button');
-  newOrch.className = 'addproj-tab orch-new';
-  newOrch.append(icon('plus'), document.createTextNode(' Orchestrator'));
-  newOrch.onclick = () => h.onNewOrchestrator();
-  root.appendChild(newOrch);
-  const add = document.createElement('button');
-  add.className = 'addproj-tab';
-  add.append(icon('plus'), document.createTextNode(' Add project'));
-  add.onclick = async () => {
-    try {
-      const picked = await open({ directory: true, multiple: false });
-      if (typeof picked === 'string') addProject(picked);
-    } catch (e) {
-      alert(`add project failed: ${e}`);
+
+    // Orchestrators belong to a project and live inline, right after it — but only
+    // the selected project shows its fleet (chips) + the new-orchestrator button.
+    if (!cur || p.path !== cur.path) return;
+    const orchs = listOrchestrators().filter((o) => o.project === p.path);
+    for (const o of orchs) {
+      const chip = document.createElement('button');
+      chip.className = 'orch-chip' + (o.id === active ? ' active' : '');
+      chip.title = o.goal;
+      const dot = document.createElement('span');
+      dot.className = 'orch-chip-dot';
+      const onm = document.createElement('span');
+      onm.className = 'orch-chip-name';
+      onm.textContent = o.name;
+      const x = document.createElement('span');
+      x.className = 'orch-chip-x';
+      x.append(icon('x'));
+      x.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm(`Close orchestrator "${o.name}" and kill its agents?`)) h.onCloseOrchestrator(o.id);
+      };
+      chip.append(dot, onm, x);
+      chip.onclick = () => selectSession(o.id);
+      root.appendChild(chip);
     }
-  };
-  root.appendChild(add);
+    const newOrch = document.createElement('button');
+    newOrch.className = 'addproj-tab orch-new';
+    // Collapse to a bare "+" once this project has orchestrators — the chips make
+    // the affordance obvious; the "Orchestrator" label is only a first-time hint.
+    if (orchs.length) {
+      newOrch.className = 'addproj-tab orch-new icon-only';
+      newOrch.append(icon('plus'));
+      tip(newOrch, 'New orchestrator');
+    } else {
+      newOrch.append(icon('plus'), document.createTextNode(' Orchestrator'));
+    }
+    newOrch.onclick = () => h.onNewOrchestrator();
+    root.appendChild(newOrch);
+  });
 
   const tools = document.createElement('div');
   tools.className = 'proj-tools';

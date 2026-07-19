@@ -1,4 +1,7 @@
 import { icon } from './icon';
+import { scSelect } from './select';
+import { visibleProviders, providerModels } from './providers';
+import { defaultModel, defaultEffort } from './settings';
 import type { Agent } from './agents';
 
 export interface Orchestrator {
@@ -107,57 +110,160 @@ export function __resetOrchestratorsForTest() {
   listeners.clear();
 }
 
-// Modal: type a goal → onCreate(goal). Runs in `dir` (the current project's folder,
-// shown for context — no picker; orchestrators are created from a project).
-export function openNewOrchestrator(dir: string, onCreate: (goal: string) => void): void {
+export interface OrchestratorConfig {
+  goal: string;
+  agentId: string;
+  model?: string;
+  effort?: string;
+}
+
+// Modal: pick the lead agent (provider / model / effort) + type a goal → onCreate(cfg).
+// Runs in `dir` (the current project's folder, shown for context — no picker).
+export function openNewOrchestrator(dir: string, onCreate: (cfg: OrchestratorConfig) => void): void {
+  const projName = dir.split('/').filter(Boolean).pop() || dir;
+
   const back = document.createElement('div');
   back.className = 'modal-back';
 
   const card = document.createElement('div');
   card.className = 'orch-modal';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-modal', 'true');
+  card.setAttribute('aria-labelledby', 'orch-modal-title');
 
+  // Header: accent badge + title + one-line description + close.
+  const head = document.createElement('div');
+  head.className = 'orch-head';
+  const badge = document.createElement('div');
+  badge.className = 'orch-badge';
+  badge.append(icon('tree-structure'));
+  const headText = document.createElement('div');
+  headText.className = 'orch-head-text';
   const title = document.createElement('div');
   title.className = 'orch-modal-title';
+  title.id = 'orch-modal-title';
   title.textContent = 'New orchestrator';
+  const sub = document.createElement('div');
+  sub.className = 'orch-modal-sub';
+  sub.textContent = `A lead agent that plans the work and runs a fleet in ${projName}.`;
+  headText.append(title, sub);
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'orch-close';
+  closeBtn.setAttribute('aria-label', 'Close');
+  closeBtn.append(icon('x'));
+  head.append(badge, headText, closeBtn);
 
-  // Static context row: which project folder the orchestrator will run in.
+  const body = document.createElement('div');
+  body.className = 'orch-body';
+
+  // Where it runs (context, not editable).
   const dirRow = document.createElement('div');
   dirRow.className = 'orch-dir';
-  const dirLabel = document.createElement('span');
-  dirLabel.textContent = dir;
-  dirRow.append(icon('folder'), dirLabel);
+  const dirTag = document.createElement('span');
+  dirTag.className = 'orch-dir-tag';
+  dirTag.textContent = 'Runs in';
+  const dirPath = document.createElement('span');
+  dirPath.className = 'path';
+  dirPath.textContent = dir;
+  dirRow.append(icon('folder'), dirTag, dirPath);
 
+  // Lead-agent config: provider, then model + effort (rebuilt on provider change;
+  // a terminal can't orchestrate, so it's excluded).
+  const providers = visibleProviders().filter((p) => p !== 'terminal');
+  if (!providers.length) providers.push('claude');
+  let agentId = providers.includes('claude') ? 'claude' : providers[0];
+  let model = '';
+  let effort = '';
+
+  const field = (label: string, el: HTMLElement): HTMLElement => {
+    const f = document.createElement('div');
+    f.className = 'orch-cfg-field';
+    const l = document.createElement('div');
+    l.className = 'orch-cfg-label';
+    l.textContent = label;
+    f.append(l, el);
+    return f;
+  };
+  const modelHost = document.createElement('div');
+  const effortHost = document.createElement('div');
+  const modelField = field('Model', modelHost);
+  const effortField = field('Effort', effortHost);
+
+  const rebuild = () => {
+    const cat = providerModels(agentId);
+    const models = cat?.models ?? [];
+    modelHost.innerHTML = '';
+    modelField.style.display = models.length ? '' : 'none';
+    if (models.length) {
+      model = defaultModel(agentId) || models[0];
+      modelHost.append(scSelect(models, model, (v) => { model = v; }));
+    } else {
+      model = '';
+    }
+    const efforts = cat?.effort ?? [];
+    effortHost.innerHTML = '';
+    effortField.style.display = efforts.length ? '' : 'none';
+    if (efforts.length) {
+      effort = efforts.includes(defaultEffort()) ? defaultEffort() : efforts[0];
+      effortHost.append(scSelect(efforts, effort, (v) => { effort = v; }));
+    } else {
+      effort = '';
+    }
+  };
+  const providerSel = scSelect(providers, agentId, (v) => { agentId = v; rebuild(); });
+  rebuild();
+
+  const cfgRow = document.createElement('div');
+  cfgRow.className = 'orch-cfg';
+  cfgRow.append(field('Agent', providerSel), modelField, effortField);
+
+  // Goal (hero input).
+  const goalField = document.createElement('div');
+  goalField.className = 'orch-goal-field';
+  const goalLabel = document.createElement('div');
+  goalLabel.className = 'orch-cfg-label';
+  goalLabel.textContent = 'Goal';
   const goal = document.createElement('textarea');
   goal.className = 'orch-goal';
-  goal.placeholder = 'What should this orchestrator accomplish?';
+  goal.placeholder = 'e.g. Ship the auth flow end-to-end — plan it, split the work across agents, and run the fleet.';
   goal.rows = 4;
+  goalField.append(goalLabel, goal);
 
+  body.append(dirRow, cfgRow, goalField);
+
+  // Footer: keyboard hint + actions.
   const actions = document.createElement('div');
   actions.className = 'orch-actions';
+  const hint = document.createElement('div');
+  hint.className = 'orch-hint';
+  hint.innerHTML = '<kbd>⌘ ↵</kbd> to create';
   const cancel = document.createElement('button');
   cancel.className = 'orch-btn';
   cancel.textContent = 'Cancel';
   const create = document.createElement('button');
   create.className = 'orch-btn primary';
-  create.textContent = 'Create';
+  create.textContent = 'Create orchestrator';
+  create.disabled = true; // enabled once a goal is typed
+  actions.append(hint, cancel, create);
 
   const close = () => back.remove();
-  cancel.onclick = close;
-  back.onclick = (e) => {
-    if (e.target === back) close();
-  };
-  create.onclick = () => {
+  const submit = () => {
     const g = goal.value.trim();
-    if (!g) {
-      alert('Describe the goal.');
-      return;
-    }
+    if (!g) { goal.focus(); return; }
     close();
-    onCreate(g);
+    onCreate({ goal: g, agentId, model: model || undefined, effort: effort || undefined });
   };
+  goal.addEventListener('input', () => { create.disabled = !goal.value.trim(); });
+  closeBtn.onclick = close;
+  cancel.onclick = close;
+  create.onclick = submit;
+  back.onclick = (e) => { if (e.target === back) close(); };
+  back.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+    else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); submit(); }
+  });
 
-  actions.append(cancel, create);
-  card.append(title, dirRow, goal, actions);
+  card.append(head, body, actions);
   back.append(card);
   document.body.append(back);
   goal.focus();
