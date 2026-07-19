@@ -1,4 +1,11 @@
-import { PROVIDERS, isProviderHidden, setProviderHidden, MODEL_CATALOG } from './providers';
+import {
+  PROVIDERS,
+  isProviderHidden,
+  setProviderHidden,
+  MODEL_CATALOG,
+  refreshCliCheck,
+  isCliMissing,
+} from './providers';
 import { icon } from './icon';
 import { scSelect } from './select';
 
@@ -134,9 +141,21 @@ export function openSettings() {
 
   const provs = section('Agent providers');
   provs.append(el('settings-section-desc', 'Show or hide agents in the spawn menu.'));
+  const provRows = new Map<string, HTMLElement>();
   for (const id of PROVIDERS) {
-    provs.append(toggle(id, undefined, !isProviderHidden(id), (v) => setProviderHidden(id, !v)));
+    const row = toggle(id, undefined, !isProviderHidden(id), (v) => setProviderHidden(id, !v));
+    provRows.set(id, row);
+    provs.append(row);
   }
+  // Checked per open, not once per app life: you may have installed the CLI since
+  // launch. Rows render immediately and only gain the warning if the check says so,
+  // so a slow login shell costs nothing visible.
+  void refreshCliCheck().then(() => {
+    for (const [id, row] of provRows) {
+      if (!isCliMissing(id)) continue;
+      row.querySelector('.set-text')?.append(el('set-desc set-desc-warn', 'CLI not found on your PATH'));
+    }
+  });
   provs.append(el('settings-note',
     'Claude, Codex, Cursor, Gemini, opencode and Antigravity are trademarks of their respective owners. tt is an independent tool, not affiliated with, endorsed by, or sponsored by any of them.'));
   body.append(provs);

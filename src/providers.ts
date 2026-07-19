@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { icon } from './icon';
 
 export const PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal'];
@@ -59,6 +60,23 @@ export function setProviderHidden(id: string, hidden: boolean) {
 }
 export function visibleProviders(): string[] {
   return PROVIDERS.filter((p) => !isProviderHidden(p));
+}
+
+// Which provider CLIs are on the user's PATH. Unknown until the first check
+// resolves, so `undefined` means "don't know yet" and only an explicit false is
+// reported as missing — a slow shell must never flash "not installed" at someone
+// who has everything.
+let installed: Record<string, boolean> = {};
+export async function refreshCliCheck(): Promise<void> {
+  try {
+    installed = await invoke<Record<string, boolean>>('check_clis', { agentIds: PROVIDERS });
+    emit();
+  } catch {
+    // Non-Tauri (tests/browser): leave everything unknown rather than claim missing.
+  }
+}
+export function isCliMissing(id: string): boolean {
+  return installed[id] === false;
 }
 
 // Which models each provider can run and how its CLI takes them. Effort + a live

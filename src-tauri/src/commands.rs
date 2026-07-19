@@ -86,6 +86,49 @@ fn tmux_available() -> bool {
         .unwrap_or(false)
 }
 
+// Which agent CLIs actually resolve on the user's real PATH, so the UI can say
+// "not installed" instead of letting the spawn produce a tile that dies instantly.
+// Same login-shell reason as spawn (see login_shell) — and one shell for the whole
+// list, not one per provider. Uncached for the same reason tmux_available is: a tt
+// launched before you installed codex must not answer "missing" forever.
+#[tauri::command]
+pub fn check_clis(agent_ids: Vec<String>) -> HashMap<String, bool> {
+    let progs: Vec<(String, String)> = agent_ids
+        .iter()
+        .filter_map(|id| registry::command_for(id).map(|c| (id.clone(), c.program)))
+        .collect();
+    // Each line prints the id only when its program resolves; a miss just prints
+    // nothing (the `&&` short-circuits), so stdout IS the installed set.
+    let script = progs
+        .iter()
+        .map(|(id, p)| {
+            format!(
+                "command -v {} >/dev/null 2>&1 && echo {}",
+                sh_quote(p),
+                sh_quote(id)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let found = std::process::Command::new(login_shell())
+        .args(["-lc", &script])
+        .output()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .map(|l| l.trim().to_string())
+                .collect::<std::collections::HashSet<_>>()
+        })
+        .unwrap_or_default();
+    progs
+        .into_iter()
+        .map(|(id, _)| {
+            let ok = found.contains(&id);
+            (id, ok)
+        })
+        .collect()
+}
+
 fn get_session(state: &State<AppState>, id: &str) -> Result<Arc<PtySession>, String> {
     state
         .agents
@@ -552,6 +595,25 @@ mod tests {
         let a = state.counter.fetch_add(1, Ordering::Relaxed);
         let b = state.counter.fetch_add(1, Ordering::Relaxed);
         assert_ne!(format!("claude-{a}"), format!("claude-{b}"));
+    }
+
+    // Guards the `&&`-short-circuit trick: a MISSING cli prints nothing, so every
+    // requested id must still come back keyed false rather than vanish from the map
+    // (a dropped key reads as "unknown" in the UI and never warns).
+    #[test]
+    fn check_clis_answers_for_every_known_id() {
+        let ids: Vec<String> = ["claude", "codex", "terminal", "nope"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let got = check_clis(ids);
+        for id in ["claude", "codex", "terminal"] {
+            assert!(got.contains_key(id), "{id} missing from the result map");
+        }
+        // terminal runs $SHELL — an absolute path that exists by definition.
+        assert_eq!(got.get("terminal"), Some(&true));
+        // Unknown ids have no command to look up at all.
+        assert!(!got.contains_key("nope"));
     }
 
     #[test]

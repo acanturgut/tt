@@ -36,6 +36,7 @@ pub fn run() {
             commands::mcp_set_agents,
             commands::mcp_set_tasks,
             commands::quota_now,
+            commands::check_clis,
             git::git_status,
             git::git_diff,
             git::git_show,
