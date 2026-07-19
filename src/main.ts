@@ -42,7 +42,11 @@ import {
   listProjects,
   selectProject,
 } from './projects';
-import { sessionAgents, activeSession, subscribeOrchestrators } from './orchestrators';
+import {
+  sessionAgents, activeSession, subscribeOrchestrators,
+  addOrchestrator, setOrchestratorRoot, selectSession, orchestratorPrompt,
+  openNewOrchestrator,
+} from './orchestrators';
 import {
   addTask,
   updateTask,
@@ -451,6 +455,17 @@ async function spawn(
   }
 }
 
+// Create a live orchestrator: a claude lead in its own session, handed the lead
+// role prompt + goal. It spawns its own workers into this session via MCP.
+async function handleCreateOrchestrator(dir: string, goal: string) {
+  const id = crypto.randomUUID();
+  const name = goal.split('\n')[0].slice(0, 32) || 'Orchestrator';
+  addOrchestrator({ id, name, dir, goal });
+  selectSession(id); // switch the view to the new session before the tile appears
+  const agentId = await spawn('claude', dir, undefined, { prompt: orchestratorPrompt(goal), session: id });
+  if (agentId) setOrchestratorRoot(id, agentId);
+}
+
 // Tasks: persist to localStorage and keep the MCP snapshot (active project) fresh.
 function persistTasks() {
   localStorage.setItem('tt.tasks', JSON.stringify(allTasks()));
@@ -732,7 +747,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && isGitOpen()) closeGit();
 });
 mountTaskStrip(taskstripEl, statuslineEl, { getProject: () => curProjPath(), getAgents: agentCounts });
-renderWelcome(welcomeEl);
+renderWelcome(welcomeEl, () => openNewOrchestrator(handleCreateOrchestrator));
 renderProject();
 renderAgents();
 restoreTasks();

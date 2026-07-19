@@ -1,3 +1,5 @@
+import { open } from '@tauri-apps/plugin-dialog';
+import { icon } from './icon';
 import type { Agent } from './agents';
 
 export interface Orchestrator {
@@ -103,4 +105,74 @@ export function __resetOrchestratorsForTest() {
   orchestrators = [];
   activeId = null;
   listeners.clear();
+}
+
+// Modal: pick a directory + type a goal → onCreate(dir, goal).
+export function openNewOrchestrator(onCreate: (dir: string, goal: string) => void): void {
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+
+  const card = document.createElement('div');
+  card.className = 'orch-modal';
+
+  const title = document.createElement('div');
+  title.className = 'orch-modal-title';
+  title.textContent = 'New orchestrator';
+
+  let dir = '';
+  const dirRow = document.createElement('button');
+  dirRow.className = 'orch-dir';
+  const dirLabel = document.createElement('span');
+  dirLabel.textContent = 'Choose a folder…';
+  dirRow.append(icon('folder'), dirLabel);
+  dirRow.onclick = async () => {
+    try {
+      const picked = await open({ directory: true, multiple: false });
+      if (typeof picked === 'string') {
+        dir = picked;
+        dirLabel.textContent = picked;
+      }
+    } catch (e) {
+      alert(`choose folder failed: ${e}`);
+    }
+  };
+
+  const goal = document.createElement('textarea');
+  goal.className = 'orch-goal';
+  goal.placeholder = 'What should this orchestrator accomplish?';
+  goal.rows = 4;
+
+  const actions = document.createElement('div');
+  actions.className = 'orch-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'orch-btn';
+  cancel.textContent = 'Cancel';
+  const create = document.createElement('button');
+  create.className = 'orch-btn primary';
+  create.textContent = 'Create';
+
+  const close = () => back.remove();
+  cancel.onclick = close;
+  back.onclick = (e) => {
+    if (e.target === back) close();
+  };
+  create.onclick = () => {
+    const g = goal.value.trim();
+    if (!dir) {
+      alert('Choose a folder for the orchestrator to work in.');
+      return;
+    }
+    if (!g) {
+      alert('Describe the goal.');
+      return;
+    }
+    close();
+    onCreate(dir, g);
+  };
+
+  actions.append(cancel, create);
+  card.append(title, dirRow, goal, actions);
+  back.append(card);
+  document.body.append(back);
+  goal.focus();
 }
