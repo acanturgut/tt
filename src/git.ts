@@ -350,10 +350,21 @@ function renderTree(): HTMLElement {
     svg.setAttribute('class', 'git-tree-svg');
     svg.setAttribute('width', String(rowW));
     svg.setAttribute('height', String(ROW_H));
+    const ny = ROW_H / 2;
     for (const e of r.edges) {
       const p = document.createElementNS(SVGNS, 'path');
       const x1 = x(e.from), x2 = x(e.to);
-      p.setAttribute('d', `M ${x1} 0 C ${x1} ${ROW_H / 2}, ${x2} ${ROW_H / 2}, ${x2} ${ROW_H}`);
+      let d: string;
+      if (e.from === e.to) {
+        d = `M ${x1} 0 L ${x1} ${ROW_H}`;                                      // straight lane through the row
+      } else if (e.to === r.lane) {
+        d = `M ${x1} 0 C ${x1} ${ny / 2}, ${x2} ${ny / 2}, ${x2} ${ny}`;       // a side lane curves INTO this node
+      } else if (e.from === r.lane) {
+        d = `M ${x1} ${ny} C ${x1} ${ny + ny / 2}, ${x2} ${ny + ny / 2}, ${x2} ${ROW_H}`; // this node branches OUT to a parent
+      } else {
+        d = `M ${x1} 0 C ${x1} ${ny}, ${x2} ${ny}, ${x2} ${ROW_H}`;            // lane passing by (not touching this node)
+      }
+      p.setAttribute('d', d);
       p.setAttribute('stroke', LANE_PALETTE[e.color % LANE_PALETTE.length]);
       p.setAttribute('fill', 'none');
       p.setAttribute('stroke-width', '2');
