@@ -117,6 +117,16 @@ export function openSettings() {
         localStorage.setItem('tt.oled', v ? '1' : '0');
         document.body.classList.toggle('oled', v);
       }),
+    toggle('Focus mode', 'Hide the toolbar and bottom status/task bars.',
+      localStorage.getItem('tt.focus') === '1', (v) => {
+        localStorage.setItem('tt.focus', v ? '1' : '0');
+        document.body.classList.toggle('focus-mode', v);
+      }),
+    toggle('Hide bottom bars', 'Hide the board status and task progress bars at the bottom.',
+      localStorage.getItem('tt.hideBottom') === '1', (v) => {
+        localStorage.setItem('tt.hideBottom', v ? '1' : '0');
+        document.body.classList.toggle('hide-bottom', v);
+      }),
   );
   body.append(general);
 

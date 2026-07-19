@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { relPathOf, formatForAgent } from './viewer';
+import { relPathOf, formatForAgent, langForPath } from './viewer';
+
+// Guards the git-diff perf fix: commit diffs (.txt) and unknown types must resolve to null so the
+// diff renders plain instead of calling hljs.highlightAuto per line (the freeze).
+describe('langForPath', () => {
+  it('returns null for commit diffs (.txt) and unknown extensions', () => {
+    expect(langForPath('.txt')).toBeNull();
+    expect(langForPath('some/file.unknownext')).toBeNull();
+    expect(langForPath('noextension')).toBeNull();
+  });
+  it('returns a real language for known file types', () => {
+    expect(langForPath('src/foo.ts')).toBe('typescript');
+    expect(langForPath('main.rs')).toBe('rust');
+  });
+});
 
 describe('viewer helpers', () => {
   it('relPathOf strips the project root', () => {

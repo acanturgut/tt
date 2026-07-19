@@ -244,7 +244,7 @@ function buildCommands(): Command[] {
   const p = currentProject();
   if (p) {
     for (const ag of visibleProviders()) {
-      cmds.push({ label: `Spawn ${ag}`, hint: p.name, run: () => void spawn(ag, p.path) });
+      cmds.push({ label: `Spawn ${ag}`, hint: p.name, icon: 'plus-circle', run: () => void spawn(ag, p.path) });
     }
   }
   const STATUSES: { key: WorkflowLabel | undefined; text: string }[] = [
@@ -258,33 +258,35 @@ function buildCommands(): Command[] {
     cmds.push({
       label: `Focus ${a.name}`,
       hint: a.agentId,
+      icon: 'crosshair',
       run: () => {
         clearAttention(a.id);
         focus(a.id);
       },
     });
-    cmds.push({ label: `Kill ${a.name}`, hint: a.agentId, run: () => closeAgent(a.id) });
+    cmds.push({ label: `Kill ${a.name}`, hint: a.agentId, icon: 'x-circle', run: () => closeAgent(a.id) });
     for (const st of STATUSES) {
       cmds.push({
         label: `Set ${a.name} → ${st.text}`,
         hint: a.agentId,
+        icon: 'flag',
         run: () => setLabel(a.id, st.key),
       });
     }
   }
   for (const pr of listProjects()) {
     if (pr.path !== p?.path)
-      cmds.push({ label: `Switch to ${pr.name}`, hint: pr.path, run: () => selectProject(pr.path) });
+      cmds.push({ label: `Switch to ${pr.name}`, hint: pr.path, icon: 'folder', run: () => selectProject(pr.path) });
   }
-  cmds.push({ label: 'Show grid', run: () => focus(null) });
-  cmds.push({ label: 'Zoom in (all terminals)', run: () => globalZoom(1) });
-  cmds.push({ label: 'Zoom out (all terminals)', run: () => globalZoom(-1) });
-  cmds.push({ label: 'Toggle agents panel', run: () => toggleSide('tt.left') });
-  cmds.push({ label: 'Toggle tree panel', run: () => toggleSide('tt.right') });
-  cmds.push({ label: 'Toggle OLED / dim mode', run: toggleOled });
-  cmds.push({ label: 'Fleet templates…', run: showTemplates });
-  cmds.push({ label: 'Open task board', run: () => { closeViewer(); closeGit(); openBoard(); } });
-  cmds.push({ label: 'Open git', run: showGit });
+  cmds.push({ label: 'Show grid', icon: 'squares-four', run: () => focus(null) });
+  cmds.push({ label: 'Zoom in (all terminals)', icon: 'magnifying-glass-plus', run: () => globalZoom(1) });
+  cmds.push({ label: 'Zoom out (all terminals)', icon: 'magnifying-glass-minus', run: () => globalZoom(-1) });
+  cmds.push({ label: 'Toggle agents panel', icon: 'sidebar-simple', run: () => toggleSide('tt.left') });
+  cmds.push({ label: 'Toggle tree panel', icon: 'folders', run: () => toggleSide('tt.right') });
+  cmds.push({ label: 'Toggle OLED / dim mode', icon: 'moon', run: toggleOled });
+  cmds.push({ label: 'Fleet templates…', icon: 'stack', run: showTemplates });
+  cmds.push({ label: 'Open task board', icon: 'kanban', run: () => { closeViewer(); closeGit(); openBoard(); } });
+  cmds.push({ label: 'Open git', icon: 'git-branch', run: showGit });
   return cmds;
 }
 
@@ -302,6 +304,8 @@ function toggleSide(key: 'tt.left' | 'tt.right') {
 function applyOled() {
   document.body.classList.toggle('oled', localStorage.getItem('tt.oled') === '1');
   document.body.classList.toggle('hide-btn-kbd', localStorage.getItem('tt.hideBtnKbd') === '1');
+  document.body.classList.toggle('focus-mode', localStorage.getItem('tt.focus') === '1');
+  document.body.classList.toggle('hide-bottom', localStorage.getItem('tt.hideBottom') === '1');
 }
 function toggleOled() {
   localStorage.setItem('tt.oled', localStorage.getItem('tt.oled') === '1' ? '0' : '1');
@@ -372,6 +376,7 @@ async function fileSearchProvider(q: string): Promise<Command[]> {
   return entries.map((e) => ({
     label: e.name,
     hint: e.path.startsWith(base + '/') ? e.path.slice(base.length + 1) : e.path,
+    icon: e.dir ? 'folder' : 'file',
     run: () => {
       if (e.dir) void revealInTree(treeEl, p.path, treeHandlers(), e.path);
       else {
@@ -721,6 +726,18 @@ subscribeOrchestrators(() => {
 subscribeProviders(renderProject); // hiding/showing providers re-renders the toolbar
 subscribeQuota(renderProject); // new quota reading -> repaint the topbar pills
 window.addEventListener('resize', scheduleFit);
+
+// Poll the file tree so external filesystem changes (new file, deleted folder,
+// git checkout swapping branches) show up without a manual reload. Skips when
+// the window is hidden — no point walking dirs nobody's looking at.
+// ponytail: polling instead of a native FS watcher; swap in tauri-plugin-fs
+// notify-style events if this ever burns real cpu.
+setInterval(() => {
+  if (document.hidden) return;
+  const path = curProjPath();
+  if (!path) return;
+  void renderTree(treeEl, path, treeHandlers());
+}, 3000);
 
 // Keyboard shortcuts (⌘): 1-9 focus agent, 0 grid, +/- zoom all, B/\ panels.
 window.addEventListener('keydown', (e) => {

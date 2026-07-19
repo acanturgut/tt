@@ -28,11 +28,22 @@ export async function renderTree(container: HTMLElement, rootPath: string | null
     container.appendChild(empty);
     return;
   }
+  // Skip a background refresh while the user is deep-searching — the results view
+  // is up and blowing it away mid-typing would be a mess.
+  const prevSearch = container.querySelector<HTMLInputElement>('.tree-search');
+  if (prevSearch && prevSearch.value.trim()) return;
+  // Preserve scroll position across the wipe/rebuild — otherwise polling
+  // snaps every user back to the top every few seconds.
+  const prevScroll = container.querySelector<HTMLElement>('.tree-scroll')?.scrollTop ?? 0;
   const rootName = rootPath.split('/').filter(Boolean).pop() ?? rootPath;
   expanded.add(rootPath); // root is always open
   const node = await buildNode(rootPath, rootName, 0, h);
   if (gen !== treeGen) return; // superseded by a newer render — don't append (avoids duplicate trees)
   container.innerHTML = '';
+
+  const title = document.createElement('div');
+  title.className = 'tree-title';
+  title.textContent = 'Files';
 
   const searchWrap = document.createElement('div');
   searchWrap.className = 'tree-search-wrap';
@@ -80,7 +91,8 @@ export async function renderTree(container: HTMLElement, rootPath: string | null
     timer = setTimeout(() => void runSearch(q), 180);
   };
 
-  container.append(searchWrap, scroll, results);
+  container.append(title, searchWrap, scroll, results);
+  scroll.scrollTop = prevScroll;
 }
 
 // Deep-search results: a flat list of matching folders anywhere under the root.

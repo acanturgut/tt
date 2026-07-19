@@ -1,6 +1,7 @@
 export interface Command {
   label: string;
   hint?: string;
+  icon?: string; // phosphor icon name, e.g. 'git-branch'
   run: () => void;
 }
 
@@ -60,6 +61,10 @@ export function openPalette(commands: Command[], provider?: (q: string) => Promi
     filtered.forEach((c, i) => {
       const item = document.createElement('div');
       item.className = 'palette-item' + (i === sel ? ' sel' : '');
+      // Always render the icon slot (empty reserves width) so labels stay aligned.
+      const ic = document.createElement('i');
+      ic.className = 'palette-icon' + (c.icon ? ` ph ph-${c.icon}` : '');
+      item.appendChild(ic);
       const lab = document.createElement('span');
       lab.textContent = c.label;
       item.appendChild(lab);

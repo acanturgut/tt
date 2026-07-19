@@ -10,7 +10,7 @@ import {
   type Worktree,
   type RunningAgent,
 } from './gitgraph';
-import { highlight, escapeHtml } from './viewer';
+import { highlight, escapeHtml, langForPath } from './viewer';
 
 // Phosphor icon per ref kind: local branch vs the checked-out HEAD vs a remote
 // (origin/*) vs a tag — so head and origin read as different things at a glance.
@@ -109,7 +109,7 @@ async function refresh(): Promise<void> {
     if (sig !== hSig) {
       hSig = sig;
       const [lg, wt] = await Promise.all([
-        invoke<Commit[]>('git_log_graph', { root, limit: 200 }),
+        invoke<Commit[]>('git_log_graph', { root }), // full history — the list is virtualized
         invoke<Worktree[]>('git_worktrees', { root }),
       ]);
       const b = JSON.stringify(lg);
@@ -513,7 +513,11 @@ function renderDiff(): HTMLElement {
   }
   wrap.appendChild(head);
 
+  // Resolve the language ONCE, not per line. Commit diffs (and unknown file types) resolve to null
+  // → plain escaped text, which skips hljs.highlightAuto entirely (its per-line, all-languages cost
+  // is what froze the view on any real diff). Known file types still get real syntax highlighting.
   const langPath = sel.kind === 'file' ? sel.path : '.txt';
+  const lang = langForPath(langPath);
   const body = document.createElement('div');
   body.className = 'git-diff-body';
   let oldLn = 0, newLn = 0;
@@ -545,7 +549,9 @@ function renderDiff(): HTMLElement {
     const code = document.createElement('span');
     code.className = 'dl-code';
     // ponytail: per-line highlight loses multi-line string/comment context — fine for a diff.
-    code.innerHTML = cls === 'dl hunk' || cls === 'dl meta' ? escapeHtml(text) : highlight(langPath, text);
+    // No known language (commit diffs, unknown types) → plain text; never fall back to highlightAuto.
+    code.innerHTML =
+      cls === 'dl hunk' || cls === 'dl meta' || !lang ? escapeHtml(text) : highlight(langPath, text);
 
     line.append(gutO, gutN, code);
     body.appendChild(line);

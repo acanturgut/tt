@@ -317,9 +317,15 @@ fn parse_worktrees(out: &str) -> Vec<Worktree> {
 
 #[tauri::command]
 pub fn git_log_graph(root: String, limit: Option<u32>) -> Result<Vec<Commit>, String> {
-    let n = format!("-n{}", limit.unwrap_or(200));
+    // None => full history (the frontend virtualizes the list, so the whole graph is cheap to
+    // hold and only the visible window renders). Some(n) still caps for any bounded caller.
     let fmt = "--pretty=format:%H%x1f%P%x1f%D%x1f%an%x1f%ar%x1f%s%x1e";
-    let out = git_out(&root, &["log", "--all", "--date-order", "--decorate=full", fmt, &n])?;
+    let mut args = vec!["log", "--all", "--date-order", "--decorate=full", fmt];
+    let n = limit.map(|l| format!("-n{l}"));
+    if let Some(s) = &n {
+        args.push(s);
+    }
+    let out = git_out(&root, &args)?;
     Ok(parse_log(&out))
 }
 
