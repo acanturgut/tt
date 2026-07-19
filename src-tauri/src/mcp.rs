@@ -304,7 +304,7 @@ fn tool_defs() -> Value {
     json!([
         {
             "name": "spawn_agent",
-            "description": "Open a new coding-agent in a folder. agent is one of: claude, codex, cursor, gemini, opencode, antigravity, terminal. Pass prompt to type an initial instruction into it once the CLI is ready — saves a separate send. Pass parent=<your agent number> so the new agent joins your session.",
+            "description": "Open a new coding-agent in a folder. agent is one of: claude, codex, cursor, gemini, opencode, antigravity, terminal (ollama/lmstudio are chat-only, not fleet members). Pass prompt to type an initial instruction into it once the CLI is ready — saves a separate send. Pass parent=<your agent number> so the new agent joins your session.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

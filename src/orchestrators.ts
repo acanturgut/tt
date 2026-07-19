@@ -1,6 +1,6 @@
 import { icon } from './icon';
 import { scSelect } from './select';
-import { visibleProviders, providerModels } from './providers';
+import { visibleProviders, providerModels, isLocalRuntime } from './providers';
 import { defaultModel, defaultEffort } from './settings';
 import type { Agent } from './agents';
 
@@ -185,8 +185,8 @@ export function openNewOrchestrator(dir: string, onCreate: (cfg: OrchestratorCon
   dirRow.append(icon('folder'), dirTag, dirPath);
 
   // Lead-agent config: provider, then model + effort (rebuilt on provider change;
-  // a terminal can't orchestrate, so it's excluded).
-  const providers = visibleProviders().filter((p) => p !== 'terminal');
+  // a terminal and a local chat REPL can't orchestrate, so they're excluded).
+  const providers = visibleProviders().filter((p) => p !== 'terminal' && !isLocalRuntime(p));
   if (!providers.length) providers.push('claude');
   let agentId = providers.includes('claude') ? 'claude' : providers[0];
   let model = '';

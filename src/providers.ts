@@ -1,6 +1,7 @@
+import { invoke } from '@tauri-apps/api/core';
 import { icon } from './icon';
 
-export const PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'terminal'];
+export const PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity', 'ollama', 'lmstudio', 'terminal'];
 
 // Real brand marks (white PNG) for the ones with an official icon; the rest use
 // a Phosphor glyph.
@@ -13,6 +14,8 @@ const PROVIDER_PNG: Record<string, string> = {
 const PROVIDER_PHOSPHOR: Record<string, string> = {
   codex: 'code',
   antigravity: 'planet',
+  ollama: 'cube',
+  lmstudio: 'flask',
   terminal: 'terminal-window',
 };
 
@@ -61,11 +64,30 @@ export function visibleProviders(): string[] {
   return PROVIDERS.filter((p) => !isProviderHidden(p));
 }
 
+// Which provider CLIs are on the user's PATH. Unknown until the first check
+// resolves, so `undefined` means "don't know yet" and only an explicit false is
+// reported as missing — a slow shell must never flash "not installed" at someone
+// who has everything.
+let installed: Record<string, boolean> = {};
+export async function refreshCliCheck(): Promise<void> {
+  try {
+    installed = await invoke<Record<string, boolean>>('check_clis', { agentIds: PROVIDERS });
+    emit();
+    void refreshLocalModels(); // you may have pulled a model since launch
+  } catch {
+    // Non-Tauri (tests/browser): leave everything unknown rather than claim missing.
+  }
+}
+export function isCliMissing(id: string): boolean {
+  return installed[id] === false;
+}
+
 // Which models each provider can run and how its CLI takes them. Effort + a live
 // (no-restart) switch are claude-only. ponytail: hardcoded — edit here when a
 // provider ships a new model; not fetched from any API.
 export interface ProviderModels {
-  flag: string; // spawn flag that sets the model, e.g. '--model' or '-m'
+  flag: string; // spawn flag that sets the model, e.g. '--model' or '-m'; '' = positional
+  local?: boolean; // models come from the machine (see refreshLocalModels), not this file
   models: string[]; // selectable aliases
   effort?: string[]; // claude only
   live?: (model: string) => string; // runtime model switch typed into the PTY (claude: /model)
@@ -81,9 +103,45 @@ export const MODEL_CATALOG: Record<string, ProviderModels> = {
   },
   codex: { flag: '--model', models: ['gpt-5', 'gpt-5-codex', 'o3'] },
   gemini: { flag: '-m', models: ['gemini-2.5-pro', 'gemini-2.5-flash'] },
+  // Local runtimes take the model positionally (`ollama run X`, `lms chat X`) and
+  // the list is whatever is pulled on this machine, so it's filled in at runtime.
+  ollama: { flag: '', models: [], local: true },
+  lmstudio: { flag: '', models: [], local: true },
 };
+
+// Ask the machine which local models exist and swap them into the catalog. Best
+// effort: no Tauri (tests/browser) or no CLI just leaves the list empty, and an
+// empty list means "spawn with no model" — fine for lmstudio (uses the loaded
+// model), visibly wrong for ollama, which is better than guessing a model name.
+export async function refreshLocalModels(): Promise<void> {
+  try {
+    const found = await invoke<Record<string, string[]>>('local_models');
+    for (const [id, models] of Object.entries(found)) {
+      const cat = MODEL_CATALOG[id];
+      if (cat?.local) cat.models = models;
+    }
+    emit();
+  } catch {
+    // no Tauri — leave the lists empty
+  }
+}
+void refreshLocalModels();
 export function providerModels(id: string): ProviderModels | undefined {
   return MODEL_CATALOG[id];
+}
+
+// A plain local chat REPL — no tools, no MCP, so it can't lead a fleet.
+export function isLocalRuntime(id: string): boolean {
+  return MODEL_CATALOG[id]?.local === true;
+}
+
+// A local runtime has no "the CLI picks for you" default: `ollama run` with no
+// model just errors. So when nothing is configured, spawn the first model the
+// machine actually has. Empty for every other provider — they have their own
+// defaults and we must not override them.
+export function fallbackModel(id: string): string {
+  const c = MODEL_CATALOG[id];
+  return c?.local ? (c.models[0] ?? '') : '';
 }
 
 // The CLI flags that pin an agent to a model/effort at spawn. Empty when the
@@ -92,7 +150,10 @@ export function spawnModelArgs(agentId: string, model?: string, effort?: string)
   const c = MODEL_CATALOG[agentId];
   if (!c) return [];
   const out: string[] = [];
-  if (model) out.push(c.flag, model);
+  if (model) {
+    if (c.flag) out.push(c.flag);
+    out.push(model); // positional for the local runtimes (`ollama run <model>`)
+  }
   if (effort && c.effort?.includes(effort)) out.push('--effort', effort);
   return out;
 }

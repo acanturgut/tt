@@ -40,6 +40,18 @@ const INSTALLS: Record<string, Install> = {
     url: 'https://antigravity.google',
     note: 'Install the Antigravity app, then enable its `antigravity` command-line launcher from within the app.',
   },
+  ollama: {
+    name: 'Ollama',
+    cmd: 'brew install ollama',
+    url: 'https://ollama.com/download',
+    note: 'Pull at least one model (`ollama pull llama3.2`) — tt lists what you have pulled.',
+  },
+  lmstudio: {
+    name: 'LM Studio',
+    cmd: 'npx lmstudio install-cli',
+    url: 'https://lmstudio.ai/docs/cli',
+    note: 'Install the LM Studio app first, then its `lms` CLI with the command above.',
+  },
 };
 
 let overlay: HTMLElement | null = null;

@@ -62,7 +62,7 @@ import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
 import { showInstallHelp } from './installs';
 import { randomName } from './naming';
-import { visibleProviders, subscribeProviders, spawnModelArgs, providerModels } from './providers';
+import { visibleProviders, subscribeProviders, spawnModelArgs, providerModels, fallbackModel } from './providers';
 import { setQuota, subscribeQuota, type QuotaWindow } from './quota';
 import { renderWelcome } from './welcome';
 import './styles.css';
@@ -440,8 +440,9 @@ async function spawn(
 ) {
   const st = getSettings();
   const key = crypto.randomUUID();
-  // Template slot > provider default > CLI's own default.
-  const model = opts?.model || defaultModel(agentId);
+  // Template slot > provider default > CLI's own default (local runtimes have
+  // none, so fallbackModel picks the first model on the machine instead).
+  const model = opts?.model || defaultModel(agentId) || fallbackModel(agentId);
   const effort = agentId === 'claude' ? opts?.effort || defaultEffort() : undefined;
   try {
     const id = await invoke<string>('spawn_agent', {

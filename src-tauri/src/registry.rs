@@ -32,6 +32,16 @@ pub fn command_for(agent_id: &str) -> Option<AgentCommand> {
             program: "antigravity".into(),
             args: vec![],
         }),
+        // Local runtimes: the model is appended positionally by spawn_agent from
+        // the frontend catalog (`ollama run <model>`, `lms chat <model>`).
+        "ollama" => Some(AgentCommand {
+            program: "ollama".into(),
+            args: s(&["run"]),
+        }),
+        "lmstudio" => Some(AgentCommand {
+            program: "lms".into(),
+            args: s(&["chat"]),
+        }),
         "terminal" => Some(AgentCommand {
             program: std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string()),
             args: vec!["-l".to_string()], // login shell → their aliases/prompt/env
@@ -59,6 +69,14 @@ mod tests {
             c.args,
             vec!["--sandbox", "workspace-write", "--ask-for-approval", "never"]
         );
+    }
+
+    #[test]
+    fn local_runtimes_leave_room_for_a_positional_model() {
+        assert_eq!(command_for("ollama").unwrap().args, vec!["run"]);
+        let c = command_for("lmstudio").unwrap();
+        assert_eq!(c.program, "lms"); // the CLI is `lms`, not `lmstudio`
+        assert_eq!(c.args, vec!["chat"]);
     }
 
     #[test]
