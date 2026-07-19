@@ -404,6 +404,9 @@ function renderProject() {
       openNewOrchestrator(p.path, (cfg) => handleCreateOrchestrator(p.path, cfg));
     },
     onCloseOrchestrator: closeOrchestrator,
+    onTemplates: showTemplates,
+    onBoard: () => { closeViewer(); closeGit(); openBoard(); },
+    onGit: showGit,
   });
   renderTopbar(tbLeftEl, tbRightEl, {
     onSpawn: (agentId) => {
@@ -725,6 +728,7 @@ subscribeOrchestrators(() => {
 });
 subscribeProviders(renderProject); // hiding/showing providers re-renders the toolbar
 subscribeQuota(renderProject); // new quota reading -> repaint the topbar pills
+window.addEventListener('tt-focus-changed', renderProject); // focus mode moves toolbar buttons into projtabs
 window.addEventListener('resize', scheduleFit);
 
 // Poll the file tree so external filesystem changes (new file, deleted folder,

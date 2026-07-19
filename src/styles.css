@@ -63,6 +63,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 /* toggle: hide the always-visible shortcut chips on buttons/tabs (Settings) */
 body.hide-btn-kbd .ico-kbd, body.hide-btn-kbd .proj-tab-kbd { display: none; }
 body.focus-mode #topbar, body.focus-mode #statusline, body.focus-mode #taskstrip { display: none; }
+body.focus-mode .proj-tab, body.focus-mode .addproj-tab { border-radius: var(--r); }
 body.hide-bottom #statusline, body.hide-bottom #taskstrip { display: none; }
 
 /* shared hover/focus tooltip (label + kbd chips) */

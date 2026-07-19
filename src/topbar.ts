@@ -9,7 +9,9 @@ import {
   removeProject,
 } from './projects';
 import { icon } from './icon';
+import { closeGit, isGitOpen } from './git';
 import { quotaPills } from './quota';
+import { openComposer } from './broadcast';
 import { listOrchestrators, activeSession, selectSession } from './orchestrators';
 import { placeMenu } from './menu';
 import { visibleProviders, providerIcon } from './providers';
@@ -136,7 +138,15 @@ function toolBtn(name: string, label: string, onClick: () => void, keys?: string
 // Project tabs live on their own row above the nav; each tab is its own panel.
 export function renderProjectTabs(
   root: HTMLElement,
-  h: { onZoomIn: () => void; onZoomOut: () => void; onNewOrchestrator: () => void; onCloseOrchestrator: (id: string) => void },
+  h: {
+    onZoomIn: () => void;
+    onZoomOut: () => void;
+    onNewOrchestrator: () => void;
+    onCloseOrchestrator: (id: string) => void;
+    onTemplates: () => void;
+    onBoard: () => void;
+    onGit: () => void;
+  },
 ) {
   root.innerHTML = '';
   const projs = listProjects();
@@ -188,7 +198,7 @@ export function renderProjectTabs(
     actions.append(gear, del);
     tab.append(actions);
 
-    tab.onclick = () => { selectSession(null); selectProject(p.path); };
+    tab.onclick = () => { if (isGitOpen()) closeGit(); selectSession(null); selectProject(p.path); };
     root.appendChild(tab);
 
     // Orchestrators belong to a project and live inline, right after it — but only
@@ -233,6 +243,16 @@ export function renderProjectTabs(
 
   const tools = document.createElement('div');
   tools.className = 'proj-tools';
+  // In focus mode the topbar is hidden, so the toolbar buttons that live there
+  // (templates/board/git + broadcast) piggyback here to stay reachable.
+  if (document.body.classList.contains('focus-mode')) {
+    tools.append(
+      toolBtn('broadcast', 'Broadcast', () => openComposer(), '⌘ L'),
+      toolBtn('stack', 'Fleet templates', h.onTemplates, '⌘ F'),
+      toolBtn('kanban', 'Task board', h.onBoard, '⌘ J'),
+      toolBtn('git-branch', 'Git', h.onGit, '⌘ G'),
+    );
+  }
   tools.append(
     toolBtn('keyboard', 'Keyboard shortcuts', () => openShortcuts()),
     toolBtn('minus', 'Zoom out', h.onZoomOut, '⌘ -'),

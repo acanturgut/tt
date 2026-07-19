@@ -113,15 +113,20 @@ export function byProvider(ws: QuotaWindow[]): Map<string, QuotaWindow[]> {
   return m;
 }
 
-// One pill per provider that has data. Providers with none (gemini/opencode ship
-// no quota data at all) render nothing — no empty pill, no "N/A".
+// One pill per provider that has data. When nothing has arrived yet, show a
+// single fetch button so the user can force a read instead of waiting for the
+// backend's first emit (which needs a claude/codex session to have run).
 export function quotaPills(): HTMLElement | null {
   const groups = byProvider(windows);
-  if (!groups.size) return null;
   const now = Math.floor(Date.now() / 1000);
 
   const wrap = document.createElement('div');
   wrap.className = 'quota-wrap';
+
+  if (!groups.size) {
+    wrap.append(makeFetchPill());
+    return wrap;
+  }
   for (const [provider, ws] of groups) {
     const bind = bindingWindow(ws, now);
     // Every window rolled over with no fresh read -> show the provider as unknown
@@ -147,6 +152,27 @@ export function quotaPills(): HTMLElement | null {
     wrap.append(pill);
   }
   return wrap.children.length ? wrap : null;
+}
+
+function makeFetchPill(): HTMLElement {
+  const pill = document.createElement('button');
+  pill.className = 'quota-pill quota-stale';
+  pill.setAttribute('aria-label', 'Fetch usage now');
+  pill.title = 'Fetch usage now';
+  pill.append(icon('arrows-clockwise'));
+  const val = document.createElement('span');
+  val.className = 'quota-val';
+  val.textContent = 'usage';
+  pill.append(val);
+  pill.onclick = (ev) => {
+    ev.stopPropagation();
+    pill.classList.add('git-busy');
+    void invoke<QuotaWindow[]>('quota_now')
+      .then(setQuota)
+      .catch(() => {})
+      .finally(() => pill.classList.remove('git-busy'));
+  };
+  return pill;
 }
 
 function openQuotaMenu(anchor: HTMLElement, provider: string, ws: QuotaWindow[], now: number) {

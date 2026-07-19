@@ -114,6 +114,7 @@ export function openSettings() {
       localStorage.getItem('tt.focus') === '1', (v) => {
         localStorage.setItem('tt.focus', v ? '1' : '0');
         document.body.classList.toggle('focus-mode', v);
+        window.dispatchEvent(new CustomEvent('tt-focus-changed'));
       }),
     toggle('Hide bottom bars', 'Hide the board status and task progress bars at the bottom.',
       localStorage.getItem('tt.hideBottom') === '1', (v) => {
