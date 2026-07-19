@@ -36,7 +36,11 @@ let wtOpen = true; // worktrees section expanded
 type Sel = { kind: 'file'; path: string; staged: boolean } | { kind: 'commit'; hash: string } | null;
 let sel: Sel = null;
 let diffText = '';
-let pendingRender = false; // a git-state change waiting to paint (deferred while typing a commit msg)
+// Stable region containers so a poll repaints only the region that changed, not the whole page.
+let railEl: HTMLElement | null = null;
+let treeEl: HTMLElement | null = null;
+let diffEl: HTMLElement | null = null;
+let railPending = false; // a rail change deferred while the commit textarea holds focus
 
 export function isGitOpen(): boolean {
   return open;
@@ -52,6 +56,7 @@ export function openGit(): void {
   open = true;
   document.body.classList.add('git-open');
   hStatus = hLog = hWt = ''; // force a fresh paint
+  render(); // build the shell now; refresh() fills each region granularly
   void refresh();
   if (timer === null) timer = window.setInterval(() => void refresh(), 1500);
 }
@@ -82,14 +87,18 @@ async function refresh(): Promise<void> {
     const a = JSON.stringify(st);
     const b = JSON.stringify(lg);
     const w = JSON.stringify(wt) + JSON.stringify(deps.getAgents().map((x) => [x.dir, x.status]));
-    let changed = false;
-    if (a !== hStatus) { status = st; hStatus = a; changed = true; }
-    if (b !== hLog) { commits = lg; hLog = b; changed = true; }
-    if (w !== hWt) { worktrees = wt; hWt = w; changed = true; }
-    if (changed) pendingRender = true;
-    // ponytail: don't wipe the commit textarea while the user is typing — in tt the repo
-    // changes constantly (agents committing), so a poll mid-type would drop focus + cursor.
-    if (pendingRender && !typingCommitMsg()) { pendingRender = false; render(); }
+    let sChanged = false, lChanged = false, wChanged = false;
+    if (a !== hStatus) { status = st; hStatus = a; sChanged = true; }
+    if (b !== hLog) { commits = lg; hLog = b; lChanged = true; }
+    if (w !== hWt) { worktrees = wt; hWt = w; wChanged = true; }
+    // Repaint ONLY the region that changed, not the whole page. The rail holds the commit
+    // textarea, so defer its repaint while the user is typing (in tt the repo changes
+    // constantly — a poll mustn't wipe what they're typing).
+    if (sChanged || wChanged) railPending = true;
+    if (railPending && !typingCommitMsg()) { railPending = false; paintRail(); }
+    // The heavy 200-row SVG graph is rebuilt only when commits actually change — no longer on
+    // every poll (status/agent-status flaps used to thrash it, which is what made scroll lag).
+    if (lChanged) paintTree();
   } catch {
     // e.g. not a git repo → git_log_graph rejects; show the empty state.
     status = { repo: false, toplevel: '', branch: '', ahead: 0, behind: 0, files: [] };
@@ -125,8 +134,39 @@ function render(): void {
   gitEl.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'git-wrap';
-  wrap.append(renderRail(), renderMain());
+  railEl = renderRail();
+  treeEl = renderTree();
+  diffEl = renderDiff();
+  const main = document.createElement('div');
+  main.className = 'git-main';
+  main.append(treeEl, diffEl);
+  wrap.append(railEl, main);
   gitEl.appendChild(wrap);
+}
+
+// Swap one region in place, keeping scroll — a poll touches only the changed region instead
+// of tearing down the whole page. Falls back to a full render if the shell isn't built yet.
+function paintRail(): void {
+  if (!railEl) { render(); return; }
+  const top = railEl.scrollTop;
+  const fresh = renderRail();
+  railEl.replaceWith(fresh);
+  railEl = fresh;
+  railEl.scrollTop = top;
+}
+function paintTree(): void {
+  if (!treeEl) { render(); return; }
+  const top = treeEl.scrollTop;
+  const fresh = renderTree();
+  treeEl.replaceWith(fresh);
+  treeEl = fresh;
+  treeEl.scrollTop = top;
+}
+function paintDiff(): void {
+  if (!diffEl) { render(); return; }
+  const fresh = renderDiff(); // new selection → starts at the top, no scroll to preserve
+  diffEl.replaceWith(fresh);
+  diffEl = fresh;
 }
 
 // ---- left rail: branch, worktrees, changes, commit box ----
@@ -267,15 +307,8 @@ function fileGroup(label: string, files: FileEntry[], staged: boolean, onAll: ()
   return g;
 }
 
-// ---- right main: tree (top) + diff (bottom) ----
-function renderMain(): HTMLElement {
-  const main = document.createElement('div');
-  main.className = 'git-main';
-  main.append(renderTree(), renderDiff()); // Tasks 7 + 6 fill these in
-  return main;
-}
-
-const LANE_PALETTE = ['#5b8cff', '#3fb950', '#e3b341', '#bc8cff', '#f85149', '#39c5cf', '#f0883e', '#db61a2'];
+// ---- right main: tree (top) + diff (bottom), each painted independently ----
+const LANE_PALETTE =['#5b8cff', '#3fb950', '#e3b341', '#bc8cff', '#f85149', '#39c5cf', '#f0883e', '#db61a2'];
 const LANE_W = 16; // px per lane column
 const ROW_H = 28; // px per commit row
 
@@ -426,22 +459,26 @@ function renderDiff(): HTMLElement {
 
 async function selectFile(path: string, staged: boolean): Promise<void> {
   sel = { kind: 'file', path, staged };
+  treeEl?.querySelectorAll('.git-tree-row.on').forEach((e) => e.classList.remove('on'));
+  paintRail(); // instant file-row highlight; don't rebuild the graph for a file click
   try {
     diffText = await invoke<string>('git_diff', { root: repoRoot(), path, staged });
   } catch (e) {
     diffText = String(e);
   }
-  render();
+  paintDiff();
 }
 
 async function selectCommit(hash: string): Promise<void> {
   sel = { kind: 'commit', hash };
+  railEl?.querySelectorAll('.git-file.on').forEach((e) => e.classList.remove('on'));
+  paintTree(); // instant commit-row highlight
   try {
     diffText = await invoke<string>('git_show', { root: repoRoot(), hash });
   } catch (e) {
     diffText = String(e);
   }
-  render();
+  paintDiff();
 }
 
 let toastEl: HTMLElement | null = null;
@@ -471,7 +508,7 @@ function renderWorktrees(): HTMLElement {
   const toggle = document.createElement('button');
   toggle.className = 'git-all';
   toggle.textContent = wtOpen ? 'Hide' : 'Show';
-  toggle.onclick = () => { wtOpen = !wtOpen; render(); };
+  toggle.onclick = () => { wtOpen = !wtOpen; paintRail(); };
   head.appendChild(toggle);
   sec.appendChild(head);
   if (!wtOpen) return sec;
