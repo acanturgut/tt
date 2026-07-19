@@ -665,3 +665,13 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 .orch-btn { padding: 8px 16px; border-radius: var(--r); border: 1px solid var(--line); background: var(--elev-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
 .orch-btn.primary { background: #fff; color: #0a0b0d; border: none; }
 .welcome-btn-ghost { margin-top: 10px; background: var(--elev-2); color: var(--text); }
+.welcome-btn-ghost:hover { background: var(--elev); }
+
+/* Orchestrator chips in the project-tabs row */
+.orch-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px; margin-left: 4px; background: var(--elev-2); border: 1px solid var(--line); border-radius: var(--r); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.orch-chip.active { color: var(--text); border-color: var(--tab-accent); }
+.orch-chip-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tab-accent); }
+.orch-chip-name { max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.orch-chip-x { display: inline-flex; opacity: .5; }
+.orch-chip-x:hover { opacity: 1; }
+.orch-new { margin-left: 4px; }

@@ -45,7 +45,7 @@ import {
 import {
   sessionAgents, activeSession, subscribeOrchestrators,
   addOrchestrator, setOrchestratorRoot, selectSession, orchestratorPrompt,
-  openNewOrchestrator,
+  openNewOrchestrator, removeOrchestrator,
 } from './orchestrators';
 import {
   addTask,
@@ -371,6 +371,8 @@ function renderProject() {
   renderProjectTabs(projtabsEl, {
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
+    onNewOrchestrator: () => openNewOrchestrator(handleCreateOrchestrator),
+    onCloseOrchestrator: closeOrchestrator,
   });
   renderTopbar(tbLeftEl, tbRightEl, {
     onSpawn: (agentId) => {
@@ -464,6 +466,13 @@ async function handleCreateOrchestrator(dir: string, goal: string) {
   selectSession(id); // switch the view to the new session before the tile appears
   const agentId = await spawn('claude', dir, undefined, { prompt: orchestratorPrompt(goal), session: id });
   if (agentId) setOrchestratorRoot(id, agentId);
+}
+
+// Close an orchestrator: kill its whole fleet (root + workers), drop the record,
+// and fall back to General if it was the active session.
+function closeOrchestrator(id: string) {
+  for (const a of list()) if (a.session === id) closeAgent(a.id);
+  removeOrchestrator(id); // clears activeId if it was active (see store)
 }
 
 // Tasks: persist to localStorage and keep the MCP snapshot (active project) fresh.

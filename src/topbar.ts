@@ -9,6 +9,7 @@ import {
   removeProject,
 } from './projects';
 import { icon } from './icon';
+import { listOrchestrators, activeSession, selectSession } from './orchestrators';
 import { placeMenu } from './menu';
 import { visibleProviders, providerIcon } from './providers';
 import { openSettings, getSettings } from './settings';
@@ -134,16 +135,17 @@ function toolBtn(name: string, label: string, onClick: () => void, keys?: string
 // Project tabs live on their own row above the nav; each tab is its own panel.
 export function renderProjectTabs(
   root: HTMLElement,
-  h: { onZoomIn: () => void; onZoomOut: () => void },
+  h: { onZoomIn: () => void; onZoomOut: () => void; onNewOrchestrator: () => void; onCloseOrchestrator: (id: string) => void },
 ) {
   root.innerHTML = '';
   const projs = listProjects();
   const cur = current();
   // Current project's color drives the selected tab + toolbar (via a CSS var).
   document.documentElement.style.setProperty('--tab-accent', cur?.color ?? DEFAULT_COLOR);
+  const sessActive = activeSession() !== null;
   projs.forEach((p, i) => {
     const tab = document.createElement('button');
-    tab.className = 'proj-tab' + (cur && p.path === cur.path ? ' active' : '');
+    tab.className = 'proj-tab' + (!sessActive && cur && p.path === cur.path ? ' active' : '');
     tab.title = p.path;
     const ic = icon(p.icon ?? 'folder');
     ic.classList.add('proj-tab-ic');
@@ -157,9 +159,35 @@ export function renderProjectTabs(
     nm.textContent = p.name;
     tab.append(ic, nm);
     if (i < 9) tab.append(kbdChip(`⌘${i + 1}`, 'proj-tab-kbd')); // ⌘1–9 switch projects
-    tab.onclick = () => selectProject(p.path);
+    tab.onclick = () => { selectSession(null); selectProject(p.path); };
     root.appendChild(tab);
   });
+  const active = activeSession();
+  for (const o of listOrchestrators()) {
+    const chip = document.createElement('button');
+    chip.className = 'orch-chip' + (o.id === active ? ' active' : '');
+    chip.title = o.goal;
+    const dot = document.createElement('span');
+    dot.className = 'orch-chip-dot';
+    const nm = document.createElement('span');
+    nm.className = 'orch-chip-name';
+    nm.textContent = o.name;
+    const x = document.createElement('span');
+    x.className = 'orch-chip-x';
+    x.append(icon('x'));
+    x.onclick = (e) => {
+      e.stopPropagation();
+      if (confirm(`Close orchestrator "${o.name}" and kill its agents?`)) h.onCloseOrchestrator(o.id);
+    };
+    chip.append(dot, nm, x);
+    chip.onclick = () => selectSession(o.id);
+    root.appendChild(chip);
+  }
+  const newOrch = document.createElement('button');
+  newOrch.className = 'addproj-tab orch-new';
+  newOrch.append(icon('plus'), document.createTextNode(' Orchestrator'));
+  newOrch.onclick = () => h.onNewOrchestrator();
+  root.appendChild(newOrch);
   const add = document.createElement('button');
   add.className = 'addproj-tab';
   add.append(icon('plus'), document.createTextNode(' Add project'));
