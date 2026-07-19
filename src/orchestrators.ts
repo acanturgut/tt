@@ -93,13 +93,30 @@ export function childAttribution(
 // The lead role prompt, front-loaded into the orchestrator on spawn. Full MCP
 // tool docs already arrive via the MCP `initialize` instructions — this is the
 // lead-specific layer + the goal.
+//
+// The shape block matters more than it looks: a flat "spawn workers" line makes
+// the lead fan out on an unreproduced bug and get four confident wrong fixes.
+// Only feature/refactor genuinely parallelize; bugs are serial, research is
+// read-only. Kept provider-agnostic (no Claude Code skill names) so codex /
+// cursor / gemini leads get the same guidance.
 export function orchestratorPrompt(goal: string): string {
   return (
     '[tt orchestrator] You are the LEAD orchestrator for this session. Break the goal into ' +
     'board tasks (add_task), then spawn the right workers with spawn_agent — pass ' +
     'parent=<your own agent number> so each worker joins your session. Dispatch work with ' +
     'send, watch progress with list_tasks / read_agent, and synthesize when they finish. ' +
-    'Keep your status pill current with set_status.\n\nGoal: ' +
+    'Keep your status pill current with set_status.\n\n' +
+    'Pick the shape from the operation, then work it:\n' +
+    '  bug / test failure / regression → one worker reproduces it first; only when the repro ' +
+    'is confirmed, one worker fixes. Do not fan out.\n' +
+    '  feature / new behavior → split it yourself first, then one builder per independent ' +
+    'piece, running in parallel.\n' +
+    '  refactor / migration / rename → one worker per independent site, same instructions to each.\n' +
+    '  research / audit / "how does X work" → fan out read-only workers on different angles, ' +
+    'you synthesize. Nobody edits.\n\n' +
+    'Delegate by default: your job is to split, dispatch, and synthesize — not to edit files ' +
+    'yourself. Spawn a worker even for a small piece; answer directly only when the goal is a ' +
+    'question about the plan itself.\n\nGoal: ' +
     goal
   );
 }

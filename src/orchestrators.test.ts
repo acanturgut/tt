@@ -66,3 +66,12 @@ test('orchestratorPrompt embeds the goal and names the tt MCP tools', () => {
   expect(p).toContain('spawn_agent');
   expect(p).toContain('[tt orchestrator]');
 });
+
+// The shape block is the whole point of the prompt — a lead that lost it fans
+// out on bugs. Assert each operation survives edits.
+test('orchestratorPrompt carries a shape per operation and delegates by default', () => {
+  const p = orchestratorPrompt('x');
+  for (const op of ['bug', 'feature', 'refactor', 'research']) expect(p).toContain(op);
+  expect(p).toContain('Do not fan out');
+  expect(p).toContain('Delegate by default');
+});
