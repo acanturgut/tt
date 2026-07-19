@@ -327,6 +327,10 @@ function renderTree(): HTMLElement {
 
   const rows = layoutGraph(commits);
   const x = (lane: number) => LANE_W / 2 + lane * LANE_W;
+  // Text gutter widens as branches open (top→down) and never shrinks back, so the text column
+  // stays put instead of snapping far left when many lanes merge at once (the ragged jump).
+  let runMax = 1;
+  const gutters = rows.map((r) => { runMax = Math.max(runMax, r.cols); return runMax * LANE_W + LANE_W; });
 
   const list = document.createElement('div');
   list.className = 'git-tree-list';
@@ -335,16 +339,13 @@ function renderTree(): HTMLElement {
   // the browser skip rendering rows that are off-screen — so scrolling only ever paints the ~30
   // visible rows, however long the history is. (A single tall SVG for all rows still re-rasters
   // its whole column tile-by-tile on scroll; per-row + content-visibility avoids that.)
-  rows.forEach((r) => {
+  rows.forEach((r, i) => {
     const row = document.createElement('div');
     row.className = 'git-tree-row' + (sel?.kind === 'commit' && sel.hash === r.commit.hash ? ' on' : '');
     row.style.height = `${ROW_H}px`;
     row.onclick = () => void selectCommit(r.commit.hash);
 
-    // Text hugs the graph: this row's gutter is only as wide as the lanes active in THIS row
-    // (+ one lane of breathing room), so linear commits sit close to the graph instead of at a
-    // fixed far gutter sized to the widest row.
-    const rowW = r.cols * LANE_W + LANE_W;
+    const rowW = gutters[i];
     const svg = document.createElementNS(SVGNS, 'svg');
     svg.setAttribute('class', 'git-tree-svg');
     svg.setAttribute('width', String(rowW));
