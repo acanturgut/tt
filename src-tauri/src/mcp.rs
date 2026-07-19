@@ -305,6 +305,15 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
             format!("Agent {n} status set to {status}.")
         }
         "add_task" => {
+            // The board is per-project. With no project open the frontend has nowhere to
+            // file the task and drops it, so claiming success would send the agent looking
+            // for an id that never existed. An empty snapshot (not "[]") means no project.
+            let st = app.state::<AppState>();
+            if st.mcp_tasks.lock().map(|g| g.is_empty()).unwrap_or(true) {
+                return "error: no project is open in tt — the task board is per-project, \
+                        so there is nowhere to add this yet"
+                    .into();
+            }
             let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("").trim();
             if title.is_empty() {
                 return "error: 'title' is required".into();
