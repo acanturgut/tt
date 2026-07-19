@@ -3,6 +3,7 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { icon } from './icon';
 import {
   layoutGraph,
+  visibleRange,
   agentForWorktree,
   type GitStatus,
   type FileEntry,
@@ -52,6 +53,8 @@ let diffEl: HTMLElement | null = null;
 let railPending = false; // a rail change deferred while the commit textarea holds focus
 let treePending = false; // a graph change deferred while the user is actively scrolling the graph
 let treeBusyUntil = 0;   // performance.now() until which the graph counts as "being scrolled"
+const TREE_OVERSCAN = 8; // rows kept in the DOM above/below the viewport (smooth fast scroll)
+let treeObs: ResizeObserver | null = null; // re-windows the graph when the pane is sized/mounted
 
 export function isGitOpen(): boolean {
   return open;
@@ -85,6 +88,8 @@ export function closeGit(): void {
     clearInterval(timer);
     timer = null;
   }
+  treeObs?.disconnect();
+  treeObs = null;
 }
 
 async function refresh(): Promise<void> {
@@ -109,7 +114,7 @@ async function refresh(): Promise<void> {
     if (sig !== hSig) {
       hSig = sig;
       const [lg, wt] = await Promise.all([
-        invoke<Commit[]>('git_log_graph', { root, limit: 200 }),
+        invoke<Commit[]>('git_log_graph', { root }), // full history — the list is virtualized
         invoke<Worktree[]>('git_worktrees', { root }),
       ]);
       const b = JSON.stringify(lg);
@@ -359,32 +364,50 @@ const LANE_W = 16; // px per lane column
 const ROW_H = 28; // px per commit row
 
 function renderTree(): HTMLElement {
+  treeObs?.disconnect();
+  treeObs = null;
+
   const wrap = document.createElement('div');
   wrap.className = 'git-tree';
-  // While the user scrolls the graph, hold off rebuilding its DOM (see refresh()).
-  wrap.addEventListener('scroll', () => { treeBusyUntil = performance.now() + 400; }, { passive: true });
   if (!commits.length) return wrap;
 
   const rows = layoutGraph(commits);
+  const N = rows.length;
   const x = (lane: number) => LANE_W / 2 + lane * LANE_W;
   // Text gutter widens as branches open (top→down) and never shrinks back, so the text column
   // stays put instead of snapping far left when many lanes merge at once (the ragged jump).
   let runMax = 1;
   const gutters = rows.map((r) => { runMax = Math.max(runMax, r.cols); return runMax * LANE_W + LANE_W; });
-
   const graphW = runMax * LANE_W + LANE_W; // monotonic gutter → its final value is the widest
-  const H = rows.length * ROW_H;
+  const H = N * ROW_H;
 
-  const list = document.createElement('div');
-  list.className = 'git-tree-list';
-  list.style.position = 'relative';
-  list.style.height = `${H}px`;
+  // A full-height spacer owns the scrollbar; only a window of rows ever lives in the DOM. This is
+  // what makes the *entire* history (tens of thousands of commits) scroll instantly — the old code
+  // built every row plus one giant canvas, and a canvas taller than ~32k px (≈1300 rows) blanks
+  // out. Now the graph is drawn per-window onto a viewport-sized canvas, redrawn on scroll.
+  const spacer = document.createElement('div');
+  spacer.className = 'git-tree-list';
+  spacer.style.position = 'relative';
+  spacer.style.height = `${H}px`;
 
-  // Text rows are cheap DOM (content-visibility skips off-screen ones). The graph itself is drawn
-  // ONCE onto a single <canvas> appended below — a bitmap that just translates on scroll (GPU),
-  // not per-row SVG that re-rasterizes its vector paths every frame. This is what lets native git
-  // clients scroll instantly.
-  rows.forEach((r, i) => {
+  // The window: visible rows in normal flow + a viewport-sized canvas overlaid on the gutter.
+  // Moved as a unit down the spacer via `top`, so row and canvas y-coords stay window-local.
+  const win = document.createElement('div');
+  win.style.position = 'absolute';
+  win.style.left = '0';
+  win.style.right = '0';
+  win.style.top = '0';
+  spacer.appendChild(win);
+  wrap.appendChild(spacer);
+
+  const canvas = document.createElement('canvas');
+  canvas.className = 'git-tree-canvas'; // absolute/left:0/top:0/pointer-events:none (CSS)
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0a0b0d';
+
+  const buildRow = (i: number): HTMLElement => {
+    const r = rows[i];
     const row = document.createElement('div');
     row.className = 'git-tree-row' + (sel?.kind === 'commit' && sel.hash === r.commit.hash ? ' on' : '');
     row.style.height = `${ROW_H}px`;
@@ -417,28 +440,25 @@ function renderTree(): HTMLElement {
     info.className = 'git-tree-info';
     info.textContent = `${r.commit.author} · ${r.commit.relDate}`;
     meta.append(subj, info);
-
     row.appendChild(meta);
-    list.appendChild(row);
-  });
+    return row;
+  };
 
-  // Draw the whole graph once onto a single canvas overlaid on the gutter (pointer-events: none,
-  // transparent except the lanes — row clicks pass through and the text shows through).
-  const dpr = window.devicePixelRatio || 1;
-  const canvas = document.createElement('canvas');
-  canvas.className = 'git-tree-canvas';
-  canvas.width = Math.ceil(graphW * dpr);
-  canvas.height = Math.ceil(H * dpr);
-  canvas.style.width = `${graphW}px`;
-  canvas.style.height = `${H}px`;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.scale(dpr, dpr);
+  // Draw just the windowed rows' lanes (window-local y: row k sits at k*ROW_H). Overlaid on the
+  // gutter (transparent except the lanes; pointer-events:none, so row clicks pass through).
+  const drawGraph = (start: number, count: number) => {
+    if (!ctx) return;
+    const h = count * ROW_H;
+    canvas.width = Math.ceil(graphW * dpr);
+    canvas.height = Math.ceil(h * dpr);
+    canvas.style.width = `${graphW}px`;
+    canvas.style.height = `${h}px`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // setting canvas.width reset the context — reapply
+    ctx.clearRect(0, 0, graphW, h);
     ctx.lineWidth = 2;
-    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0a0b0d';
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      const y0 = i * ROW_H, ny = i * ROW_H + ROW_H / 2, y1 = (i + 1) * ROW_H;
+    for (let k = 0; k < count; k++) {
+      const r = rows[start + k];
+      const y0 = k * ROW_H, ny = k * ROW_H + ROW_H / 2, y1 = (k + 1) * ROW_H;
       for (const e of r.edges) {
         const x1 = x(e.from), x2 = x(e.to);
         ctx.strokeStyle = LANE_PALETTE[e.color % LANE_PALETTE.length];
@@ -455,9 +475,9 @@ function renderTree(): HTMLElement {
         ctx.stroke();
       }
     }
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      const ny = i * ROW_H + ROW_H / 2, nx = x(r.lane);
+    for (let k = 0; k < count; k++) {
+      const r = rows[start + k];
+      const ny = k * ROW_H + ROW_H / 2, nx = x(r.lane);
       const isMerge = r.commit.parents.length > 1;
       ctx.beginPath();
       ctx.arc(nx, ny, isMerge ? 6.5 : 4, 0, Math.PI * 2);
@@ -473,10 +493,36 @@ function renderTree(): HTMLElement {
         ctx.stroke();
       }
     }
-  }
-  list.appendChild(canvas);
+  };
 
-  wrap.appendChild(list);
+  let curStart = -1, curEnd = -1;
+  const renderWindow = () => {
+    const [first, last] = visibleRange(wrap.scrollTop, wrap.clientHeight, ROW_H, N, TREE_OVERSCAN);
+    if (first === curStart && last === curEnd) return; // overscan already covers this scroll
+    curStart = first; curEnd = last;
+    win.style.top = `${first * ROW_H}px`;
+    win.textContent = '';
+    for (let i = first; i < last; i++) win.appendChild(buildRow(i));
+    win.appendChild(canvas); // last → paints over the rows' (transparent) gutter, survives hover bg
+    drawGraph(first, last - first);
+  };
+
+  let scheduled = false;
+  const schedule = () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => { scheduled = false; renderWindow(); });
+  };
+
+  wrap.addEventListener('scroll', () => {
+    treeBusyUntil = performance.now() + 400; // hold off full rebuilds mid-scroll (see refresh())
+    schedule();
+  }, { passive: true });
+
+  // Renders the first window once the pane is measured (mounted), and re-windows on any resize.
+  treeObs = new ResizeObserver(schedule);
+  treeObs.observe(wrap);
+
   return wrap;
 }
 
