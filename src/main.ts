@@ -25,7 +25,7 @@ import {
   subscribe,
   type WorkflowLabel,
 } from './agents';
-import { AgentTerminal } from './terminal';
+import { AgentTerminal, initTerminals } from './terminal';
 import { syncTiles } from './tiles';
 import { renderSidebar } from './sidebar';
 import { renderTopbar, renderProjectTabs } from './topbar';
@@ -469,6 +469,7 @@ async function spawn(
       sessionKey: key,
       extraArgs: spawnModelArgs(agentId, model, effort),
     });
+    await initTerminals(); // WASM VT engine must be ready before a terminal is built
     const t = new AgentTerminal(id);
     terms.set(id, t);
     spawnTimes.set(id, Date.now());
@@ -865,4 +866,5 @@ renderWelcome(welcomeEl);
 renderProject();
 renderAgents();
 restoreTasks();
-void restoreAgents();
+// Load the WASM terminal engine before restoring agents (which builds terminals).
+void initTerminals().then(restoreAgents);
