@@ -154,6 +154,23 @@ body.no-project #broadcast { visibility: hidden; }
 .ico-kbd { background: rgba(255, 255, 255, .15); color: rgba(255, 255, 255, .85); box-shadow: none; }
 .proj-tool .ico-kbd { background: var(--elev-2); color: var(--muted); }
 .tb-sep { width: 1px; align-self: stretch; margin: 6px 4px; background: rgba(255, 255, 255, .14); flex: 0 0 auto; }
+
+/* Account plan quota, one pill per provider. Follows .modelpill's chip look. */
+.quota-wrap { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.quota-pill { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: 999px; padding: 4px 9px; background: rgba(0, 0, 0, .22); color: var(--muted); cursor: pointer; white-space: nowrap; flex: 0 0 auto; transition: background .12s ease, color .12s ease; }
+.quota-pill:hover { background: rgba(255, 255, 255, .16); color: #fff; }
+.quota-pill .agent-ico, .quota-pill i { width: 13px; height: 13px; font-size: 13px; }
+.quota-val { font-size: 10.5px; font-family: var(--font-mono); }
+/* Dimmed = we can't vouch for the number (stale cache or rolled-over window), so
+   a hours-old claude reading never reads as current beside a fresh codex one. */
+.quota-pill.quota-stale { color: var(--dim); }
+.quota-pill.quota-low .quota-val { color: var(--danger); }
+.quota-menu { min-width: 250px; }
+.quota-row { cursor: default; gap: 10px; }
+.quota-row:hover { background: transparent; color: inherit !important; }
+.quota-row-reset { margin-left: auto; color: var(--dim); font-size: 10.5px; }
+.quota-row-val { font-family: var(--font-mono); font-size: 11px; min-width: 42px; text-align: right; }
+.quota-age { padding: 5px 10px 3px; color: var(--dim); font-size: 10.5px; line-height: 1.45; border-top: 1px solid rgba(255, 255, 255, .08); margin-top: 4px; }
 .proj-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .proj-label { color: rgba(255, 255, 255, .7); flex: 0 0 auto; }
 

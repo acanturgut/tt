@@ -63,6 +63,7 @@ import { chime } from './sound';
 import { showInstallHelp } from './installs';
 import { randomName } from './naming';
 import { visibleProviders, subscribeProviders, spawnModelArgs, providerModels } from './providers';
+import { setQuota, subscribeQuota, type QuotaWindow } from './quota';
 import { renderWelcome } from './welcome';
 import './styles.css';
 
@@ -615,6 +616,8 @@ listen<{ id: string }>('agent-exit', (e) => {
 listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
   markClaude(e.payload.id, e.payload.title, e.payload.tokens),
 );
+// Account plan quota (per provider, not per agent) — see quota.ts.
+listen<QuotaWindow[]>('quota-changed', (e) => setQuota(e.payload));
 
 // OS file drop -> type the path(s) into the PTY of the agent tile under the
 // cursor, so dragging an image onto an agent hands it the path (claude reads
@@ -716,6 +719,7 @@ subscribeOrchestrators(() => {
   scheduleRenderAgents(); // switching sessions changes which agents are visible
 });
 subscribeProviders(renderProject); // hiding/showing providers re-renders the toolbar
+subscribeQuota(renderProject); // new quota reading -> repaint the topbar pills
 window.addEventListener('resize', scheduleFit);
 
 // Keyboard shortcuts (⌘): 1-9 focus agent, 0 grid, +/- zoom all, B/\ panels.
