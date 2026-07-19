@@ -139,6 +139,15 @@ export function isLocalRuntime(id: string): boolean {
   return MODEL_CATALOG[id]?.local === true;
 }
 
+// Whether this provider can act on the tt MCP — i.e. it's a real agent CLI.
+// `terminal` is a bare login shell and the local runtimes are plain chat REPLs:
+// neither has tools to coordinate with, so fleet orientation is meaningless to
+// them. For the shell it's worse than useless — typed prose is EXECUTED, and the
+// apostrophe in "You're" alone parks zsh at a `quote>` continuation prompt.
+export function usesMcp(id: string): boolean {
+  return id !== 'terminal' && !isLocalRuntime(id);
+}
+
 // A local runtime has no "the CLI picks for you" default: `ollama run` with no
 // model just errors. So when nothing is configured, spawn the first model the
 // machine actually has. Empty for every other provider — they have their own

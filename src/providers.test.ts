@@ -1,5 +1,17 @@
 import { expect, test } from 'vitest';
-import { spawnModelArgs, fallbackModel, MODEL_CATALOG } from './providers';
+import { spawnModelArgs, fallbackModel, usesMcp, MODEL_CATALOG } from './providers';
+
+// The fleet-orientation text is typed into a freshly spawned agent. A `terminal`
+// agent is a bare login shell, which EXECUTES it — the apostrophe in "You're" parks
+// zsh at a `quote>` prompt and the pane is wedged. Only real agent CLIs get oriented.
+test('usesMcp: only real agent CLIs, not the shell or local chat REPLs', () => {
+  for (const id of ['claude', 'codex', 'cursor', 'gemini', 'opencode', 'antigravity']) {
+    expect(usesMcp(id), `${id} should be oriented`).toBe(true);
+  }
+  expect(usesMcp('terminal')).toBe(false);
+  expect(usesMcp('ollama')).toBe(false);
+  expect(usesMcp('lmstudio')).toBe(false);
+});
 
 test('claude gets --model and --effort', () => {
   expect(spawnModelArgs('claude', 'opus', 'high')).toEqual(['--model', 'opus', '--effort', 'high']);

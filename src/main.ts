@@ -63,7 +63,7 @@ import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
 import { showInstallHelp } from './installs';
 import { randomName } from './naming';
-import { visibleProviders, subscribeProviders, spawnModelArgs, providerModels, fallbackModel, isLocalRuntime, localModelsReady } from './providers';
+import { visibleProviders, subscribeProviders, spawnModelArgs, providerModels, fallbackModel, isLocalRuntime, usesMcp, localModelsReady } from './providers';
 import { setQuota, subscribeQuota, type QuotaWindow } from './quota';
 import { renderWelcome } from './welcome';
 import './styles.css';
@@ -500,9 +500,10 @@ async function spawn(
     // ponytail: fixed 2.5s delay to let the CLI boot before typing the first
     // prompt — TUIs eat input sent before they're ready. Swap for a readiness
     // signal (claude jsonl / prompt-detected) if this proves flaky.
-    // Orient only fleet-spawned agents (via the tt MCP). A human spawning an
-    // agent themselves doesn't need the nudge — just send their prompt, if any.
-    const msg = opts?.spawned
+    // Orient only fleet-spawned agents (via the tt MCP) that can actually USE the
+    // MCP. A human spawning an agent themselves doesn't need the nudge, and a bare
+    // shell or local chat REPL has no tools to coordinate with (see usesMcp).
+    const msg = opts?.spawned && usesMcp(agentId)
       ? (opts.prompt ? `${ORIENT}\n\n${opts.prompt}` : ORIENT)
       : opts?.prompt;
     if (msg) setTimeout(() => broadcast([id], msg, false), 2500);
@@ -541,7 +542,11 @@ function persistTasks() {
   localStorage.setItem('tt.tasks', JSON.stringify(allTasks()));
 }
 function pushTasks() {
-  void invoke('mcp_set_tasks', { json: snapshotFor(curProjPath() ?? '') }).catch(() => {});
+  const p = curProjPath();
+  // Empty string, not "[]", when no project is open: the board is per-project, so
+  // mcp-task-add has nowhere to file a task and drops it. The MCP layer needs to tell
+  // that apart from "a project with no tasks yet" or it reports a success that isn't.
+  void invoke('mcp_set_tasks', { json: p ? snapshotFor(p) : '' }).catch(() => {});
 }
 const TASK_STATUSES: WorkflowLabel[] = ['planning', 'in-progress', 'in-review', 'needs-human', 'done'];
 function restoreTasks() {
