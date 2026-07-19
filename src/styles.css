@@ -581,6 +581,12 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 .git-fetch, .git-pull { background: var(--line); color: var(--text); }
 .git-push { background: var(--accent); color: #fff; }
 .git-fetch:disabled, .git-pull:disabled, .git-push:disabled { opacity: .4; cursor: default; }
+/* busy wins over :disabled (same specificity, later rule) so the spinner stays readable */
+.git-fetch.git-busy, .git-pull.git-busy, .git-push.git-busy { opacity: .75; }
+/* .ph is an inline <i> and transform ignores inline boxes — blockify it explicitly */
+.git-busy .ph { display: inline-block; animation: git-spin .8s linear infinite; }
+@keyframes git-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .git-busy .ph { animation-duration: 2.4s; } }
 
 .git-group { padding: 6px 0; }
 .git-group-head { display: flex; align-items: center; gap: 6px; padding: 4px 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }

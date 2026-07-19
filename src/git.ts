@@ -235,11 +235,18 @@ function renderRail(): HTMLElement {
     b.className = cls;
     b.append(icon(ico), document.createTextNode(label));
     b.disabled = disabled;
-    b.onclick = () =>
+    b.onclick = () => {
+      // Remote ops hit the network: spin the icon so the click doesn't look ignored.
+      b.classList.add('git-busy');
+      b.disabled = true;
       act(async () => {
         const out = await invoke<string>(cmd, { root: repoRoot() });
         toast(out || done);
+      }).finally(() => {
+        b.classList.remove('git-busy');
+        b.disabled = disabled;
       });
+    };
     br.appendChild(b);
   };
   remote('git-fetch', 'arrows-clockwise', 'Fetch', 'git_fetch', false, 'Fetched');
