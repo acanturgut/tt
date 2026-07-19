@@ -12,6 +12,15 @@ import {
 } from './gitgraph';
 import { highlight, escapeHtml } from './viewer';
 
+// Phosphor icon per ref kind: local branch vs the checked-out HEAD vs a remote
+// (origin/*) vs a tag — so head and origin read as different things at a glance.
+const REF_ICON: Record<string, string> = {
+  head: 'git-commit',
+  branch: 'git-branch',
+  remote: 'cloud',
+  tag: 'tag',
+};
+
 export interface GitDeps {
   getAgents: () => RunningAgent[];
   revealFolder: (path: string) => void;
@@ -214,16 +223,28 @@ function renderRail(): HTMLElement {
     ab.textContent = `${status.ahead ? '↑' + status.ahead : ''}${status.behind ? ' ↓' + status.behind : ''}`.trim();
     br.appendChild(ab);
   }
-  const push = document.createElement('button');
-  push.className = 'git-push';
-  push.textContent = 'Push';
-  push.disabled = !status.ahead;
-  push.onclick = () =>
-    act(async () => {
-      const out = await invoke<string>('git_push', { root: repoRoot() });
-      toast(out || 'Pushed');
-    });
-  br.appendChild(push);
+  const remote = (
+    cls: string,
+    ico: string,
+    label: string,
+    cmd: string,
+    disabled: boolean,
+    done: string,
+  ) => {
+    const b = document.createElement('button');
+    b.className = cls;
+    b.append(icon(ico), document.createTextNode(label));
+    b.disabled = disabled;
+    b.onclick = () =>
+      act(async () => {
+        const out = await invoke<string>(cmd, { root: repoRoot() });
+        toast(out || done);
+      });
+    br.appendChild(b);
+  };
+  remote('git-fetch', 'arrows-clockwise', 'Fetch', 'git_fetch', false, 'Fetched');
+  remote('git-pull', 'arrow-down', 'Pull', 'git_pull', !status.behind, 'Pulled');
+  remote('git-push', 'arrow-up', 'Push', 'git_push', !status.ahead, 'Pushed');
   rail.appendChild(br);
 
   rail.appendChild(renderWorktrees()); // Task 8 fills this in
@@ -354,9 +375,9 @@ function renderTree(): HTMLElement {
     const laneColor = LANE_PALETTE[r.color % LANE_PALETTE.length];
     for (const ref of r.commit.refs) {
       const chip = document.createElement('span');
-      chip.className = 'git-ref';
+      chip.className = 'git-ref git-ref-' + ref.kind;
       chip.style.setProperty('--c', laneColor); // colored per branch, like the reference
-      chip.append(icon('folder'), document.createTextNode(ref));
+      chip.append(icon(REF_ICON[ref.kind]), document.createTextNode(ref.name));
       meta.appendChild(chip);
     }
     const subj = document.createElement('span');

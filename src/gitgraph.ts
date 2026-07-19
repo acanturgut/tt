@@ -16,10 +16,14 @@ export interface GitStatus {
   behind: number;
   files: FileEntry[];
 }
+export interface GitRef {
+  name: string;
+  kind: 'head' | 'branch' | 'remote' | 'tag';
+}
 export interface Commit {
   hash: string;
   parents: string[];
-  refs: string[];
+  refs: GitRef[];
   author: string;
   relDate: string;
   subject: string;

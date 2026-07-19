@@ -40,6 +40,8 @@ pub fn run() {
             git::git_unstage,
             git::git_commit,
             git::git_push,
+            git::git_fetch,
+            git::git_pull,
             git::git_log_graph,
             git::git_worktrees
         ])

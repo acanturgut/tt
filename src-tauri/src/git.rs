@@ -160,18 +160,19 @@ pub fn git_commit(root: String, message: String) -> Result<String, String> {
     git_out(&root, &["commit", "-m", &message])
 }
 
-#[tauri::command]
-pub fn git_push(root: String) -> Result<String, String> {
-    // GIT_TERMINAL_PROMPT=0: a credential prompt fails fast instead of hanging the app.
+// Remote ops (push/fetch/pull) share this: GIT_TERMINAL_PROMPT=0 so a credential
+// prompt fails fast instead of hanging the app, and git writes progress to stderr
+// even on success — so fold stderr into the ok message too.
+fn git_remote(root: &str, op: &str) -> Result<String, String> {
     let out = Command::new("git")
         .arg("-C")
-        .arg(&root)
-        .arg("push")
+        .arg(root)
+        .arg(op)
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .map_err(|e| e.to_string())?;
     let so = String::from_utf8_lossy(&out.stdout);
-    let se = String::from_utf8_lossy(&out.stderr); // git writes progress to stderr even on success
+    let se = String::from_utf8_lossy(&out.stderr);
     if out.status.success() {
         Ok(format!("{so}{se}").trim().to_string())
     } else {
@@ -179,12 +180,61 @@ pub fn git_push(root: String) -> Result<String, String> {
     }
 }
 
+#[tauri::command]
+pub fn git_push(root: String) -> Result<String, String> {
+    git_remote(&root, "push")
+}
+
+#[tauri::command]
+pub fn git_fetch(root: String) -> Result<String, String> {
+    git_remote(&root, "fetch")
+}
+
+#[tauri::command]
+pub fn git_pull(root: String) -> Result<String, String> {
+    git_remote(&root, "pull")
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRef {
+    pub name: String,
+    pub kind: String, // "head" | "branch" | "remote" | "tag"
+}
+
+// Classify one `--decorate=full` ref token (e.g. "HEAD -> refs/heads/main",
+// "tag: refs/tags/v1", "refs/remotes/origin/main"). Returns None to drop noise
+// (bare detached HEAD, the origin/HEAD symbolic pointer).
+fn classify_ref(raw: &str) -> Option<GitRef> {
+    let (is_head, r) = match raw.strip_prefix("HEAD -> ") {
+        Some(rest) => (true, rest),
+        None => (false, raw),
+    };
+    if r == "HEAD" {
+        return None; // detached-HEAD marker; the commit is already selected in the UI
+    }
+    if let Some(t) = r.strip_prefix("tag: refs/tags/") {
+        return Some(GitRef { name: t.into(), kind: "tag".into() });
+    }
+    if let Some(b) = r.strip_prefix("refs/heads/") {
+        let kind = if is_head { "head" } else { "branch" };
+        return Some(GitRef { name: b.into(), kind: kind.into() });
+    }
+    if let Some(rem) = r.strip_prefix("refs/remotes/") {
+        if rem.ends_with("/HEAD") {
+            return None; // origin/HEAD symbolic ref → noise
+        }
+        return Some(GitRef { name: rem.into(), kind: "remote".into() });
+    }
+    Some(GitRef { name: r.into(), kind: "branch".into() })
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Commit {
     pub hash: String,
     pub parents: Vec<String>,
-    pub refs: Vec<String>,
+    pub refs: Vec<GitRef>,
     pub author: String,
     pub rel_date: String,
     pub subject: String,
@@ -218,11 +268,7 @@ fn parse_log(out: &str) -> Vec<Commit> {
         let refs = f[2]
             .split(", ")
             .filter(|s| !s.is_empty())
-            .map(|r| {
-                r.trim_start_matches("HEAD -> ")
-                    .trim_start_matches("tag: ")
-                    .to_string()
-            })
+            .filter_map(classify_ref)
             .collect();
         v.push(Commit {
             hash: f[0].to_string(),
@@ -273,7 +319,7 @@ fn parse_worktrees(out: &str) -> Vec<Worktree> {
 pub fn git_log_graph(root: String, limit: Option<u32>) -> Result<Vec<Commit>, String> {
     let n = format!("-n{}", limit.unwrap_or(200));
     let fmt = "--pretty=format:%H%x1f%P%x1f%D%x1f%an%x1f%ar%x1f%s%x1e";
-    let out = git_out(&root, &["log", "--all", "--date-order", fmt, &n])?;
+    let out = git_out(&root, &["log", "--all", "--date-order", "--decorate=full", fmt, &n])?;
     Ok(parse_log(&out))
 }
 
@@ -372,14 +418,16 @@ mod tests {
 
     #[test]
     fn parse_log_splits_records_and_refs() {
-        // fields joined by \x1f, records terminated by \x1e
-        let out = "h1\u{1f}p1 p2\u{1f}HEAD -> main, origin/main, tag: v1\u{1f}Ann\u{1f}2h ago\u{1f}subject one\u{1e}\
+        // fields joined by \x1f, records terminated by \x1e; refs in --decorate=full form
+        let out = "h1\u{1f}p1 p2\u{1f}HEAD -> refs/heads/main, refs/remotes/origin/main, refs/remotes/origin/HEAD, tag: refs/tags/v1\u{1f}Ann\u{1f}2h ago\u{1f}subject one\u{1e}\
 h2\u{1f}\u{1f}\u{1f}Bob\u{1f}3h ago\u{1f}root commit\u{1e}";
         let v = parse_log(out);
         assert_eq!(v.len(), 2);
         assert_eq!(v[0].hash, "h1");
         assert_eq!(v[0].parents, vec!["p1", "p2"]);
-        assert_eq!(v[0].refs, vec!["main", "origin/main", "v1"]);
+        // origin/HEAD is dropped as noise; the rest classified by kind
+        let refs: Vec<(&str, &str)> = v[0].refs.iter().map(|r| (r.name.as_str(), r.kind.as_str())).collect();
+        assert_eq!(refs, vec![("main", "head"), ("origin/main", "remote"), ("v1", "tag")]);
         assert_eq!(v[0].subject, "subject one");
         assert!(v[1].parents.is_empty());
         assert!(v[1].refs.is_empty());

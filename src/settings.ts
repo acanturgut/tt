@@ -77,7 +77,7 @@ export function openSettings() {
   closeSettings();
   overlay = document.createElement('div');
   overlay.className = 'palette-overlay';
-  const box = el('settings');
+  const box = el('settings settings-panel');
 
   const header = el('settings-header');
   header.append(el('settings-title', 'Settings'));
