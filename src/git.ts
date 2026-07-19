@@ -41,6 +41,8 @@ let railEl: HTMLElement | null = null;
 let treeEl: HTMLElement | null = null;
 let diffEl: HTMLElement | null = null;
 let railPending = false; // a rail change deferred while the commit textarea holds focus
+let treePending = false; // a graph change deferred while the user is actively scrolling the graph
+let treeBusyUntil = 0;   // performance.now() until which the graph counts as "being scrolled"
 
 export function isGitOpen(): boolean {
   return open;
@@ -96,9 +98,11 @@ async function refresh(): Promise<void> {
     // constantly — a poll mustn't wipe what they're typing).
     if (sChanged || wChanged) railPending = true;
     if (railPending && !typingCommitMsg()) { railPending = false; paintRail(); }
-    // The heavy 200-row SVG graph is rebuilt only when commits actually change — no longer on
-    // every poll (status/agent-status flaps used to thrash it, which is what made scroll lag).
-    if (lChanged) paintTree();
+    // The graph rebuilds only when commits change — AND never while the user is actively
+    // scrolling it (a mid-scroll 200-row DOM rebuild drops frames; agents commit constantly in
+    // tt). A deferred rebuild lands the instant scrolling settles (re-checked every poll).
+    if (lChanged) treePending = true;
+    if (treePending && performance.now() >= treeBusyUntil) { treePending = false; paintTree(); }
   } catch {
     // e.g. not a git repo → git_log_graph rejects; show the empty state.
     status = { repo: false, toplevel: '', branch: '', ahead: 0, behind: 0, files: [] };
@@ -317,6 +321,8 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 function renderTree(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'git-tree';
+  // While the user scrolls the graph, hold off rebuilding its DOM (see refresh()).
+  wrap.addEventListener('scroll', () => { treeBusyUntil = performance.now() + 400; }, { passive: true });
   if (!commits.length) return wrap;
 
   const rows = layoutGraph(commits);
