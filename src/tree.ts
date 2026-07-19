@@ -32,6 +32,10 @@ export async function renderTree(container: HTMLElement, rootPath: string | null
   // is up and blowing it away mid-typing would be a mess.
   const prevSearch = container.querySelector<HTMLInputElement>('.tree-search');
   if (prevSearch && prevSearch.value.trim()) return;
+  // Same reason, for anything focused inside the tree: the rebuild below replaces the
+  // element under the caret, so an empty search box or a half-typed new-folder name
+  // would silently lose focus and its content mid-keystroke.
+  if (container.contains(document.activeElement)) return;
   // Preserve scroll position across the wipe/rebuild — otherwise polling
   // snaps every user back to the top every few seconds.
   const prevScroll = container.querySelector<HTMLElement>('.tree-scroll')?.scrollTop ?? 0;

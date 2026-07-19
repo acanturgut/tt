@@ -103,6 +103,9 @@ function parseTargets(text: string): { ids: string[]; clean: string } | null {
     const id = byLabel.get(tok);
     if (id) ids.push(id);
   }
+  // No token matched a live agent -> this wasn't addressing anyone, it was prose
+  // ("fix issue #42"). Fall back to the selected targets instead of sending nowhere.
+  if (!ids.length) return null;
   const clean = text.replace(/(?:^|\s)#[0-9]+(?:-[0-9]+)*\b/g, ' ').replace(/\s+/g, ' ').trim();
   return { ids, clean };
 }

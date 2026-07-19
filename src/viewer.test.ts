@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest';
+import { marked } from 'marked';
 import { relPathOf, formatForAgent, langForPath } from './viewer';
+
+// Importing ./viewer installs a marked renderer that escapes raw HTML. Repo files are
+// untrusted (clones, node_modules, agent-written), and this innerHTML feeds a page that
+// can reach the Tauri IPC — an <img onerror> here was arbitrary command execution.
+describe('markdown raw HTML', () => {
+  it('escapes an inline event-handler payload instead of emitting a tag', () => {
+    const html = marked.parse('<img src=x onerror="alert(1)">', { async: false }) as string;
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img');
+  });
+  it('escapes block-level raw HTML too', () => {
+    const html = marked.parse('<script>alert(1)</script>', { async: false }) as string;
+    expect(html).not.toContain('<script');
+  });
+  it('still renders ordinary markdown', () => {
+    expect(marked.parse('# hi', { async: false })).toContain('<h1');
+  });
+});
 
 // Guards the git-diff perf fix: commit diffs (.txt) and unknown types must resolve to null so the
 // diff renders plain instead of calling hljs.highlightAuto per line (the freeze).

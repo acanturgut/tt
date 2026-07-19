@@ -78,12 +78,25 @@ fn login_shell() -> String {
 // Deliberately NOT cached: this used to memoize in a OnceLock, so a tt launched
 // before tmux was installed answered "no" for the rest of its life and silently
 // lost session persistence. One ~50ms shell per spawn is cheaper than that.
-fn tmux_available() -> bool {
-    std::process::Command::new(login_shell())
+// Returns the ABSOLUTE path, not just a yes/no. Everything that later shells out to
+// tmux (kill-session, has-session, capture-pane) runs as a plain Command against the
+// app's own stunted PATH, which has no /opt/homebrew/bin — so a bare "tmux" there
+// silently fails in a packaged .app: sessions never get killed, reattach never finds
+// them. The login shell already knows where it is; ask once and use the answer.
+pub fn tmux_path() -> Option<String> {
+    let out = std::process::Command::new(login_shell())
         .args(["-lc", "command -v tmux"])
         .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if p.is_empty() { None } else { Some(p) }
+}
+
+fn tmux_available() -> bool {
+    tmux_path().is_some()
 }
 
 // Which agent CLIs actually resolve on the user's real PATH, so the UI can say
@@ -242,9 +255,12 @@ pub fn spawn_agent(
             .join(" ");
         // unset TMUX so we never nest inside the tmux tt itself was launched from
         // (nested attach garbles the tile); our sessions live on the default server.
+        // Quote the session name like every other interpolation here: it's derived from
+        // a key that round-trips through localStorage on the reattach path, so it isn't
+        // structurally guaranteed to stay a UUID.
         let full = format!(
             "unset TMUX; tmux has-session -t {name} 2>/dev/null || tmux new-session -d -s {name} -c {dir} {cmdq}; tmux set -t {name} status off 2>/dev/null; exec tmux attach -t {name}",
-            name = name,
+            name = sh_quote(&name),
             dir = sh_quote(&project_dir),
             cmdq = cmdq,
         );
@@ -394,9 +410,11 @@ pub fn kill_agent(state: State<AppState>, id: String) -> Result<(), String> {
         // A tmux-backed agent's PTY child is only the tmux client; kill the actual
         // session so the agent stops (plain-PTY agents just get killed directly).
         if let Some(name) = s.tmux() {
-            let _ = std::process::Command::new("tmux")
-                .args(["kill-session", "-t", &name])
-                .status();
+            if let Some(tmux) = tmux_path() {
+                let _ = std::process::Command::new(tmux)
+                    .args(["kill-session", "-t", &name])
+                    .status();
+            }
         }
         s.kill();
     }
@@ -406,7 +424,8 @@ pub fn kill_agent(state: State<AppState>, id: String) -> Result<(), String> {
 // True if this agent's tmux session is still alive (for reattach on restart).
 #[tauri::command]
 pub fn session_alive(session_key: String) -> bool {
-    std::process::Command::new("tmux")
+    let Some(tmux) = tmux_path() else { return false };
+    std::process::Command::new(tmux)
         .args(["has-session", "-t", &format!("tt-{session_key}")])
         .status()
         .map(|s| s.success())

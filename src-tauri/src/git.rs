@@ -136,7 +136,14 @@ pub fn git_diff(root: String, path: String, staged: bool) -> Result<String, Stri
         .args(["diff", "--no-index", "--", "/dev/null", &path])
         .output()
         .map_err(|e| e.to_string())?;
-    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+    let text = String::from_utf8_lossy(&out.stdout).to_string();
+    // Empty stdout AND a failure is a real error (file deleted since the status poll,
+    // unreadable, no git) — not "no changes". Surface it instead of painting a blank
+    // pane that looks identical to a clean file.
+    if text.is_empty() && !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    Ok(text)
 }
 
 #[tauri::command]

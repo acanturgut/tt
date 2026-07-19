@@ -19,6 +19,10 @@ function hide() {
 }
 
 function place(anchor: HTMLElement, label: string, keys?: string) {
+  // The anchor can be destroyed during the 300ms hover delay (the topbar rebuilds on
+  // every quota tick). A detached node measures all-zero, which would park the tooltip
+  // in the screen corner with no mouseleave coming to dismiss it.
+  if (!anchor.isConnected) { hide(); return; }
   const t = node();
   t.innerHTML = '';
   const lab = document.createElement('span');

@@ -138,7 +138,9 @@ export function quotaPills(): HTMLElement | null {
     // Dim when we can't vouch for the number, so a stale claude pill never reads
     // as current next to a per-turn-fresh codex one.
     if (st.kind !== 'exact') pill.classList.add('quota-stale');
-    if (st.kind === 'exact' && st.remaining <= 10) pill.classList.add('quota-low');
+    // An `atMost` reading means remaining is AT MOST this — at least as bad as the
+    // same number exact. Warn on both, per "fail toward you-have-less-than-you-think".
+    if (st.kind !== 'unknown' && st.remaining <= 10) pill.classList.add('quota-low');
     pill.append(providerIcon(provider));
     const val = document.createElement('span');
     val.className = 'quota-val';

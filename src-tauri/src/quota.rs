@@ -222,7 +222,10 @@ const MAX_LOOKBACK_DAYS: i64 = 31;
 
 fn newest_rollout(root: &Path, now: i64) -> Option<PathBuf> {
     let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
-    for day_off in 0..=MAX_LOOKBACK_DAYS {
+    // Start at -1, i.e. TOMORROW in UTC: codex names these dirs from LOCAL time, so for
+    // any UTC+N user the dir it is actively writing to is a day ahead of the UTC date
+    // between midnight and N:00 — invisible to a scan that starts at today.
+    for day_off in -1..=MAX_LOOKBACK_DAYS {
         let days = (now - day_off * 86400) / 86400;
         let dir = root.join(ymd_path(days));
         let rd = match std::fs::read_dir(&dir) {
