@@ -117,10 +117,13 @@ export function layoutGraph(commits: Commit[]): GraphRow[] {
       const h = incoming[i];
       if (h === null) continue;
       if (h === c.hash) {
-        edges.push({ from: i, to: lane, color: incomingColors[i] });
+        edges.push({ from: i, to: lane, color: incomingColors[i] }); // converges into this commit's node
       } else {
-        const to = lanes.indexOf(h);
-        if (to !== -1) edges.push({ from: i, to, color: incomingColors[i] });
+        // An unrelated lane heading to some other commit: it runs straight down its OWN column
+        // (it converges only later, at the row of the commit it points to). Using indexOf(h) here
+        // was the bug — for two lanes sharing a parent it returned the leftmost, so the right lane
+        // drew a diagonal toward it every row (the stray hooks).
+        edges.push({ from: i, to: i, color: incomingColors[i] });
       }
     }
     // Node → each parent's assigned lane (downward).
