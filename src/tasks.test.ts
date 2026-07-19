@@ -24,6 +24,19 @@ describe('tasks store', () => {
     expect(t.id).toBe('t7');
   });
 
+  // Duplicate ids in the persisted store would make updateTask resolve to whichever came
+  // first and silently mutate the wrong card. The MCP id itself is left alone — the agent
+  // was already told that exact string, so substituting one would break its later updates.
+  it('drops duplicate ids when loading a persisted store', () => {
+    store.loadTasks([
+      { id: 't1', project: '/p', title: 'Real', status: 'planning', createdAt: 1 },
+      { id: 't1', project: '/other', title: 'Dupe', status: 'planning', createdAt: 2 },
+      { id: 't2', project: '/p', title: 'Fine', status: 'planning', createdAt: 3 },
+    ]);
+    expect(store.allTasks().map((t) => t.id)).toEqual(['t1', 't2']);
+    expect(store.allTasks().map((t) => t.title)).toEqual(['Real', 'Fine']);
+  });
+
   it('updateTask changes status/assignee/result and returns the task', () => {
     const t = store.addTask('/p', 'Fix grid');
     const u = store.updateTask(t.id, { status: 'in-progress', assignee: '2' });

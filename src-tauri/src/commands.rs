@@ -342,7 +342,23 @@ fn start_claude_watch(
     thread::spawn(move || {
         let file = claude_watch::session_file(&claude_projects_root(), &project_dir, &session_id);
         let mut last = String::new();
+        // (len, mtime) of the last file we actually parsed. read_status reads the WHOLE
+        // jsonl and json-parses every line; a long session's file reaches tens of MB, and
+        // doing that every 2s per claude agent burns real CPU forever just to refresh a
+        // token count. Unchanged file -> nothing to re-derive.
+        // ponytail: a same-length rewrite within one mtime tick would be missed. The file
+        // is append-only, so length moves on every real write; switch to a content hash
+        // if that ever stops holding.
+        let mut last_sig: Option<(u64, std::time::SystemTime)> = None;
         while !stop.load(Ordering::Relaxed) {
+            let sig = std::fs::metadata(&file)
+                .ok()
+                .and_then(|m| Some((m.len(), m.modified().ok()?)));
+            if sig.is_some() && sig == last_sig {
+                thread::sleep(Duration::from_secs(2));
+                continue;
+            }
+            last_sig = sig;
             let st = claude_watch::read_status(&file);
             let key = format!("{}|{}", st.title.clone().unwrap_or_default(), st.tokens);
             if key != last {
@@ -705,9 +721,12 @@ mod tests {
 
     #[test]
     fn expand_dir_handles_tilde_and_trailing_slash() {
-        std::env::set_var("HOME", "/Users/x");
-        assert_eq!(expand_dir("~"), "/Users/x");
-        assert_eq!(expand_dir("~/Documents/cc"), "/Users/x/Documents/cc");
+        // Assert against the ambient HOME rather than set_var'ing one: cargo runs tests on
+        // parallel threads, and mutating the process env while sibling tests (check_clis,
+        // local_models, quota::home) read it is a data race — and UB from edition 2024 on.
+        let home = std::env::var("HOME").expect("HOME is set in any test environment");
+        assert_eq!(expand_dir("~"), home);
+        assert_eq!(expand_dir("~/Documents/cc"), format!("{home}/Documents/cc"));
         assert_eq!(expand_dir("/a/b/"), "/a/b");
         assert_eq!(expand_dir("/a/b"), "/a/b");
     }

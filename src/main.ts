@@ -40,6 +40,7 @@ import {
   subscribeProjects,
   current as currentProject,
   listProjects,
+  projectForDir,
   selectProject,
 } from './projects';
 import {
@@ -478,7 +479,10 @@ async function spawn(
       dir,
       status: 'working',
       key,
-      project: curProjPath() ?? undefined,
+      // File the agent under the project its DIR belongs to, not whichever tab happens to
+      // be on screen: an MCP spawn carries an arbitrary dir, so a child spawned by an
+      // agent in project A while you're looking at B would otherwise appear in B's grid.
+      project: projectForDir(dir) ?? curProjPath() ?? undefined,
       spawned: opts?.spawned,
       parentId: opts?.parentId,
       session: opts?.session,
