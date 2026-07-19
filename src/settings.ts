@@ -1,4 +1,4 @@
-import { PROVIDERS, isProviderHidden, setProviderHidden } from './providers';
+import { PROVIDERS, isProviderHidden, setProviderHidden, MODEL_CATALOG } from './providers';
 import { icon } from './icon';
 import { scSelect } from './select';
 
@@ -8,6 +8,8 @@ export interface Settings {
   notifications: boolean; // desktop "needs you" notifications
   sound: boolean; // soft chime when an agent needs you
   claudeMode: 'auto' | 'plan' | 'default'; // claude --permission-mode
+  claudeEffort: string; // claude --effort default for new agents
+  models: Record<string, string>; // per-provider default model ('' = the CLI's own default)
   defaultAgent: string; // agent spawned by ⌘N
 }
 
@@ -17,6 +19,8 @@ const DEFAULTS: Settings = {
   notifications: true,
   sound: true,
   claudeMode: 'auto',
+  claudeEffort: 'high',
+  models: {},
   defaultAgent: 'claude',
 };
 const KEY = 'tt.settings';
@@ -38,6 +42,17 @@ export function getSettings(): Settings {
 function set<K extends keyof Settings>(k: K, v: Settings[K]) {
   s = { ...s, [k]: v };
   localStorage.setItem(KEY, JSON.stringify(s));
+}
+
+// Default model for a provider's new agents ('' = the CLI's own default).
+export function defaultModel(agentId: string): string {
+  return s.models[agentId] ?? '';
+}
+export function setDefaultModel(agentId: string, model: string) {
+  set('models', { ...s.models, [agentId]: model });
+}
+export function defaultEffort(): string {
+  return s.claudeEffort;
 }
 
 let overlay: HTMLElement | null = null;
@@ -102,8 +117,20 @@ export function openSettings() {
   claude.append(
     choice('Permission mode', 'Passed as claude --permission-mode.',
       ['auto', 'plan', 'default'], s.claudeMode, (v) => set('claudeMode', v as Settings['claudeMode'])),
+    choice('Reasoning effort', 'Default --effort for new claude agents.',
+      MODEL_CATALOG.claude.effort!, s.claudeEffort, (v) => set('claudeEffort', v)),
   );
   body.append(claude);
+
+  const models = section('Default models');
+  models.append(el('settings-section-desc', 'Model each provider spawns with. "default" leaves the CLI to pick.'));
+  for (const [id, cat] of Object.entries(MODEL_CATALOG)) {
+    models.append(
+      choice(id, undefined, ['default', ...cat.models], defaultModel(id) || 'default',
+        (v) => setDefaultModel(id, v === 'default' ? '' : v)),
+    );
+  }
+  body.append(models);
 
   const provs = section('Agent providers');
   provs.append(el('settings-section-desc', 'Show or hide agents in the spawn menu.'));

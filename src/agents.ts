@@ -16,6 +16,8 @@ export interface Agent {
   project?: string; // project path this agent belongs to (its tab/panel)
   spawned?: boolean; // created by another agent via MCP (a sub-agent)
   parentId?: string; // best-effort: the agent focused when this one was spawned
+  model?: string; // CLI model this agent launched with (or was live-switched to)
+  effort?: string; // claude reasoning effort it launched with
 }
 
 const agents = new Map<string, Agent>();
@@ -176,6 +178,14 @@ export function setName(id: string, name: string) {
   const a = agents.get(id);
   if (!a) return;
   a.name = name;
+  emit();
+}
+
+export function setModel(id: string, model?: string, effort?: string) {
+  const a = agents.get(id);
+  if (!a) return;
+  if (model !== undefined) a.model = model;
+  if (effort !== undefined) a.effort = effort;
   emit();
 }
 

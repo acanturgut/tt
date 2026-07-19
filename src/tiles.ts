@@ -2,6 +2,7 @@ import { gridDims } from './grid';
 import { agentTree, type Agent, type WorkflowLabel } from './agents';
 import type { AgentTerminal } from './terminal';
 import { statusPill, updatePill, labelColor } from './statuspill';
+import { modelPill, paintModelPill } from './modelpill';
 import { editableName } from './naming';
 import { icon } from './icon';
 
@@ -17,6 +18,8 @@ export interface TilesHandlers {
   onSetLabel: (id: string, label: WorkflowLabel | undefined) => void;
   onRename: (id: string, name: string) => void;
   onReorder: (draggedId: string, targetId: string) => void;
+  onSetModel: (id: string, model?: string, effort?: string) => void;
+  onRestart: (id: string) => void;
 }
 
 interface TileEls {
@@ -28,6 +31,7 @@ interface TileEls {
   star: HTMLElement;
   meta: HTMLElement;
   pill: HTMLElement;
+  modelChip: HTMLElement | null;
   term: AgentTerminal;
 }
 
@@ -92,6 +96,7 @@ export function syncTiles(
     star.appendChild(icon('bell-ringing'));
     const name = editableName(a, (nm) => h.onRename(a.id, nm));
     const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
+    const modelChip = modelPill(a, (m, e) => h.onSetModel(a.id, m, e), () => h.onRestart(a.id));
     const meta = document.createElement('span');
     meta.className = 'meta';
     const zoomOut = document.createElement('span');
@@ -118,7 +123,7 @@ export function syncTiles(
       ev.stopPropagation();
       h.onClose(a.id);
     };
-    header.append(num, dot, star, name, pill, meta, zoomOut, zoomIn, close);
+    header.append(num, dot, star, name, pill, ...(modelChip ? [modelChip] : []), meta, zoomOut, zoomIn, close);
 
     const body = document.createElement('div');
     body.className = 'tile-body';
@@ -126,7 +131,7 @@ export function syncTiles(
 
     root.append(header, body);
     stage.appendChild(root);
-    tiles.set(a.id, { root, header, num, name, dot, star, meta, pill, term });
+    tiles.set(a.id, { root, header, num, name, dot, star, meta, pill, modelChip, term });
     term.open();
   }
 
@@ -179,6 +184,7 @@ export function syncTiles(
 
     t.meta.textContent = a.tokens ? `${fmtTokens(a.tokens)} tok` : '';
     updatePill(t.pill, a);
+    if (t.modelChip) paintModelPill(t.modelChip, a);
   }
 
   requestAnimationFrame(() => {

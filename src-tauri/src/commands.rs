@@ -95,6 +95,7 @@ pub fn spawn_agent(
     agent_id: String,
     perm_mode: Option<String>,
     session_key: String,
+    extra_args: Option<Vec<String>>,
 ) -> Result<String, String> {
     let cmd =
         registry::command_for(&agent_id).ok_or_else(|| format!("unknown agent: {agent_id}"))?;
@@ -104,6 +105,8 @@ pub fn spawn_agent(
     let id = format!("{agent_id}-{n}");
 
     let mut args = cmd.args;
+    // Model/effort flags built by the frontend catalog (spawnModelArgs).
+    args.extend(extra_args.unwrap_or_default());
     if agent_id == "claude" {
         if let Some(mode) = perm_mode {
             if let Some(i) = args.iter().position(|a| a == "--permission-mode") {

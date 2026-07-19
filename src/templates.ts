@@ -1,5 +1,5 @@
 import { icon } from './icon';
-import { providerIcon } from './providers';
+import { providerIcon, providerModels } from './providers';
 
 // A slot = one agent on the fleet: which CLI, an optional human-readable role
 // (becomes the agent's name), and an optional starter prompt sent after spawn.
@@ -7,6 +7,8 @@ export interface TemplateSlot {
   provider: string;
   role?: string;
   prompt?: string;
+  model?: string; // overrides the provider's default model at spawn
+  effort?: string; // claude reasoning effort
 }
 export interface Template {
   name: string;
@@ -331,6 +333,21 @@ function renderRun(box: HTMLElement, h: TemplateHandlers, t: Template) {
   task.focus();
 }
 
+// A native <select> styled like the provider dropdown.
+function picker(options: string[], value: string, onChange: (v: string) => void): HTMLSelectElement {
+  const sel = document.createElement('select');
+  sel.className = 'tmpl-select';
+  for (const o of options) {
+    const opt = document.createElement('option');
+    opt.value = o;
+    opt.textContent = o;
+    if (o === value) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.onchange = () => onChange(sel.value);
+  return sel;
+}
+
 // ---- editor view -----------------------------------------------------------
 // `orig` null = brand new; otherwise editing (name preserved for rename delete).
 function renderEditor(box: HTMLElement, h: TemplateHandlers, orig: Template | null) {
@@ -374,6 +391,8 @@ function renderEditor(box: HTMLElement, h: TemplateHandlers, orig: Template | nu
       }
       sel.onchange = () => {
         slot.provider = sel.value;
+        slot.model = undefined; // model/effort lists are provider-specific
+        slot.effort = undefined;
         renderSlots();
       };
       const role = document.createElement('input');
@@ -391,6 +410,23 @@ function renderEditor(box: HTMLElement, h: TemplateHandlers, orig: Template | nu
       };
       top.append(ic, sel, role, del);
 
+      // Model / effort selects — only for providers that have a catalog.
+      const cat = providerModels(slot.provider);
+      const modelRow = document.createElement('div');
+      modelRow.className = 'tmpl-slot-top';
+      if (cat) {
+        modelRow.append(
+          picker(['default', ...cat.models], slot.model ?? 'default',
+            (v) => (slot.model = v === 'default' ? undefined : v)),
+        );
+        if (cat.effort) {
+          modelRow.append(
+            picker(['effort: default', ...cat.effort], slot.effort ?? 'effort: default',
+              (v) => (slot.effort = v.startsWith('effort:') ? undefined : v)),
+          );
+        }
+      }
+
       const prompt = document.createElement('textarea');
       prompt.className = 'tmpl-prompt';
       prompt.rows = 2;
@@ -398,7 +434,9 @@ function renderEditor(box: HTMLElement, h: TemplateHandlers, orig: Template | nu
       prompt.value = slot.prompt ?? '';
       prompt.oninput = () => (slot.prompt = prompt.value);
 
-      card.append(top, prompt);
+      card.append(top);
+      if (cat) card.append(modelRow);
+      card.append(prompt);
       slotsEl.appendChild(card);
     });
   };
@@ -433,6 +471,8 @@ function renderEditor(box: HTMLElement, h: TemplateHandlers, orig: Template | nu
       provider: s.provider,
       ...(s.role?.trim() ? { role: s.role.trim() } : {}),
       ...(s.prompt?.trim() ? { prompt: s.prompt.trim() } : {}),
+      ...(s.model ? { model: s.model } : {}),
+      ...(s.effort ? { effort: s.effort } : {}),
     }));
     if (origName && origName !== name) removeTemplate(origName);
     saveTemplate(name, clean);

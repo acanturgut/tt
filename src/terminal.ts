@@ -16,7 +16,7 @@ export class AgentTerminal {
     this.term = new Terminal({
       fontFamily: 'Menlo, monospace',
       fontSize: this.fontSize,
-      lineHeight: 1.15,
+      lineHeight: 1.0,
       cursorBlink: true,
       allowProposedApi: true,
     });

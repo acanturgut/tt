@@ -8,8 +8,9 @@ pub fn command_for(agent_id: &str) -> Option<AgentCommand> {
     let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
     match agent_id {
         "claude" => Some(AgentCommand {
+            // model/effort are appended by spawn_agent from the frontend catalog.
             program: "claude".into(),
-            args: s(&["--permission-mode", "auto", "--effort", "high"]),
+            args: s(&["--permission-mode", "auto"]),
         }),
         "codex" => Some(AgentCommand {
             program: "codex".into(),
@@ -47,7 +48,7 @@ mod tests {
     fn claude_maps_to_its_command() {
         let c = command_for("claude").unwrap();
         assert_eq!(c.program, "claude");
-        assert_eq!(c.args, vec!["--permission-mode", "auto", "--effort", "high"]);
+        assert_eq!(c.args, vec!["--permission-mode", "auto"]);
     }
 
     #[test]

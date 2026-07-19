@@ -20,6 +20,7 @@ import {
   remove,
   reorder,
   setLabel,
+  setModel,
   setName,
   subscribe,
   type WorkflowLabel,
@@ -50,12 +51,12 @@ import {
   subscribeTasks,
   type Task,
 } from './tasks';
-import { getSettings, openSettings } from './settings';
+import { getSettings, openSettings, defaultModel, defaultEffort } from './settings';
 import { openTemplates, type Template } from './templates';
 import { chime } from './sound';
 import { showInstallHelp } from './installs';
 import { randomName } from './naming';
-import { visibleProviders, subscribeProviders } from './providers';
+import { visibleProviders, subscribeProviders, spawnModelArgs, providerModels } from './providers';
 import { renderWelcome } from './welcome';
 import './styles.css';
 
@@ -124,6 +125,28 @@ function closeAgent(id: string) {
   remove(id);
 }
 
+// Change an agent's model/effort from its header. claude switches both in place
+// via /model and /effort (keeps context). Providers with no live command just
+// record the value — it applies on the next spawn / a manual Restart.
+function setAgentModel(id: string, model?: string, effort?: string) {
+  const a = list().find((x) => x.id === id);
+  if (!a) return;
+  const cat = providerModels(a.agentId);
+  if (model && cat?.live) broadcast([id], cat.live(model), false);
+  if (effort && cat?.liveEffort) broadcast([id], cat.liveEffort(effort), false);
+  setModel(id, model, effort);
+}
+
+// Relaunch an agent with its recorded model/effort — the way effort/non-claude
+// model changes take effect. Loses the session (fresh CLI), same dir/name.
+function restartAgent(id: string) {
+  const a = list().find((x) => x.id === id);
+  if (!a) return;
+  const { agentId, dir, name, model, effort, label } = a;
+  closeAgent(id);
+  void spawn(agentId, dir, label, { name, model, effort });
+}
+
 // Agents belonging to the current project tab — each tab is its own panel.
 function curProjPath(): string | null {
   return currentProject()?.path ?? null;
@@ -176,7 +199,7 @@ async function runTemplate(t: Template, task: string) {
   }
   for (const s of t.slots) {
     const msg = slotMessage(s.prompt, task);
-    await spawn(s.provider, p.path, undefined, { name: s.role, prompt: msg || undefined });
+    await spawn(s.provider, p.path, undefined, { name: s.role, prompt: msg || undefined, model: s.model, effort: s.effort });
   }
 }
 function showTemplates() {
@@ -278,6 +301,8 @@ function renderAgents() {
     onSetLabel: setLabel,
     onRename: setName,
     onReorder: reorder,
+    onSetModel: setAgentModel,
+    onRestart: restartAgent,
   });
   updateBroadcast(vis);
   syncNotifications();
@@ -371,16 +396,20 @@ async function spawn(
   agentId: string,
   dir: string,
   label?: WorkflowLabel,
-  opts?: { spawned?: boolean; parentId?: string; prompt?: string; name?: string },
+  opts?: { spawned?: boolean; parentId?: string; prompt?: string; name?: string; model?: string; effort?: string },
 ) {
   const st = getSettings();
   const key = crypto.randomUUID();
+  // Template slot > provider default > CLI's own default.
+  const model = opts?.model || defaultModel(agentId);
+  const effort = agentId === 'claude' ? opts?.effort || defaultEffort() : undefined;
   try {
     const id = await invoke<string>('spawn_agent', {
       projectDir: dir,
       agentId,
       permMode: agentId === 'claude' ? st.claudeMode : undefined,
       sessionKey: key,
+      extraArgs: spawnModelArgs(agentId, model, effort),
     });
     const t = new AgentTerminal(id);
     terms.set(id, t);
@@ -401,6 +430,8 @@ async function spawn(
       spawned: opts?.spawned,
       parentId: opts?.parentId,
       label: label ?? (st.autoPlanning ? 'planning' : undefined),
+      model: model || undefined,
+      effort,
     });
     if (st.autoFocus) focus(id);
     // ponytail: fixed 2.5s delay to let the CLI boot before typing the first
@@ -438,7 +469,7 @@ function persistAgents() {
   if (restoring) return; // don't clobber the saved list before restoreAgents() reads it
   const data = list()
     .filter((a) => a.key)
-    .map((a) => ({ agentId: a.agentId, name: a.name, dir: a.dir, label: a.label, key: a.key, project: a.project }));
+    .map((a) => ({ agentId: a.agentId, name: a.name, dir: a.dir, label: a.label, key: a.key, project: a.project, model: a.model, effort: a.effort }));
   localStorage.setItem('tt.agents', JSON.stringify(data));
 }
 
@@ -459,7 +490,7 @@ async function restoreAgents() {
 }
 
 async function reattachAll(
-  saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string }>,
+  saved: Array<{ agentId?: string; name?: string; dir?: string; label?: string; key?: string; project?: string; model?: string; effort?: string }>,
 ) {
   for (const rec of saved) {
     if (!rec?.key || !rec?.agentId || !rec?.dir) continue;
@@ -488,6 +519,8 @@ async function reattachAll(
         key: rec.key,
         project: rec.project,
         label: rec.label as WorkflowLabel | undefined,
+        model: rec.model,
+        effort: rec.effort,
       });
     } catch {
       /* skip */

@@ -277,6 +277,9 @@ body.left-collapsed .rail-empty { display: none; }
 .pill { font-size: 10.5px; padding: 2px 9px; border-radius: 999px; border: none; background: var(--elev-2); color: var(--muted); cursor: pointer; white-space: nowrap; flex: 0 0 auto; transition: background .12s ease; }
 .pill:hover { background: color-mix(in srgb, var(--elev-2) 70%, #fff 10%); }
 .pill.pill-empty { color: var(--dim); }
+.tile-header .modelpill { font-size: 10.5px; font-family: var(--font-mono); padding: 2px 8px; border-radius: 999px; background: var(--elev-2); color: var(--muted); cursor: pointer; white-space: nowrap; flex: 0 0 auto; transition: background .12s ease; }
+.tile-header .modelpill:hover { background: color-mix(in srgb, var(--elev-2) 70%, #fff 10%); }
+.tile-header .modelpill.modelpill-default { color: var(--dim); }
 
 /* ── right tree ──────────────────────────────────────── */
 #tree { width: 268px; flex: 0 0 268px; background: var(--bg); padding: 6px; display: flex; flex-direction: column; overflow: hidden; }
@@ -314,6 +317,8 @@ body.right-collapsed #tree { display: none; }
 .popmenu-item .agent-ico { width: 14px; height: 14px; }
 .popmenu-item:hover, .popmenu-item.sel { background: var(--accent); color: #fff !important; }
 .popmenu-clear { color: var(--muted); margin-top: 2px; }
+.popmenu-head { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim); padding: 6px 10px 3px; }
+.popmenu-item.popmenu-on::after { content: '✓'; margin-left: auto; opacity: .8; }
 
 /* ── overlays (palette · settings · templates · install) ─ */
 .palette-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, .5); display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; }
