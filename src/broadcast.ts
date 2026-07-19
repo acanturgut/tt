@@ -14,6 +14,28 @@ let numbered = localStorage.getItem('tt.bcNumbered') === '1';
 // Draft survives closing the composer, so a half-written message isn't lost.
 let draft = '';
 
+// Shell-style history: past sends walk back with ↑, forward with ↓.
+const HIST_KEY = 'tt.bcHistory';
+const HIST_MAX = 50;
+let history: string[] = loadHistory(); // oldest → newest
+let histIdx = -1; // -1 = live draft; otherwise an index into `history`
+let histStash = ''; // the live draft, saved while browsing history
+
+function loadHistory(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function pushHistory(text: string) {
+  if (!text || history[history.length - 1] === text) return; // skip blanks + consecutive dups
+  history.push(text);
+  if (history.length > HIST_MAX) history = history.slice(-HIST_MAX);
+  localStorage.setItem(HIST_KEY, JSON.stringify(history));
+}
+
 let handlers: BroadcastHandlers | null = null;
 let currentAgents: Agent[] = [];
 
@@ -108,10 +130,49 @@ function doSend() {
   const msg = parsed ? parsed.clean : text;
   if (!ids.length || !msg) return;
   handlers.onSend(ids, msg, numbered);
+  pushHistory(text);
+  histIdx = -1;
   field.value = '';
   autoGrow();
   field.focus();
   closeSlash();
+}
+
+// ---- history recall -------------------------------------------------------
+// ↑ recalls only when the caret is on the first line, ↓ only on the last line,
+// so normal multi-line editing keeps the arrows.
+function caretOnFirstLine(f: HTMLTextAreaElement): boolean {
+  return f.value.lastIndexOf('\n', f.selectionStart - 1) === -1;
+}
+function caretOnLastLine(f: HTMLTextAreaElement): boolean {
+  return f.value.indexOf('\n', f.selectionStart) === -1;
+}
+function applyRecall() {
+  if (!field) return;
+  autoGrow();
+  const end = field.value.length;
+  field.setSelectionRange(end, end); // caret to end, like a shell
+  closeSlash();
+}
+function recall(step: -1 | 1) {
+  if (!field || !history.length) return;
+  if (histIdx === -1) {
+    if (step > 0) return; // already at the live draft — nothing newer
+    histStash = field.value; // stash it so ↓ can bring it back
+    histIdx = history.length - 1;
+  } else {
+    const next = histIdx + step;
+    if (next < 0) return; // oldest — stay put
+    if (next >= history.length) {
+      histIdx = -1; // stepped past the newest → restore the live draft
+      field.value = histStash;
+      applyRecall();
+      return;
+    }
+    histIdx = next;
+  }
+  field.value = history[histIdx];
+  applyRecall();
 }
 
 function autoGrow() {
@@ -263,6 +324,11 @@ function onFieldKey(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); runSlash(slashIdx); return; }
     if (e.key === 'Escape') { closeSlash(); return; }
   }
+  // Recall previous sends (only reachable when the slash menu isn't open).
+  if (!e.shiftKey && field) {
+    if (e.key === 'ArrowUp' && caretOnFirstLine(field)) { e.preventDefault(); recall(-1); return; }
+    if (e.key === 'ArrowDown' && caretOnLastLine(field)) { e.preventDefault(); recall(1); return; }
+  }
   // Enter sends; Shift+Enter inserts a newline (default textarea behaviour).
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
   else if (e.key === 'Escape') { if (pop) closePop(); else closeComposer(); }
@@ -329,8 +395,10 @@ export function openComposer() {
   field.className = 'bc-field';
   field.rows = 1;
   field.value = draft;
+  histIdx = -1; // fresh open — ↑ starts from the newest send again
   field.placeholder = 'Message agents…';
   field.oninput = () => {
+    histIdx = -1; // typing diverges from history; re-stash on the next ↑
     autoGrow();
     const v = field!.value;
     if (/^\/\S*$/.test(v)) openSlash(v);
@@ -347,6 +415,7 @@ export function openComposer() {
   hints.append(
     hint(['↵'], 'Send'),
     hint(['⇧', '↵'], 'New line'),
+    hint(['↑'], 'History'),
     hint(['/'], 'Commands'),
     hint(['#'], 'Target one'),
   );
@@ -366,28 +435,20 @@ export function openComposer() {
   autoGrow(); // settle the field height before measuring the target rect
   syncTargetBtn();
 
-  // The actual omnibox hands off to the composer: hide it, and start the composer
-  // exactly on the bar's rect wearing the bar's translucent look, then morph to the
-  // full panel — so it reads as the search bar itself expanding, not a new box.
+  // The omnibox hands off to the composer: hide the bar, fade the panel in, and let
+  // the content rise into place. The glass panel never scales/translates — only its
+  // opacity changes — because transforming a backdrop-filter element flashes white.
   if (rootEl) rootEl.style.opacity = '0';
-  if (!reduceMotion() && rootEl) {
-    const kids = Array.from(composer.children);
-    const bar = rootEl.getBoundingClientRect();
-    const cr = composer.getBoundingClientRect();
-    const dx = bar.left + bar.width / 2 - (cr.left + cr.width / 2);
-    const dy = bar.top - cr.top;
-    const panelBg = getComputedStyle(composer).backgroundColor;
-    gsap.to(scrim, { opacity: 1, duration: 0.3, ease: 'power2.out' });
+  if (reduceMotion() || !rootEl) {
+    if (scrim) scrim.style.opacity = '1';
+  } else {
+    gsap.to(scrim, { opacity: 1, duration: 0.25, ease: 'power2.out' });
+    gsap.fromTo(composer, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: 'power2.out' });
     gsap.fromTo(
-      composer,
-      { x: dx, y: dy, scaleX: bar.width / cr.width, scaleY: bar.height / cr.height, transformOrigin: 'center top', backgroundColor: 'rgba(255,255,255,0.055)' },
-      { x: 0, y: 0, scaleX: 1, scaleY: 1, backgroundColor: panelBg, duration: 0.5, ease: 'expo.out', clearProps: 'transform,backgroundColor',
-        onComplete: () => composer?.classList.add('glass') }, // frost only once the transform is done
+      Array.from(composer.children),
+      { opacity: 0, y: 8 },
+      { opacity: 1, y: 0, duration: 0.34, ease: 'power3.out', delay: 0.05, stagger: 0.04, clearProps: 'transform' },
     );
-    gsap.fromTo(kids, { opacity: 0 }, { opacity: 1, duration: 0.28, ease: 'power2.out', delay: 0.14, stagger: 0.035 });
-  } else if (scrim) {
-    scrim.style.opacity = '1';
-    composer.classList.add('glass');
   }
 
   field.focus();
@@ -408,27 +469,12 @@ export function closeComposer() {
   field = null;
   targetBtn = null;
   numBtn = null;
-  // reverse the morph, then reveal the real omnibox again exactly as the composer vanishes
+  // fade the composer out, then reveal the real omnibox again as it vanishes
   const done = () => { c.remove(); s?.remove(); if (rootEl) rootEl.style.opacity = ''; };
   if (reduceMotion() || !rootEl) { done(); return; }
-  c.classList.remove('glass'); // drop backdrop-filter before scaling, else it flashes white
-  const bar = rootEl.getBoundingClientRect();
-  const cr = c.getBoundingClientRect();
-  const dx = bar.left + bar.width / 2 - (cr.left + cr.width / 2);
-  const dy = bar.top - cr.top;
-  if (s) gsap.to(s, { opacity: 0, duration: 0.24, ease: 'power2.in' });
-  gsap.to(Array.from(c.children), { opacity: 0, duration: 0.16, ease: 'power2.in' });
-  gsap.to(c, {
-    x: dx,
-    y: dy,
-    scaleX: bar.width / cr.width,
-    scaleY: bar.height / cr.height,
-    transformOrigin: 'center top',
-    backgroundColor: 'rgba(255,255,255,0.055)',
-    duration: 0.32,
-    ease: 'power3.inOut',
-    onComplete: done,
-  });
+  if (s) gsap.to(s, { opacity: 0, duration: 0.2, ease: 'power2.in' });
+  gsap.to(Array.from(c.children), { opacity: 0, y: 8, duration: 0.16, ease: 'power2.in' });
+  gsap.to(c, { opacity: 0, duration: 0.22, ease: 'power2.in', onComplete: done });
 }
 
 function updateTrigger() {

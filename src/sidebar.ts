@@ -92,6 +92,10 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
       if (from) h.onReorder(from, a.id);
     };
 
+    // Task-first: the current task is the headline; when there's no task yet,
+    // the agent's own name stands in for it.
+    const hasTitle = !!a.title;
+
     const top = document.createElement('div');
     top.className = 'agentrow-top';
     const dot = document.createElement('span');
@@ -99,8 +103,9 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
     dot.style.background = DOT[a.status];
     const label = document.createElement('span');
     label.className = 'label';
-    label.textContent = a.name;
-    label.style.color = labelColor(a.label) ?? '';
+    label.textContent = a.title || a.name;
+    // color by workflow only when the headline is the name (task titles stay neutral)
+    if (!hasTitle) label.style.color = labelColor(a.label) ?? '';
     const close = document.createElement('span');
     close.className = 'close';
     close.title = 'close agent';
@@ -109,38 +114,54 @@ export function renderSidebar(root: HTMLElement, agents: Agent[], h: SidebarHand
       ev.stopPropagation();
       h.onClose(a.id);
     };
-    const num = document.createElement('span');
-    num.className = 'rnum';
-    num.textContent = `#${node.label}`;
-    num.title = `Agent ${node.label}. Type #${node.label} in the broadcast bar to message only this agent`;
     const lead: HTMLElement[] = [];
     if (node.depth > 0) {
       const arrow = icon('arrow-bend-down-right');
       arrow.classList.add('sub-arrow');
       lead.push(arrow);
     }
-    lead.push(num, dot);
     if (a.attention) {
       const star = document.createElement('span');
       star.className = 'attn';
       star.appendChild(icon('bell-ringing'));
-      top.append(...lead, star, label, close);
+      lead.push(star); // alert: the bell stands in for the status dot
     } else {
-      top.append(...lead, label, close);
+      lead.push(dot);
     }
+    top.append(...lead, label, close);
+    row.append(top);
 
-    const pill = statusPill(a, (l) => h.onSetLabel(a.id, l));
-    row.append(top, pill);
-
-    const metaParts: string[] = [];
-    if (a.title) metaParts.push(a.title);
-    if (a.tokens) metaParts.push(`${fmtTokens(a.tokens)} tok`);
-    if (metaParts.length) {
-      const meta = document.createElement('div');
-      meta.className = 'rail-meta';
-      meta.textContent = metaParts.join(' · ');
-      row.appendChild(meta);
+    // meta footer: identity + live status, dot-separated
+    const meta = document.createElement('div');
+    meta.className = 'rail-meta';
+    const sep = () => {
+      const s = document.createElement('span');
+      s.className = 'meta-sep';
+      s.textContent = '·';
+      return s;
+    };
+    const part = (text: string, cls?: string) => {
+      const s = document.createElement('span');
+      s.textContent = text;
+      if (cls) s.className = cls;
+      return s;
+    };
+    const num = part(`#${node.label}`, 'rnum');
+    num.title = `Agent ${node.label}. Type #${node.label} in the broadcast bar to message only this agent`;
+    meta.append(num);
+    // agent name — shown here only when the headline is the task instead
+    if (hasTitle) {
+      const nm = part(a.name, 'meta-name');
+      nm.style.color = labelColor(a.label) ?? '';
+      meta.append(sep(), nm);
     }
+    const folder = a.dir.split('/').filter(Boolean).pop();
+    if (folder) meta.append(sep(), part(folder));
+    meta.append(sep(), part(a.status));
+    if (a.tokens) meta.append(sep(), part(`${fmtTokens(a.tokens)} tok`));
+    row.append(meta);
+
+    row.append(statusPill(a, (l) => h.onSetLabel(a.id, l)));
     listWrap.appendChild(row);
   }
   root.appendChild(listWrap);

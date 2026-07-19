@@ -8,7 +8,7 @@ tokens (localhost only).
 
 | Tool | What it does |
 |------|--------------|
-| `spawn_agent(agent, dir)` | Open a new agent (claude/codex/cursor/gemini/opencode/antigravity/terminal) in a folder. |
+| `spawn_agent(agent, dir, prompt?)` | Open a new agent (claude/codex/cursor/gemini/opencode/antigravity/terminal) in a folder; `prompt` is typed in once it boots. |
 | `list_agents()` | Current agents: number, name, kind, dir, status. |
 | `send(agent_number, text)` | Type text (+Enter) into one agent. |
 | `broadcast(text, numbered?)` | Send to all agents; `numbered` prefixes "You are agent N of M". |

@@ -19,7 +19,6 @@ export interface TopbarHandlers {
   onSpawn: (agentId: string) => void;
   onToggleLeft: () => void;
   onToggleRight: () => void;
-  onTemplates: () => void;
   onBoard: () => void;
 }
 
@@ -133,7 +132,7 @@ function toolBtn(name: string, label: string, onClick: () => void, keys?: string
 // Project tabs live on their own row above the nav; each tab is its own panel.
 export function renderProjectTabs(
   root: HTMLElement,
-  h: { onZoomIn: () => void; onZoomOut: () => void },
+  h: { onZoomIn: () => void; onZoomOut: () => void; onTemplates: () => void },
 ) {
   root.innerHTML = '';
   const projs = listProjects();
@@ -179,6 +178,7 @@ export function renderProjectTabs(
     toolBtn('minus', 'Zoom out', h.onZoomOut, '⌘ -'),
     toolBtn('plus', 'Zoom in', h.onZoomIn, '⌘ +'),
     toolBtn('gear-six', 'Settings', () => openSettings(), '⌘ ,'),
+    toolBtn('stack', 'Fleet templates', () => h.onTemplates(), '⌘ F'),
   );
   root.appendChild(tools);
 }
@@ -208,9 +208,8 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
     wrap.append(b);
   }
 
-  const tmplBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates());
   const boardBtn = iconBtn('kanban', 'Task board', () => h.onBoard(), '⌘ J');
 
   left.append(treeToggle, wrap);
-  right.append(tmplBtn, boardBtn, agentsToggle);
+  right.append(boardBtn, agentsToggle);
 }

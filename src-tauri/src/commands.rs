@@ -353,6 +353,7 @@ pub fn read_image_data_url(path: String) -> Result<String, String> {
         Some("jpg") | Some("jpeg") => "image/jpeg",
         Some("gif") => "image/gif",
         Some("webp") => "image/webp",
+        Some("pdf") => "application/pdf",
         _ => "application/octet-stream",
     };
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;

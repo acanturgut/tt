@@ -14,7 +14,6 @@ import {
   focused,
   list,
   markClaude,
-  markExit,
   markInput,
   markOutput,
   remove,
@@ -159,13 +158,29 @@ function globalZoom(delta: number) {
   for (const t of terms.values()) (delta > 0 ? t.zoomIn() : t.zoomOut());
 }
 
-async function runTemplate(t: Template) {
-  for (const a of t.agents) await spawn(a.agentId, a.dir, a.label);
+// Combine a slot's standing role prompt with the run-time task: {task} placeholder
+// if present, otherwise append. Either side may be empty.
+function slotMessage(prompt: string | undefined, task: string): string {
+  const p = (prompt ?? '').trim();
+  if (p.includes('{task}')) return p.replace(/\{task\}/g, task).trim();
+  return [p, task].filter(Boolean).join('\n\n');
+}
+async function runTemplate(t: Template, task: string) {
+  const p = currentProject();
+  if (!p) {
+    alert('Open a project first — a fleet template spawns its agents in the current project.');
+    return;
+  }
+  for (const s of t.slots) {
+    const msg = slotMessage(s.prompt, task);
+    await spawn(s.provider, p.path, undefined, { name: s.role, prompt: msg || undefined });
+  }
 }
 function showTemplates() {
   openTemplates({
-    onRun: (t) => void runTemplate(t),
-    currentAgents: () => visibleAgents().map((a) => ({ agentId: a.agentId, dir: a.dir, label: a.label })),
+    onRun: (t, task) => void runTemplate(t, task),
+    providers: visibleProviders,
+    currentAgents: () => visibleAgents().map((a) => ({ provider: a.agentId, role: a.name })),
   });
 }
 
@@ -315,6 +330,7 @@ function renderProject() {
   renderProjectTabs(projtabsEl, {
     onZoomIn: () => globalZoom(1),
     onZoomOut: () => globalZoom(-1),
+    onTemplates: showTemplates,
   });
   renderTopbar(tbLeftEl, tbRightEl, {
     onSpawn: (agentId) => {
@@ -323,18 +339,26 @@ function renderProject() {
     },
     onToggleLeft: () => toggleSide('tt.left'),
     onToggleRight: () => toggleSide('tt.right'),
-    onTemplates: showTemplates,
     onBoard: () => { closeViewer(); openBoard(); },
   });
   void renderTree(treeEl, currentProject()?.path ?? null, treeHandlers());
   pushTasks();
 }
 
+// Typed into every freshly spawned agent so it self-orients: it's one of a
+// fleet sharing the tt MCP + task board. Full tool docs come from the MCP's
+// own initialize instructions — this is just the nudge to go look.
+// ponytail: assumes the CLI has the tt MCP configured (see docs/MCP.md).
+const ORIENT =
+  "[tt] You're one agent in a tt fleet sharing a task board and the tt MCP. " +
+  'Use its tools to coordinate — list_tasks/add_task/update_task (board), ' +
+  'list_agents/send/broadcast/spawn_agent (agents). Check list_tasks first for your work.';
+
 async function spawn(
   agentId: string,
   dir: string,
   label?: WorkflowLabel,
-  opts?: { spawned?: boolean; parentId?: string },
+  opts?: { spawned?: boolean; parentId?: string; prompt?: string; name?: string },
 ) {
   const st = getSettings();
   const key = crypto.randomUUID();
@@ -356,7 +380,7 @@ async function spawn(
     add({
       id,
       agentId,
-      name: randomName(),
+      name: opts?.name || randomName(),
       dir,
       status: 'working',
       key,
@@ -366,6 +390,16 @@ async function spawn(
       label: label ?? (st.autoPlanning ? 'planning' : undefined),
     });
     if (st.autoFocus) focus(id);
+    // ponytail: fixed 2.5s delay to let the CLI boot before typing the first
+    // prompt — TUIs eat input sent before they're ready. Swap for a readiness
+    // signal (claude jsonl / prompt-detected) if this proves flaky.
+    if (agentId !== 'terminal') {
+      const msg = opts?.prompt ? `${ORIENT}\n\n${opts.prompt}` : ORIENT;
+      setTimeout(() => broadcast([id], msg, false), 2500);
+    } else if (opts?.prompt) {
+      const p = opts.prompt;
+      setTimeout(() => broadcast([id], p, false), 2500);
+    }
   } catch (e) {
     alert(`spawn failed: ${e}`);
   }
@@ -470,10 +504,10 @@ listen<{ id: string }>('agent-exit', (e) => {
   // Died within a few seconds while still in the store (not user-closed) -> failed to start.
   if (a && a.agentId !== 'terminal' && born && Date.now() - born < 4000) {
     showInstallHelp(a.agentId);
-    closeAgent(id);
-  } else {
-    markExit(id);
   }
+  // Agent exited (Ctrl+C, /exit, crash) -> drop the tile and clean up its tmux
+  // session, rather than leaving a dead "exited" tile behind.
+  closeAgent(id);
 });
 listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
   markClaude(e.payload.id, e.payload.title, e.payload.tokens),
@@ -481,10 +515,11 @@ listen<{ id: string; title?: string; tokens: number }>('agent-claude', (e) =>
 
 // MCP server -> UI: an agent (via the tt MCP tools) asked to spawn/send/broadcast/close.
 // Numbers are 1-based positions in list() (matches the list_agents snapshot).
-listen<{ agent: string; dir: string }>('mcp-spawn', (e) =>
+listen<{ agent: string; dir: string; prompt?: string }>('mcp-spawn', (e) =>
   void spawn(e.payload.agent, e.payload.dir, undefined, {
     spawned: true,
     parentId: focused() ?? undefined, // best-effort: the agent you're watching spawned it
+    prompt: e.payload.prompt || undefined,
   }),
 );
 listen<{ number: string; text: string }>('mcp-send', (e) => {
@@ -503,6 +538,12 @@ listen<{ number: string }>('mcp-close', (e) => {
   const byLabel = new Map(agentTree(list()).map((n) => [n.label, n.agent.id]));
   const id = byLabel.get(String(e.payload.number));
   if (id) closeAgent(id);
+});
+// An agent set its own workflow status pill via MCP. Rust already validated the enum.
+listen<{ number: string; status: WorkflowLabel }>('mcp-set-status', (e) => {
+  const byLabel = new Map(agentTree(list()).map((n) => [n.label, n.agent.id]));
+  const id = byLabel.get(String(e.payload.number));
+  if (id) setLabel(id, e.payload.status);
 });
 
 subscribeTasks(() => {
@@ -573,6 +614,9 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   } else if (e.key === ',') {
     openSettings();
+    e.preventDefault();
+  } else if (e.key.toLowerCase() === 'f') {
+    showTemplates();
     e.preventDefault();
   } else if (e.key.toLowerCase() === 'w') {
     const f = focused();

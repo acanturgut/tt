@@ -79,6 +79,10 @@ impl PtySession {
         cmd.args(args);
         cmd.cwd(cwd);
         cmd.env("PATH", user_path()); // find user-installed CLIs even from a bare .app PATH
+        // A GUI .app inherits no TERM, so agents fall back to monochrome. Declare the
+        // xterm.js terminal so ANSI colors come through.
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
 
         let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
         drop(pair.slave); // release the slave so EOF is delivered on child exit

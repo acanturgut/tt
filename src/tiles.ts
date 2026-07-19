@@ -151,6 +151,7 @@ export function syncTiles(
   }
 
   const focusMode = !!focusedId;
+  document.body.classList.toggle('focus', focusMode);
   const { cols, rows } = gridDims(agents.length);
   stage.style.gridTemplateColumns = focusMode ? '1fr' : `repeat(${cols || 1}, 1fr)`;
   stage.style.gridTemplateRows = focusMode ? '1fr' : `repeat(${rows || 1}, 1fr)`;
@@ -166,6 +167,7 @@ export function syncTiles(
     t.root.style.display = visible ? 'flex' : 'none';
     t.dot.style.background = DOT[a.status];
     t.root.classList.toggle('attention', !!a.attention);
+    t.dot.style.display = a.attention ? 'none' : ''; // alert: bell replaces the dot
     t.star.style.display = a.attention ? 'inline-flex' : 'none';
     if (t.name.isConnected) t.name.textContent = a.name;
 
@@ -174,10 +176,7 @@ export function syncTiles(
     t.name.style.color = col ?? '';
     t.header.style.background = col ? tint(col, 0.16) : '';
 
-    const parts: string[] = [];
-    if (a.title) parts.push(a.title);
-    if (a.tokens) parts.push(`${fmtTokens(a.tokens)} tok`);
-    t.meta.textContent = parts.join(' · ');
+    t.meta.textContent = a.tokens ? `${fmtTokens(a.tokens)} tok` : '';
     updatePill(t.pill, a);
   }
 

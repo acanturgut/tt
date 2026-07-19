@@ -2,14 +2,14 @@ import type { Agent, WorkflowLabel } from './agents';
 import { placeMenu } from './menu';
 
 const LABELS: { key: WorkflowLabel; text: string; color: string }[] = [
-  { key: 'planning', text: 'Planning', color: '#bc8cff' },
-  { key: 'in-progress', text: 'In progress', color: '#e3b341' },
-  { key: 'in-review', text: 'In review', color: '#58a6ff' },
-  { key: 'done', text: 'Done', color: '#3fb950' },
+  { key: 'planning', text: 'Planning', color: '#c9b6f7' },
+  { key: 'in-progress', text: 'In progress', color: '#f2d49b' },
+  { key: 'in-review', text: 'In review', color: '#a8c7f0' },
+  { key: 'done', text: 'Done', color: '#a6d8b0' },
 ];
 
 // Task-board-only statuses (not offered on the agent status pill) still need a color.
-const TASK_STATUS_COLORS: Partial<Record<WorkflowLabel, string>> = { 'needs-human': '#f0883e' };
+const TASK_STATUS_COLORS: Partial<Record<WorkflowLabel, string>> = { 'needs-human': '#f2b48a' };
 
 export function labelColor(label?: WorkflowLabel): string | null {
   return LABELS.find((l) => l.key === label)?.color ?? (label ? TASK_STATUS_COLORS[label] ?? null : null);

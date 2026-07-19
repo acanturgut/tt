@@ -147,8 +147,8 @@ body.no-project #broadcast { visibility: hidden; }
 #tb-right { justify-content: flex-end; }
 #topbar .brand { font-weight: 600; letter-spacing: .5px; color: #fff; font-size: 15px; }
 .topbar-spacer { flex: 1; }
-.icobtn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; color: rgba(255, 255, 255, .72); border: none; border-radius: var(--r); cursor: pointer; transition: color .12s ease, background .12s ease; }
-.icobtn:hover { color: #fff; background: rgba(255, 255, 255, .13); }
+.icobtn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: rgba(0, 0, 0, .22); color: rgba(255, 255, 255, .82); border: none; border-radius: var(--r); cursor: pointer; transition: color .12s ease, background .12s ease; }
+.icobtn:hover { color: #fff; background: rgba(255, 255, 255, .16); }
 /* inline shortcut chips on icon buttons — button grows to fit icon + chip */
 .icobtn:has(.ico-kbd), .proj-tool:has(.ico-kbd), .spawnbtn:has(.ico-kbd) { width: auto; gap: 5px; padding: 0 8px; }
 .ico-kbd { background: rgba(255, 255, 255, .15); color: rgba(255, 255, 255, .85); box-shadow: none; }
@@ -184,7 +184,18 @@ body.no-project #broadcast { visibility: hidden; }
 /* ── left rail (agents) ──────────────────────────────── */
 #sidebar { width: 280px; flex: 0 0 280px; background: var(--bg); padding: 8px; display: flex; flex-direction: column; overflow: hidden; }
 .rail-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
-body.left-collapsed #sidebar { display: none; }
+/* Collapsed agents panel: a thin rail keeping each agent's status dot + #number,
+   still clickable to focus. Everything else (name, task, pill, close) is hidden. */
+body.left-collapsed #sidebar { width: 48px; flex-basis: 48px; padding: 8px 0; }
+body.left-collapsed .rail-head { display: none; }
+body.left-collapsed .agentrow { padding: 9px 0 !important; }
+body.left-collapsed .agentrow-top { flex-direction: column; gap: 5px; }
+body.left-collapsed .agentrow .label,
+body.left-collapsed .agentrow .close,
+body.left-collapsed .agentrow .pill,
+body.left-collapsed .sub-arrow,
+body.left-collapsed .rail-meta > :not(.rnum) { display: none; }
+body.left-collapsed .rail-meta { justify-content: center; margin-top: 4px; }
 .rail-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 0 4px; color: var(--muted); font-weight: 600; font-size: 12px; }
 .rail-title.has-attn { color: var(--amber); }
 .rail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; color: var(--muted); padding: 44px 14px; }
@@ -196,8 +207,7 @@ body.left-collapsed #sidebar { display: none; }
 .gridbtn:disabled { opacity: .4; cursor: default; }
 
 .agentrow { position: relative; padding: 11px 8px; cursor: pointer; background: none; border: none; border-radius: var(--r); transition: background .12s ease; }
-/* Subagents render as a tree: a vertical guide line + dimmer child rows. */
-.agentrow.sub::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(var(--depth, 1) * 18px - 4px); width: 1px; background: var(--line-strong); }
+/* Subagents render as dimmer child rows (no guide line). */
 .agentrow.sub .label { font-size: 13px; font-weight: 550; color: var(--muted); }
 .agentrow.sub .dot { width: 8px; height: 8px; }
 .agentrow:hover { background: var(--elev); }
@@ -211,10 +221,13 @@ body.left-collapsed #sidebar { display: none; }
 .agentrow .close { margin-left: auto; display: inline-flex; color: var(--dim); cursor: pointer; padding: 4px; border-radius: var(--r-sm); flex: 0 0 auto; transition: color .12s ease, background .12s ease; }
 .agentrow .close:hover { color: var(--danger); background: var(--elev-2); }
 .agentrow.active .close { color: var(--muted); }
-.agentrow .pill { margin-top: 9px; display: inline-block; }
+.agentrow .pill { margin-top: 8px; display: inline-block; }
 .agentrow.dragging { opacity: .4; }
 .agentrow.drop-target { box-shadow: inset 0 0 0 2px var(--accent); }
-.rail-meta { color: var(--muted); font-size: 12px; margin-top: 7px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; }
+/* identity + live-status footer: dot-separated, wraps rather than truncates */
+.rail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; color: var(--dim); font-size: 11.5px; margin-top: 6px; line-height: 1.4; }
+.rail-meta .meta-sep { color: var(--line-strong); }
+.rail-meta .meta-name { font-weight: 550; }
 .attn { display: inline-flex; color: var(--amber); flex: 0 0 auto; }
 .tnum, .rnum { flex: 0 0 auto; min-width: 18px; height: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; border-radius: var(--r-sm); background: none; color: var(--dim); padding: 0 4px; font-family: var(--font-mono); }
 .rnum { min-width: 0; height: auto; font-size: 11.5px; border-radius: 0; background: none; color: var(--dim); padding: 0; }
@@ -225,6 +238,21 @@ body.left-collapsed #sidebar { display: none; }
 
 /* ── stage / tiles ───────────────────────────────────── */
 #stage { flex: 1; min-width: 0; display: grid; gap: 8px; padding: 8px; background: var(--bg); }
+/* Narrow viewport: agent grid becomes one column (focus mode still fills).
+   1 tile fills the stage, 2 split it evenly, 3+ get a fixed height and scroll.
+   !important overrides the inline grid template set in tiles.ts. */
+@media (max-width: 900px) {
+  body:not(.focus) #stage {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
+    grid-auto-rows: 440px !important;
+    overflow-y: auto;
+  }
+  body:not(.focus) #stage:has(.tile:only-child),
+  body:not(.focus) #stage:has(.tile:nth-child(2):last-child) {
+    grid-auto-rows: 1fr !important;
+  }
+}
 .tile { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-radius: var(--r); overflow: hidden; background: var(--elev); }
 .tile.dragging { opacity: .5; }
 .tile.drop-target { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -354,10 +382,23 @@ body.right-collapsed #tree { display: none; }
 .tmpl-run:hover { background: var(--accent-hi); }
 .tmpl-del { display: inline-flex; color: var(--dim); cursor: pointer; padding: 4px; border-radius: var(--r-sm); }
 .tmpl-del:hover { color: var(--danger); background: var(--elev-2); }
-.tmpl-save { display: flex; gap: 8px; }
+.tmpl-save { display: flex; gap: 8px; margin-top: 12px; }
+.tmpl-run-team { margin: 2px 0 10px; }
 .tmpl-input { flex: 1; background: var(--elev-2); color: var(--text); border: none; border-radius: var(--r); padding: 8px 11px; font: inherit; }
-.tmpl-savebtn { background: var(--elev-2); color: var(--accent-hi); border: none; border-radius: var(--r); padding: 8px 14px; cursor: pointer; font-weight: 550; transition: background .12s ease, color .12s ease; }
+.tmpl-savebtn { display: inline-flex; align-items: center; gap: 5px; background: var(--elev-2); color: var(--accent-hi); border: none; border-radius: var(--r); padding: 8px 14px; cursor: pointer; font-weight: 550; transition: background .12s ease, color .12s ease; }
 .tmpl-savebtn:hover { background: var(--accent); color: #fff; }
+.tmpl-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.tmpl-head .settings-title { margin: 0; }
+.tmpl-edit:hover { color: var(--accent-hi) !important; background: var(--elev-2); }
+.tmpl-full { width: 100%; justify-content: center; margin-top: 8px; }
+/* editor: one card per agent slot */
+.tmpl-slots { display: flex; flex-direction: column; gap: 10px; max-height: 48vh; overflow-y: auto; margin: 12px 0; }
+.tmpl-slot { background: var(--elev-2); border-radius: var(--r); padding: 10px; }
+.tmpl-slot-top { display: flex; align-items: center; gap: 8px; }
+.tmpl-slot-top .agent-ico { width: 18px; height: 18px; flex: 0 0 auto; }
+.tmpl-select { background: var(--elev); color: var(--text); border: none; border-radius: var(--r-sm); padding: 6px 8px; font: inherit; cursor: pointer; flex: 0 0 auto; }
+.tmpl-slot-top .tmpl-input { background: var(--elev); }
+.tmpl-prompt { width: 100%; margin-top: 8px; background: var(--elev); color: var(--text); border: none; border-radius: var(--r-sm); padding: 8px 10px; font: inherit; resize: vertical; }
 
 /* ── broadcast: collapsed trigger in the toolbar ─────── */
 /* glassy frosted pill — blurs the colored toolbar behind it */
@@ -375,11 +416,11 @@ body.right-collapsed #tree { display: none; }
 /* ── broadcast: expanded composer overlay ────────────── */
 /* JS drives the transform: it FLIPs from the collapsed bar's rect → this panel. */
 .bc-scrim { position: fixed; inset: 0; z-index: 150; background: rgba(0, 0, 0, .3); opacity: 0; }
-/* liquid glass: translucent surface + heavy frost blur + specular top edge */
-.bc-composer { position: fixed; z-index: 151; top: 54px; left: 50%; margin-left: max(-360px, -46vw); width: min(720px, 92vw); background: color-mix(in srgb, var(--elev) 88%, transparent); border-radius: var(--r-lg); box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .09); padding: 12px; display: flex; flex-direction: column; gap: 10px; transform-origin: top center; will-change: transform, opacity; }
-/* frost is added only after the morph settles — backdrop-filter + an animating
-   transform composites to a white block mid-animation, so we defer it (JS adds .glass) */
-.bc-composer.glass { background: color-mix(in srgb, var(--elev) 64%, transparent); backdrop-filter: blur(30px) saturate(1.8); -webkit-backdrop-filter: blur(30px) saturate(1.8); }
+/* liquid glass: translucent surface + heavy frost blur + specular top edge.
+   The panel itself is NEVER transformed — a transform (or will-change:transform)
+   on a backdrop-filter element paints a white block in WKWebView. It only fades;
+   the content inside does the motion. */
+.bc-composer { position: fixed; z-index: 151; top: 54px; left: 50%; margin-left: max(-360px, -46vw); width: min(720px, 92vw); background: color-mix(in srgb, var(--elev) 64%, transparent); backdrop-filter: blur(30px) saturate(1.8); -webkit-backdrop-filter: blur(30px) saturate(1.8); border-radius: var(--r-lg); box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .09); padding: 12px; display: flex; flex-direction: column; gap: 10px; will-change: opacity; }
 .bc-comp-head { display: flex; align-items: center; gap: 8px; }
 .bc-comp-spacer { flex: 1; }
 .bc-comp-close { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: none; border: none; color: var(--dim); border-radius: var(--r-sm); cursor: pointer; transition: color .12s ease, background .12s ease; }
@@ -450,7 +491,7 @@ body.board-open #board { display: flex; flex-direction: column; flex: 1; min-hei
 .board-add { background: var(--elev); border: none; border-radius: var(--r-sm); color: var(--text); padding: 5px 8px; font: inherit; }
 
 /* status line above broadcast */
-#statusline { padding: 4px 12px; font-size: 11px; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, var(--chrome)); }
+#statusline { padding: 4px 12px; font-size: 11px; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--chrome)); }
 #statusline:empty { display: none; }
 /* progress strip at the very bottom */
 #taskstrip { display: flex; align-items: center; gap: 8px; padding: 5px 12px; font-size: 11px; color: var(--muted); background: var(--chrome); cursor: pointer; transition: background .12s ease; }
@@ -471,6 +512,9 @@ body.viewer-open #stage { flex: 1 1 0; }
 .viewer-copypath, .viewer-toggle { background: var(--elev); border: none; border-radius: var(--r); color: var(--muted); padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px; transition: background .12s ease, color .12s ease; }
 .viewer-copypath:hover, .viewer-toggle:hover { background: var(--elev-2); color: var(--text); }
 .viewer-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 0; }
+/* image/pdf get the whole panel: image centered, pdf edge-to-edge */
+.viewer-body.is-media { display: flex; align-items: center; justify-content: center; }
+.viewer-body.is-pdf { padding: 0; overflow: hidden; }
 .viewer-error { color: var(--danger); padding: 16px; font-family: var(--font-mono); }
 /* Code view: sticky line-number gutter + one highlight.js-colored block. */
 .viewer-code { display: flex; align-items: flex-start; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; width: max-content; min-width: 100%; }
@@ -479,7 +523,8 @@ body.viewer-open #stage { flex: 1 1 0; }
 .viewer-code code.hljs { display: block; padding: 0 16px; background: transparent; white-space: pre; }
 /* rendered markdown — prose line length constrained; tables/code break out.
    markdown keeps its document rules (heading underline, blockquote, tables) — those aren't chrome. */
-.viewer-img { display: block; margin: 16px auto; max-width: calc(100% - 48px); height: auto; border-radius: var(--r); }
+.viewer-img { display: block; max-width: calc(100% - 48px); max-height: calc(100% - 32px); width: auto; height: auto; border-radius: var(--r); }
+.viewer-pdf { width: 100%; height: 100%; border: 0; background: var(--bg); }
 .viewer-md { padding: 8px 24px 48px; color: var(--muted); line-height: 1.7; max-width: 82ch; }
 .viewer-md h1, .viewer-md h2, .viewer-md h3, .viewer-md h4 { scroll-margin-top: 16px; }
 .viewer-md h1, .viewer-md h2 { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
@@ -497,6 +542,8 @@ body.viewer-open #stage { flex: 1 1 0; }
 .viewer-selbtn:hover { background: var(--accent-hi); }
 .sel-kbd { background: rgba(255, 255, 255, .24); color: #fff; box-shadow: none; }
 .viewer-agentmenu { position: absolute; z-index: 51; min-width: 180px; max-height: 260px; overflow-y: auto; background: var(--elev); border-radius: var(--r); padding: 4px; box-shadow: var(--shadow); }
+.viewer-agentmenu-ask { display: block; width: 100%; box-sizing: border-box; margin-bottom: 4px; background: var(--elev-2); border: 1px solid var(--border, transparent); border-radius: var(--r-sm); color: var(--text); padding: 6px 8px; font: inherit; font-size: 12px; resize: none; }
+.viewer-agentmenu-ask:focus { outline: none; border-color: var(--accent); }
 .viewer-agentmenu-empty { color: var(--dim); font-size: 12px; padding: 6px 10px; }
 .viewer-agentmenu-row { display: flex; align-items: center; gap: 8px; width: 100%; background: transparent; border: none; border-radius: var(--r-sm); color: var(--text); padding: 6px 8px; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
 .viewer-agentmenu-row:hover { background: var(--elev-2); }

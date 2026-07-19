@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { invoke } from '@tauri-apps/api/core';
+import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { markInput } from './agents';
 
 export class AgentTerminal {
@@ -35,13 +36,18 @@ export class AgentTerminal {
     this.term.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown' || !e.metaKey || e.ctrlKey || e.altKey) return true;
       if (e.key === 'c' && this.term.hasSelection()) {
-        void navigator.clipboard.writeText(this.term.getSelection());
+        void writeText(this.term.getSelection());
         return false;
       }
       if (e.key === 'v') {
-        void navigator.clipboard.readText().then((t) => {
+        void readText().then((t) => {
           if (t) this.term.paste(t);
         });
+        return false;
+      }
+      // ⌘⌫ = delete to start of line, like macOS text fields → readline kill-line (Ctrl-U).
+      if (e.key === 'Backspace') {
+        void invoke('write_agent', { id: this.id, data: '\x15' });
         return false;
       }
       return true;

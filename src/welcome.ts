@@ -23,7 +23,7 @@ const FEATURES: Feature[] = [
   { icon: 'magnifying-glass', title: 'Command palette',
     body: '⌘K jumps to any file, agent, or action. ⌘N spawns an agent, ⌘T a terminal, ⌘L broadcasts.' },
   { icon: 'stack', title: 'Fleet templates',
-    body: 'Save a whole team of agents as a template, then re-spawn the entire fleet in one click.' },
+    body: 'Define a reusable team — each agent with a role and starter prompt — and spawn the whole fleet into any project in one click.' },
 ];
 
 function el(cls: string, text?: string): HTMLElement {

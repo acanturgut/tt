@@ -39,7 +39,12 @@ Do the work, then update_task(id, status=\"done\", result=\"<short summary / whe
 Use status=\"in-review\" instead of done when a task needs lead or human review before it's finished.
 
 Your own agent number is the N a numbered broadcast gives you (\"You are agent N of M\"); \
-use that N as your assignee.";
+use that N as your assignee.
+
+Keep your own status pill current with set_status(agent_number, status) — the human watches these \
+tiles to see the fleet at a glance. Set it as you go: planning while you plan, in-progress while \
+working, in-review when your output is ready for review, needs-human when you're blocked on the \
+human, done when finished.";
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 static TASK_SEQ: AtomicUsize = AtomicUsize::new(1);
@@ -144,11 +149,16 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
         "spawn_agent" => {
             let agent = args.get("agent").and_then(|v| v.as_str()).unwrap_or("claude");
             let dir = args.get("dir").and_then(|v| v.as_str()).unwrap_or("");
+            let prompt = args.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
             if dir.is_empty() {
                 return "error: 'dir' is required".into();
             }
-            let _ = app.emit("mcp-spawn", json!({ "agent": agent, "dir": dir }));
-            format!("Spawning {agent} in {dir}. Call list_agents to see it.")
+            let _ = app.emit("mcp-spawn", json!({ "agent": agent, "dir": dir, "prompt": prompt }));
+            if prompt.is_empty() {
+                format!("Spawning {agent} in {dir}. Call list_agents to see it.")
+            } else {
+                format!("Spawning {agent} in {dir} with an initial prompt. Call list_agents to see it.")
+            }
         }
         "list_agents" => {
             let st = app.state::<AppState>();
@@ -188,7 +198,11 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
                 .args(["capture-pane", "-p", "-t", &session, "-S", &format!("-{lines}")])
                 .output()
             {
-                Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+                // Trim the blank padding tmux adds to fill the pane height — that chrome
+                // is pure token waste for a lead polling this in a loop.
+                Ok(o) if o.status.success() => {
+                    String::from_utf8_lossy(&o.stdout).trim_end().to_string()
+                }
                 Ok(o) => format!(
                     "error: tmux capture failed: {}",
                     String::from_utf8_lossy(&o.stderr).trim()
@@ -221,6 +235,20 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
             }
             let _ = app.emit("mcp-close", json!({ "number": n }));
             format!("Closed agent {n}.")
+        }
+        "set_status" => {
+            let n = num_arg(args, "agent_number");
+            let status = args.get("status").and_then(|v| v.as_str()).unwrap_or("").trim();
+            if n.is_empty() {
+                return "error: 'agent_number' is required".into();
+            }
+            const STATUSES: [&str; 5] =
+                ["planning", "in-progress", "in-review", "needs-human", "done"];
+            if !STATUSES.contains(&status) {
+                return format!("error: status must be one of {}", STATUSES.join(", "));
+            }
+            let _ = app.emit("mcp-set-status", json!({ "number": n, "status": status }));
+            format!("Agent {n} status set to {status}.")
         }
         "add_task" => {
             let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("").trim();
@@ -272,12 +300,13 @@ fn tool_defs() -> Value {
     json!([
         {
             "name": "spawn_agent",
-            "description": "Open a new coding-agent in a folder. agent is one of: claude, codex, cursor, gemini, opencode, antigravity, terminal.",
+            "description": "Open a new coding-agent in a folder. agent is one of: claude, codex, cursor, gemini, opencode, antigravity, terminal. Pass prompt to type an initial instruction into it once the CLI is ready — saves a separate send.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "agent": { "type": "string", "description": "which CLI to run" },
-                    "dir": { "type": "string", "description": "absolute folder path to run it in" }
+                    "dir": { "type": "string", "description": "absolute folder path to run it in" },
+                    "prompt": { "type": "string", "description": "optional first message to send once the agent has started" }
                 },
                 "required": ["agent", "dir"]
             }
@@ -309,6 +338,18 @@ fn tool_defs() -> Value {
                     "text": { "type": "string" }
                 },
                 "required": ["agent_number", "text"]
+            }
+        },
+        {
+            "name": "set_status",
+            "description": "Set your OWN workflow status pill (shown on your tile), addressed by your agent number. Set it as you work: planning while you plan, in-progress while working, in-review when your output needs review, needs-human when blocked on the human, done when finished. status is one of planning, in-progress, in-review, needs-human, done.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "agent_number": { "type": "string", "description": "your own agent number, e.g. \"2\" or \"1-1\"" },
+                    "status": { "type": "string", "description": "planning, in-progress, in-review, needs-human, or done" }
+                },
+                "required": ["agent_number", "status"]
             }
         },
         {

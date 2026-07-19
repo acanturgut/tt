@@ -88,7 +88,7 @@ export async function openViewer(path: string): Promise<void> {
   mdRaw = false; // new file opens rendered (for markdown)
   document.body.classList.add('viewer-open');
   const myReq = ++reqId;
-  const cmd = isImage(path) ? 'read_image_data_url' : 'read_file';
+  const cmd = isImage(path) || isPdf(path) ? 'read_image_data_url' : 'read_file';
   let text: string;
   try {
     text = await invoke<string>(cmd, { path });
@@ -106,6 +106,9 @@ function isMarkdown(path: string): boolean {
 }
 function isImage(path: string): boolean {
   return /\.(png|jpe?g|gif|webp)$/i.test(path);
+}
+function isPdf(path: string): boolean {
+  return /\.pdf$/i.test(path);
 }
 
 // Extension → highlight.js language; unknown falls back to auto-detect.
@@ -191,11 +194,21 @@ function render(path: string, content: string, isError: boolean): void {
   }
 
   if (isImage(path)) {
+    body.classList.add('is-media'); // center the image in the panel
     const img = document.createElement('img');
     img.className = 'viewer-img';
     img.src = content; // data: URL from read_image_data_url
     img.alt = rel;
     body.appendChild(img);
+  } else if (isPdf(path)) {
+    body.classList.add('is-pdf');
+    // ponytail: native WKWebView PDF viewer via a data: URL (CSP is off). No pdf.js
+    // dependency; swap to pdf.js if we need annotations/text-selection over pages.
+    const frame = document.createElement('iframe');
+    frame.className = 'viewer-pdf';
+    frame.src = content; // data:application/pdf;base64,... from read_image_data_url
+    frame.title = rel;
+    body.appendChild(frame);
   } else if (isMarkdown(path) && !mdRaw) {
     renderMarkdown(body, content);
   } else {
@@ -262,12 +275,22 @@ function selKbd(keys: string): HTMLElement {
   return kb;
 }
 
-// Popover listing agents; picking one sends the snippet to its terminal.
+// Popover listing agents; picking one sends the (optional prompt +) snippet to its terminal.
 function openAgentMenu(anchor: HTMLElement, payload: string): void {
   agentMenu?.remove();
   const agents = sendCfg?.agents() ?? [];
   agentMenu = document.createElement('div');
   agentMenu.className = 'viewer-agentmenu';
+
+  // Optional prompt sent ahead of the selected snippet ("explain this", "add a test", …).
+  const ask = document.createElement('textarea');
+  ask.className = 'viewer-agentmenu-ask';
+  ask.rows = 2;
+  ask.placeholder = 'Ask about this selection… (optional)';
+  ask.onkeydown = (e) => { e.stopPropagation(); };
+  const withPrompt = () => (ask.value.trim() ? `${ask.value.trim()}\n\n${payload}` : payload);
+  agentMenu.appendChild(ask);
+
   if (!agents.length) {
     const empty = document.createElement('div');
     empty.className = 'viewer-agentmenu-empty';
@@ -279,7 +302,7 @@ function openAgentMenu(anchor: HTMLElement, payload: string): void {
       row.className = 'viewer-agentmenu-row';
       row.innerHTML = `<span class="am-num">${escapeHtml(a.label)}</span><span class="am-name">${escapeHtml(a.name)}</span>`;
       row.onclick = () => {
-        sendCfg?.to(a.id, payload);
+        sendCfg?.to(a.id, withPrompt());
         toast(`Sent to ${a.name}`);
         hideCopyBtn();
       };
@@ -290,6 +313,7 @@ function openAgentMenu(anchor: HTMLElement, payload: string): void {
   agentMenu.style.top = `${r.bottom + window.scrollY + 4}px`;
   agentMenu.style.left = `${r.left + window.scrollX}px`;
   document.body.appendChild(agentMenu);
+  ask.focus();
 }
 
 // Character offset of (node, offset) within the highlighted code block's text.

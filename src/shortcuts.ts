@@ -9,6 +9,7 @@ const GROUPS: { title: string; items: [string, string[]][] }[] = [
       ['Toggle file tree', ['⌘', 'B']],
       ['Toggle agents rail', ['⌘', '\\']],
       ['Task board', ['⌘', 'J']],
+      ['Fleet templates', ['⌘', 'F']],
       ['Settings', ['⌘', ',']],
     ],
   },

@@ -12,6 +12,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init()) // keep: capabilities/default.json lists opener:default
         .plugin(tauri_plugin_dialog::init()) // native folder picker (dialog:default)
         .plugin(tauri_plugin_notification::init()) // native notifications (notification:default)
+        .plugin(tauri_plugin_clipboard_manager::init()) // native clipboard — WKWebView's navigator.clipboard.readText beeps + gates
         .manage(AppState::default())
         .setup(|app| {
             mcp::start(app.handle().clone()); // MCP server so agents can spawn agents
