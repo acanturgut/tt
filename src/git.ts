@@ -10,6 +10,9 @@ import {
   type Worktree,
   type RunningAgent,
 } from './gitgraph';
+
+interface Branch { name: string; kind: 'local' | 'remote'; current: boolean; upstream: string | null }
+interface Stash { index: number; name: string; subject: string; branch: string }
 import { highlight, escapeHtml, langForPath } from './viewer';
 
 // Phosphor icon per ref kind: local branch vs the checked-out HEAD vs a remote
@@ -37,7 +40,10 @@ let timer: number | null = null;
 let status: GitStatus | null = null;
 let commits: Commit[] = [];
 let worktrees: Worktree[] = [];
-let hStatus = '', hLog = '', hWt = '', hSig = '';
+let branches: Branch[] = [];
+let stashes: Stash[] = [];
+let hStatus = '', hLog = '', hWt = '', hSig = '', hBranch = '', hStash = '';
+let stashOpen = false;
 
 let commitMsg = ''; // preserved across re-renders
 let wtOpen = false; // worktrees section starts collapsed
@@ -108,14 +114,18 @@ async function refresh(): Promise<void> {
 
     if (sig !== hSig) {
       hSig = sig;
-      const [lg, wt] = await Promise.all([
+      const [lg, wt, br, sh] = await Promise.all([
         invoke<Commit[]>('git_log_graph', { root }), // full history — the list is virtualized
         invoke<Worktree[]>('git_worktrees', { root }),
+        invoke<Branch[]>('git_branches', { root }),
+        invoke<Stash[]>('git_stash_list', { root }),
       ]);
       const b = JSON.stringify(lg);
       if (b !== hLog) { commits = lg; hLog = b; treePending = true; }
       worktrees = wt; // ponytail: other worktrees' dirty counts refresh on ref movement, not on
                       // every keystroke there — fine in tt where agents commit constantly.
+      const bh = JSON.stringify(br); if (bh !== hBranch) { branches = br; hBranch = bh; railPending = true; }
+      const sh2 = JSON.stringify(sh); if (sh2 !== hStash) { stashes = sh; hStash = sh2; railPending = true; }
     }
     // The rail's worktree cards show live agent status, which changes without refs moving — so
     // fold agents into the rail hash and repaint on either. Defer while the commit textarea holds
@@ -227,9 +237,11 @@ function renderRail(): HTMLElement {
   const br = document.createElement('div');
   br.className = 'git-branch';
   const bicon = icon('git-branch');
-  const bname = document.createElement('span');
-  bname.className = 'git-branch-name';
+  const bname = document.createElement('button');
+  bname.className = 'git-branch-name git-branch-pick';
   bname.textContent = status.branch || '(detached)';
+  bname.title = 'Switch branch';
+  bname.onclick = (e) => { e.stopPropagation(); openBranchMenu(bname); };
   br.append(bicon, bname);
   if (status.ahead || status.behind) {
     const ab = document.createElement('span');
@@ -269,6 +281,7 @@ function renderRail(): HTMLElement {
   rail.appendChild(br);
 
   rail.appendChild(renderWorktrees()); // Task 8 fills this in
+  rail.appendChild(renderStashes());
 
   // changes
   const staged = status.files.filter((f) => f.staged);
@@ -347,6 +360,21 @@ function fileGroup(label: string, files: FileEntry[], staged: boolean, onAll: ()
       act(() => invoke(staged ? 'git_unstage' : 'git_stage', { root: repoRoot(), path: f.path }));
     };
     row.append(st, name, btn);
+    if (!staged) {
+      const dis = document.createElement('button');
+      dis.className = 'git-discard';
+      dis.textContent = '×';
+      dis.title = 'Discard changes';
+      dis.onclick = (e) => {
+        e.stopPropagation();
+        // Untracked → the file is deleted; tracked → working+staged reverted to HEAD. Warn accordingly.
+        const untracked = f.y === '?';
+        const msg = untracked ? `Delete untracked file "${f.path}"?` : `Discard changes to "${f.path}"?`;
+        if (!confirm(msg)) return;
+        act(() => invoke('git_discard', { root: repoRoot(), path: f.path }));
+      };
+      row.appendChild(dis);
+    }
     row.onclick = () => selectFile(f.path, staged);
     g.appendChild(row);
   }
@@ -594,6 +622,199 @@ function toast(msg: string): void {
   document.body.appendChild(toastEl);
   const t = toastEl;
   setTimeout(() => t.remove(), 2200);
+}
+
+// Small popover anchored under `anchor`. `render` fills it; a document-level click
+// (outside the popover) closes it. Also closes on Escape. Ponytail: reused for both
+// branches and stash-save — a proper design-system component can come later.
+let popoverEl: HTMLElement | null = null;
+function openPopover(anchor: HTMLElement, render: (close: () => void) => HTMLElement): void {
+  popoverEl?.remove();
+  const pop = document.createElement('div');
+  pop.className = 'git-pop';
+  const rect = anchor.getBoundingClientRect();
+  pop.style.left = `${Math.round(rect.left)}px`;
+  pop.style.top = `${Math.round(rect.bottom + 4)}px`;
+  const close = () => { pop.remove(); if (popoverEl === pop) popoverEl = null; document.removeEventListener('mousedown', off, true); document.removeEventListener('keydown', esc, true); };
+  const off = (e: MouseEvent) => { if (!pop.contains(e.target as Node)) close(); };
+  const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+  pop.appendChild(render(close));
+  document.body.appendChild(pop);
+  popoverEl = pop;
+  setTimeout(() => {
+    document.addEventListener('mousedown', off, true);
+    document.addEventListener('keydown', esc, true);
+  }, 0);
+}
+
+function openBranchMenu(anchor: HTMLElement): void {
+  openPopover(anchor, (close) => {
+    const box = document.createElement('div');
+    box.className = 'git-branch-menu';
+
+    const search = document.createElement('input');
+    search.className = 'git-branch-search';
+    search.placeholder = 'Filter branches…';
+    box.appendChild(search);
+
+    const list = document.createElement('div');
+    list.className = 'git-branch-list';
+    box.appendChild(list);
+
+    const paint = () => {
+      list.innerHTML = '';
+      const q = search.value.trim().toLowerCase();
+      const match = (n: string) => !q || n.toLowerCase().includes(q);
+
+      // "New branch…" pinned to the top
+      const nb = document.createElement('button');
+      nb.className = 'git-branch-item git-branch-new';
+      nb.append(icon('plus'), document.createTextNode(' New branch…'));
+      nb.onclick = () => {
+        const name = prompt('New branch name');
+        close();
+        if (!name || !name.trim()) return;
+        act(async () => {
+          await invoke('git_branch_create', { root: repoRoot(), name: name.trim(), checkout: true, from: null });
+          toast(`Switched to ${name.trim()}`);
+        });
+      };
+      list.appendChild(nb);
+
+      const locals = branches.filter((b) => b.kind === 'local' && match(b.name));
+      const remotes = branches.filter((b) => b.kind === 'remote' && match(b.name));
+
+      const section = (title: string, items: Branch[]) => {
+        if (!items.length) return;
+        const h = document.createElement('div');
+        h.className = 'git-branch-section';
+        h.textContent = title;
+        list.appendChild(h);
+        for (const b of items) {
+          const row = document.createElement('div');
+          row.className = 'git-branch-item' + (b.current ? ' on' : '');
+          const nm = document.createElement('button');
+          nm.className = 'git-branch-name-btn';
+          nm.append(icon(b.kind === 'remote' ? 'cloud' : (b.current ? 'git-commit' : 'git-branch')));
+          const label = document.createElement('span');
+          label.textContent = b.name;
+          nm.appendChild(label);
+          if (b.upstream) { const u = document.createElement('span'); u.className = 'git-branch-up'; u.textContent = ' → ' + b.upstream; nm.appendChild(u); }
+          nm.disabled = b.current;
+          nm.onclick = () => {
+            close();
+            act(async () => {
+              await invoke('git_checkout', { root: repoRoot(), name: b.name });
+              toast(`Switched to ${b.name.split('/').pop()}`);
+            });
+          };
+          row.appendChild(nm);
+          if (b.kind === 'local' && !b.current) {
+            const acts = document.createElement('div');
+            acts.className = 'git-branch-acts';
+            const ren = document.createElement('button');
+            ren.className = 'git-branch-mini'; ren.textContent = 'Rename'; ren.title = 'Rename branch';
+            ren.onclick = (e) => {
+              e.stopPropagation();
+              const next = prompt('Rename branch', b.name);
+              close();
+              if (!next || next === b.name) return;
+              act(() => invoke('git_branch_rename', { root: repoRoot(), old: b.name, new: next.trim() }));
+            };
+            const del = document.createElement('button');
+            del.className = 'git-branch-mini danger'; del.textContent = 'Delete'; del.title = 'Delete branch';
+            del.onclick = (e) => {
+              e.stopPropagation();
+              if (!confirm(`Delete branch "${b.name}"?`)) return;
+              close();
+              act(async () => {
+                try {
+                  await invoke('git_branch_delete', { root: repoRoot(), name: b.name, force: false });
+                } catch (err) {
+                  // Only "not fully merged" is the recoverable case worth offering force for.
+                  if (/not fully merged/i.test(String(err)) && confirm(`"${b.name}" is not fully merged. Force delete?`)) {
+                    await invoke('git_branch_delete', { root: repoRoot(), name: b.name, force: true });
+                  } else { throw err; }
+                }
+              });
+            };
+            acts.append(ren, del);
+            row.appendChild(acts);
+          }
+          list.appendChild(row);
+        }
+      };
+      section('Local', locals);
+      section('Remote', remotes);
+    };
+    paint();
+    search.oninput = paint;
+    setTimeout(() => search.focus(), 0);
+    return box;
+  });
+}
+
+function renderStashes(): HTMLElement {
+  const sec = document.createElement('div');
+  sec.className = 'git-stashes';
+  const head = document.createElement('div');
+  head.className = 'git-group-head';
+  head.append(document.createTextNode('Stashes '));
+  const cnt = document.createElement('span');
+  cnt.className = 'git-count';
+  cnt.textContent = String(stashes.length);
+  head.appendChild(cnt);
+  const save = document.createElement('button');
+  save.className = 'git-all';
+  save.textContent = 'Save';
+  save.onclick = (e) => {
+    e.stopPropagation();
+    const msg = prompt('Stash message (optional)') ?? '';
+    // Include untracked by default so switching branches is safe.
+    act(async () => {
+      const out = await invoke<string>('git_stash_save', { root: repoRoot(), message: msg, includeUntracked: true });
+      toast(out || 'Stashed');
+    });
+  };
+  head.appendChild(save);
+  const toggle = document.createElement('button');
+  toggle.className = 'git-all';
+  toggle.textContent = stashOpen ? 'Hide' : 'Show';
+  toggle.style.marginLeft = '6px';
+  toggle.onclick = () => { stashOpen = !stashOpen; paintRail(); };
+  head.appendChild(toggle);
+  sec.appendChild(head);
+  if (!stashOpen || !stashes.length) return sec;
+
+  for (const s of stashes) {
+    const row = document.createElement('div');
+    row.className = 'git-stash';
+    const subj = document.createElement('div');
+    subj.className = 'git-stash-subj';
+    subj.textContent = s.subject;
+    subj.title = s.subject;
+    const acts = document.createElement('div');
+    acts.className = 'git-stash-acts';
+    const mk = (label: string, cmd: 'git_stash_apply' | 'git_stash_pop' | 'git_stash_drop', danger = false) => {
+      const b = document.createElement('button');
+      b.className = 'git-branch-mini' + (danger ? ' danger' : '');
+      b.textContent = label;
+      b.onclick = () => {
+        if (danger && !confirm(`Drop stash ${s.name}? This can't be undone.`)) return;
+        act(async () => {
+          const out = await invoke<string>(cmd, { root: repoRoot(), name: s.name });
+          toast(out || `${label}d`);
+        });
+      };
+      acts.appendChild(b);
+    };
+    mk('Apply', 'git_stash_apply');
+    mk('Pop', 'git_stash_pop');
+    mk('Drop', 'git_stash_drop', true);
+    row.append(subj, acts);
+    sec.appendChild(row);
+  }
+  return sec;
 }
 
 function renderWorktrees(): HTMLElement {

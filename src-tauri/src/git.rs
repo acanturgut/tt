@@ -368,6 +368,146 @@ pub fn git_worktrees(root: String) -> Result<Vec<Worktree>, String> {
     Ok(wts)
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Branch {
+    pub name: String,       // "main" or "origin/main"
+    pub kind: String,       // "local" | "remote"
+    pub current: bool,
+    pub upstream: Option<String>,
+}
+
+// One-shot list of local + remote branches via for-each-ref (no per-ref shell-outs).
+#[tauri::command]
+pub fn git_branches(root: String) -> Result<Vec<Branch>, String> {
+    let fmt = "%(refname)%09%(HEAD)%09%(upstream:short)";
+    let out = git_out(
+        &root,
+        &["for-each-ref", "--format", fmt, "refs/heads", "refs/remotes"],
+    )?;
+    let mut v = Vec::new();
+    for line in out.lines() {
+        let mut f = line.splitn(3, '\t');
+        let refname = f.next().unwrap_or("");
+        let head = f.next().unwrap_or("");
+        let upstream = f.next().unwrap_or("");
+        if let Some(name) = refname.strip_prefix("refs/heads/") {
+            v.push(Branch {
+                name: name.into(),
+                kind: "local".into(),
+                current: head == "*",
+                upstream: if upstream.is_empty() { None } else { Some(upstream.into()) },
+            });
+        } else if let Some(name) = refname.strip_prefix("refs/remotes/") {
+            if name.ends_with("/HEAD") {
+                continue; // origin/HEAD symbolic ref → noise
+            }
+            v.push(Branch {
+                name: name.into(),
+                kind: "remote".into(),
+                current: false,
+                upstream: None,
+            });
+        }
+    }
+    Ok(v)
+}
+
+// Checkout local branch by name, or a remote (creates a tracking local branch of the same short name).
+#[tauri::command]
+pub fn git_checkout(root: String, name: String) -> Result<String, String> {
+    // If `name` looks like "origin/foo" and no local "foo" exists, `git checkout foo` DWIM auto-tracks it.
+    let short = name.split_once('/').map(|x| x.1).unwrap_or(&name);
+    let local_exists = git_out(&root, &["show-ref", "--verify", "--quiet", &format!("refs/heads/{short}")]).is_ok();
+    let target: &str = if local_exists || !name.contains('/') { &name } else { short };
+    git_out(&root, &["checkout", target])
+}
+
+#[tauri::command]
+pub fn git_branch_create(root: String, name: String, checkout: bool, from: Option<String>) -> Result<(), String> {
+    let base = from.unwrap_or_default();
+    let mut args: Vec<&str> = if checkout { vec!["checkout", "-b", &name] } else { vec!["branch", &name] };
+    if !base.is_empty() { args.push(&base); }
+    git_out(&root, &args).map(|_| ())
+}
+
+#[tauri::command]
+pub fn git_branch_rename(root: String, old: String, new: String) -> Result<(), String> {
+    git_out(&root, &["branch", "-m", &old, &new]).map(|_| ())
+}
+
+#[tauri::command]
+pub fn git_branch_delete(root: String, name: String, force: bool) -> Result<(), String> {
+    let flag = if force { "-D" } else { "-d" };
+    git_out(&root, &["branch", flag, &name]).map(|_| ())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Stash {
+    pub index: u32,   // 0 = stash@{0}
+    pub name: String, // "stash@{0}"
+    pub subject: String,
+    pub branch: String,
+}
+
+#[tauri::command]
+pub fn git_stash_list(root: String) -> Result<Vec<Stash>, String> {
+    // %gd = ref name (stash@{N}), %gs = reflog subject ("WIP on main: ...")
+    let out = git_out(&root, &["stash", "list", "--format=%gd%x1f%gs"])?;
+    let mut v = Vec::new();
+    for (i, line) in out.lines().enumerate() {
+        let mut f = line.splitn(2, '\u{1f}');
+        let name = f.next().unwrap_or("").to_string();
+        let subj = f.next().unwrap_or("").to_string();
+        // "WIP on main: <hash> <subject>" or "On main: <msg>"
+        let branch = subj
+            .strip_prefix("WIP on ").or_else(|| subj.strip_prefix("On "))
+            .and_then(|s| s.split_once(':').map(|x| x.0.to_string()))
+            .unwrap_or_default();
+        v.push(Stash { index: i as u32, name, subject: subj, branch });
+    }
+    Ok(v)
+}
+
+#[tauri::command]
+pub fn git_stash_save(root: String, message: String, include_untracked: bool) -> Result<String, String> {
+    let msg = message.trim();
+    let mut args: Vec<&str> = vec!["stash", "push"];
+    if include_untracked { args.push("-u"); }
+    if !msg.is_empty() { args.push("-m"); args.push(msg); }
+    git_out(&root, &args)
+}
+
+#[tauri::command]
+pub fn git_stash_apply(root: String, name: String) -> Result<String, String> {
+    git_out(&root, &["stash", "apply", &name])
+}
+
+#[tauri::command]
+pub fn git_stash_pop(root: String, name: String) -> Result<String, String> {
+    git_out(&root, &["stash", "pop", &name])
+}
+
+#[tauri::command]
+pub fn git_stash_drop(root: String, name: String) -> Result<(), String> {
+    git_out(&root, &["stash", "drop", &name]).map(|_| ())
+}
+
+// Discard working-tree changes for a single path. Untracked → delete the file; tracked → restore from HEAD.
+#[tauri::command]
+pub fn git_discard(root: String, path: String) -> Result<(), String> {
+    // ls-files --error-unmatch exits non-zero for untracked paths — cheapest tracked check.
+    let tracked = git_out(&root, &["ls-files", "--error-unmatch", "--", &path]).is_ok();
+    if tracked {
+        // Undo both staged AND unstaged: `restore --staged --worktree` in one shot.
+        git_out(&root, &["restore", "--staged", "--worktree", "--", &path]).map(|_| ())
+    } else {
+        // Untracked: `clean -f` respects .gitignore-safety and only removes the given path.
+        git_out(&root, &["clean", "-f", "--", &path]).map(|_| ())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -455,6 +595,49 @@ h2\u{1f}\u{1f}\u{1f}Bob\u{1f}3h ago\u{1f}root commit\u{1e}";
         assert_eq!(v[0].subject, "subject one");
         assert!(v[1].parents.is_empty());
         assert!(v[1].refs.is_empty());
+    }
+
+    #[test]
+    fn branches_stash_discard_roundtrip() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_string_lossy().to_string();
+        let run = |args: &[&str]| { Command::new("git").arg("-C").arg(&dir).args(args).output().unwrap(); };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "t@t"]);
+        run(&["config", "user.name", "t"]);
+        std::fs::write(tmp.path().join("a.txt"), "hi\n").unwrap();
+        git_stage(dir.clone(), "a.txt".into()).unwrap();
+        git_commit(dir.clone(), "init".into()).unwrap();
+
+        // branches: create + checkout + list + rename + delete
+        git_branch_create(dir.clone(), "feat".into(), true, None).unwrap();
+        let bs = git_branches(dir.clone()).unwrap();
+        let feat = bs.iter().find(|b| b.name == "feat").unwrap();
+        assert!(feat.current && feat.kind == "local");
+        assert!(bs.iter().any(|b| b.name == "main" && !b.current));
+        git_checkout(dir.clone(), "main".into()).unwrap();
+        git_branch_rename(dir.clone(), "feat".into(), "feature".into()).unwrap();
+        assert!(git_branches(dir.clone()).unwrap().iter().any(|b| b.name == "feature"));
+        git_branch_delete(dir.clone(), "feature".into(), false).unwrap();
+        assert!(!git_branches(dir.clone()).unwrap().iter().any(|b| b.name == "feature"));
+
+        // stash: save → list → pop
+        std::fs::write(tmp.path().join("a.txt"), "changed\n").unwrap();
+        git_stash_save(dir.clone(), "wip".into(), false).unwrap();
+        let sl = git_stash_list(dir.clone()).unwrap();
+        assert_eq!(sl.len(), 1);
+        assert_eq!(sl[0].name, "stash@{0}");
+        assert_eq!(sl[0].branch, "main");
+        git_stash_pop(dir.clone(), "stash@{0}".into()).unwrap();
+        assert!(git_stash_list(dir.clone()).unwrap().is_empty());
+        assert!(git_status(dir.clone()).unwrap().files.iter().any(|f| f.path == "a.txt"));
+
+        // discard: tracked change reverts, untracked file removed
+        git_discard(dir.clone(), "a.txt".into()).unwrap();
+        assert!(git_status(dir.clone()).unwrap().files.is_empty());
+        std::fs::write(tmp.path().join("junk.txt"), "x").unwrap();
+        git_discard(dir.clone(), "junk.txt".into()).unwrap();
+        assert!(!tmp.path().join("junk.txt").exists());
     }
 
     #[test]

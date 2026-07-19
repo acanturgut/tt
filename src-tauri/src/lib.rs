@@ -50,7 +50,18 @@ pub fn run() {
             git::git_log_graph,
             git::git_refs_sig,
             git::git_ensure_graph,
-            git::git_worktrees
+            git::git_worktrees,
+            git::git_branches,
+            git::git_checkout,
+            git::git_branch_create,
+            git::git_branch_rename,
+            git::git_branch_delete,
+            git::git_stash_list,
+            git::git_stash_save,
+            git::git_stash_apply,
+            git::git_stash_pop,
+            git::git_stash_drop,
+            git::git_discard
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
