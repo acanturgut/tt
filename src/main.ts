@@ -42,6 +42,7 @@ import {
   listProjects,
   selectProject,
 } from './projects';
+import { sessionAgents, activeSession, subscribeOrchestrators } from './orchestrators';
 import {
   addTask,
   updateTask,
@@ -152,8 +153,7 @@ function curProjPath(): string | null {
   return currentProject()?.path ?? null;
 }
 function visibleAgents() {
-  const p = curProjPath();
-  return list().filter((a) => a.project === p);
+  return sessionAgents(list(), activeSession(), curProjPath());
 }
 function agentCounts(): { working: number; idle: number } {
   let working = 0, idle = 0;
@@ -396,7 +396,7 @@ async function spawn(
   agentId: string,
   dir: string,
   label?: WorkflowLabel,
-  opts?: { spawned?: boolean; parentId?: string; prompt?: string; name?: string; model?: string; effort?: string },
+  opts?: { spawned?: boolean; parentId?: string; prompt?: string; name?: string; model?: string; effort?: string; session?: string },
 ) {
   const st = getSettings();
   const key = crypto.randomUUID();
@@ -429,6 +429,7 @@ async function spawn(
       project: curProjPath() ?? undefined,
       spawned: opts?.spawned,
       parentId: opts?.parentId,
+      session: opts?.session,
       label: label ?? (st.autoPlanning ? 'planning' : undefined),
       model: model || undefined,
       effort,
@@ -443,8 +444,10 @@ async function spawn(
       ? (opts.prompt ? `${ORIENT}\n\n${opts.prompt}` : ORIENT)
       : opts?.prompt;
     if (msg) setTimeout(() => broadcast([id], msg, false), 2500);
+    return id;
   } catch (e) {
     alert(`spawn failed: ${e}`);
+    return undefined;
   }
 }
 
@@ -628,6 +631,10 @@ subscribe(renderAgents);
 subscribeProjects(() => {
   renderProject();
   renderAgents(); // switching tabs changes which agents are visible
+});
+subscribeOrchestrators(() => {
+  renderProject();
+  renderAgents(); // switching sessions changes which agents are visible
 });
 subscribeProviders(renderProject); // hiding/showing providers re-renders the toolbar
 window.addEventListener('resize', fitAll);
