@@ -197,6 +197,7 @@ body.left-collapsed .agentrow .pill,
 body.left-collapsed .sub-arrow,
 body.left-collapsed .rail-meta > :not(.rnum) { display: none; }
 body.left-collapsed .rail-meta { justify-content: center; margin-top: 4px; }
+body.left-collapsed .rail-empty-title, body.left-collapsed .rail-empty-hint { display: none; }
 .rail-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 0 4px; color: var(--muted); font-weight: 600; font-size: 12px; }
 .rail-title.has-attn { color: var(--amber); }
 .rail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; color: var(--muted); padding: 44px 14px; }
@@ -618,7 +619,8 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 
 /* ── git commit graph (DAG) ─ */
 .git-tree-list { padding: 6px 0; }
-.git-tree-row { display: flex; align-items: center; cursor: pointer; }
+/* content-visibility: skip rendering off-screen rows entirely → smooth scroll at any history length */
+.git-tree-row { display: flex; align-items: center; cursor: pointer; content-visibility: auto; contain-intrinsic-size: 0 28px; }
 .git-tree-row:hover { background: var(--elev); }
 .git-tree-row.on { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 .git-tree-graph { flex: none; align-self: stretch; }

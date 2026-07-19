@@ -322,22 +322,47 @@ function renderTree(): HTMLElement {
   const rows = layoutGraph(commits);
   const maxCols = rows.reduce((m, r) => Math.max(m, r.cols), 1);
   const gw = maxCols * LANE_W + LANE_W / 2;
-  const H = rows.length * ROW_H;
   const x = (lane: number) => LANE_W / 2 + lane * LANE_W;
 
   const list = document.createElement('div');
   list.className = 'git-tree-list';
-  list.style.position = 'relative';
-  list.style.padding = '0';
-  list.style.height = `${H}px`;
 
-  // Rows are plain text divs (cheap to scroll), left-padded to clear the graph gutter.
+  // Per-row self-contained SVG cell. CSS `.git-tree-row { content-visibility: auto }` then lets
+  // the browser skip rendering rows that are off-screen — so scrolling only ever paints the ~30
+  // visible rows, however long the history is. (A single tall SVG for all rows still re-rasters
+  // its whole column tile-by-tile on scroll; per-row + content-visibility avoids that.)
   rows.forEach((r) => {
     const row = document.createElement('div');
     row.className = 'git-tree-row' + (sel?.kind === 'commit' && sel.hash === r.commit.hash ? ' on' : '');
     row.style.height = `${ROW_H}px`;
-    row.style.paddingLeft = `${gw}px`;
     row.onclick = () => void selectCommit(r.commit.hash);
+
+    const svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('class', 'git-tree-svg');
+    svg.setAttribute('width', String(gw));
+    svg.setAttribute('height', String(ROW_H));
+    for (const e of r.edges) {
+      const p = document.createElementNS(SVGNS, 'path');
+      const x1 = x(e.from), x2 = x(e.to);
+      p.setAttribute('d', `M ${x1} 0 C ${x1} ${ROW_H / 2}, ${x2} ${ROW_H / 2}, ${x2} ${ROW_H}`);
+      p.setAttribute('stroke', LANE_PALETTE[e.color % LANE_PALETTE.length]);
+      p.setAttribute('fill', 'none');
+      p.setAttribute('stroke-width', '2');
+      svg.appendChild(p);
+    }
+    const dot = document.createElementNS(SVGNS, 'circle');
+    dot.setAttribute('cx', String(x(r.lane)));
+    dot.setAttribute('cy', String(ROW_H / 2));
+    dot.setAttribute('r', '4');
+    dot.setAttribute('fill', LANE_PALETTE[r.color % LANE_PALETTE.length]);
+    dot.style.stroke = 'var(--bg)'; // .style, not setAttribute — so var() resolves in WebKit
+    dot.setAttribute('stroke-width', '1.5');
+    svg.appendChild(dot);
+
+    const graphCell = document.createElement('div');
+    graphCell.className = 'git-tree-graph';
+    graphCell.style.width = `${gw}px`;
+    graphCell.appendChild(svg);
 
     const meta = document.createElement('div');
     meta.className = 'git-tree-meta';
@@ -354,43 +379,10 @@ function renderTree(): HTMLElement {
     info.className = 'git-tree-info';
     info.textContent = `${r.commit.author} · ${r.commit.relDate}`;
     meta.append(subj, info);
-    row.appendChild(meta);
+
+    row.append(graphCell, meta);
     list.appendChild(row);
   });
-
-  // ONE SVG for the whole graph (was 200 per-row <svg>s — that was the scroll-paint cost).
-  // Decorative overlay in the left gutter; pointer-events off so row clicks pass through.
-  const svg = document.createElementNS(SVGNS, 'svg');
-  svg.setAttribute('class', 'git-tree-svg');
-  svg.setAttribute('width', String(gw));
-  svg.setAttribute('height', String(H));
-  svg.style.position = 'absolute';
-  svg.style.left = '0';
-  svg.style.top = '0';
-  svg.style.pointerEvents = 'none';
-  rows.forEach((r, i) => {
-    const y0 = i * ROW_H, mid = i * ROW_H + ROW_H / 2, y1 = (i + 1) * ROW_H;
-    for (const e of r.edges) {
-      const p = document.createElementNS(SVGNS, 'path');
-      const x1 = x(e.from), x2 = x(e.to);
-      p.setAttribute('d', `M ${x1} ${y0} C ${x1} ${mid}, ${x2} ${mid}, ${x2} ${y1}`);
-      p.setAttribute('stroke', LANE_PALETTE[e.color % LANE_PALETTE.length]);
-      p.setAttribute('fill', 'none');
-      p.setAttribute('stroke-width', '2');
-      svg.appendChild(p);
-    }
-  });
-  rows.forEach((r, i) => {
-    const dot = document.createElementNS(SVGNS, 'circle');
-    dot.setAttribute('cx', String(x(r.lane)));
-    dot.setAttribute('cy', String(i * ROW_H + ROW_H / 2));
-    dot.setAttribute('r', '4');
-    dot.setAttribute('fill', LANE_PALETTE[r.color % LANE_PALETTE.length]);
-    dot.style.stroke = 'var(--bg)'; // .style, not setAttribute — so var() resolves in WebKit
-    dot.setAttribute('stroke-width', '1.5');
-    svg.appendChild(dot);
-  });
-  list.appendChild(svg); // after the rows, so lanes/dots paint on top of the row gutter
 
   wrap.appendChild(list);
   return wrap;
