@@ -356,14 +356,28 @@ function renderTree(): HTMLElement {
       p.setAttribute('stroke-width', '2');
       svg.appendChild(p);
     }
+    // Commit node: a filled dot, or a larger chevron-marked circle for merges (2+ parents).
+    const isMerge = r.commit.parents.length > 1;
+    const cx = x(r.lane), cy = ROW_H / 2;
+    const col = LANE_PALETTE[r.color % LANE_PALETTE.length];
     const dot = document.createElementNS(SVGNS, 'circle');
-    dot.setAttribute('cx', String(x(r.lane)));
-    dot.setAttribute('cy', String(ROW_H / 2));
-    dot.setAttribute('r', '4');
-    dot.setAttribute('fill', LANE_PALETTE[r.color % LANE_PALETTE.length]);
+    dot.setAttribute('cx', String(cx));
+    dot.setAttribute('cy', String(cy));
+    dot.setAttribute('r', isMerge ? '6.5' : '4');
+    dot.setAttribute('fill', col);
     dot.style.stroke = 'var(--bg)'; // .style, not setAttribute — so var() resolves in WebKit
-    dot.setAttribute('stroke-width', '1.5');
+    dot.setAttribute('stroke-width', isMerge ? '2' : '1.5');
     svg.appendChild(dot);
+    if (isMerge) {
+      const chev = document.createElementNS(SVGNS, 'path');
+      chev.setAttribute('d', `M ${cx - 2.6} ${cy - 1.1} L ${cx} ${cy + 1.6} L ${cx + 2.6} ${cy - 1.1}`);
+      chev.setAttribute('fill', 'none');
+      chev.style.stroke = 'var(--bg)';
+      chev.setAttribute('stroke-width', '1.4');
+      chev.setAttribute('stroke-linecap', 'round');
+      chev.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(chev);
+    }
 
     const graphCell = document.createElement('div');
     graphCell.className = 'git-tree-graph';
@@ -372,15 +386,26 @@ function renderTree(): HTMLElement {
 
     const meta = document.createElement('div');
     meta.className = 'git-tree-meta';
+    const laneColor = LANE_PALETTE[r.color % LANE_PALETTE.length];
     for (const ref of r.commit.refs) {
       const chip = document.createElement('span');
-      chip.className = 'git-ref' + (ref.includes('/') ? ' remote' : '');
-      chip.textContent = ref;
+      chip.className = 'git-ref';
+      chip.style.setProperty('--c', laneColor); // colored per branch, like the reference
+      chip.append(icon('folder'), document.createTextNode(ref));
       meta.appendChild(chip);
     }
     const subj = document.createElement('span');
     subj.className = 'git-tree-subj';
-    subj.textContent = r.commit.subject;
+    // Bold the conventional-commit prefix (e.g. "feat(chat)!:") like the reference graph.
+    const cc = /^(\w+(?:\([^)]*\))?!?:)(.*)$/.exec(r.commit.subject);
+    if (cc) {
+      const type = document.createElement('span');
+      type.className = 'git-tree-type';
+      type.textContent = cc[1];
+      subj.append(type, document.createTextNode(cc[2]));
+    } else {
+      subj.textContent = r.commit.subject;
+    }
     const info = document.createElement('span');
     info.className = 'git-tree-info';
     info.textContent = `${r.commit.author} · ${r.commit.relDate}`;
