@@ -323,6 +323,24 @@ pub fn git_log_graph(root: String, limit: Option<u32>) -> Result<Vec<Commit>, St
     Ok(parse_log(&out))
 }
 
+// Fingerprint of every ref's oid — the exact input set of `git log --all`. Cheap (~ms even on
+// huge repos) so the poll can run it every tick and only refetch the graph when refs actually
+// moved. ponytail: a detached HEAD not pointing at any ref won't register (rare in tt — worktrees
+// live on branches); add `rev-parse HEAD` to the sig if that ever matters.
+#[tauri::command]
+pub fn git_refs_sig(root: String) -> Result<String, String> {
+    git_out(&root, &["for-each-ref", "--format=%(objectname) %(refname)"])
+}
+
+// Write/refresh the commit-graph — git's own traversal cache. Without it, `git log` on a deep
+// history reads every commit object from the pack (~0.5s at 50k commits); with it that drops
+// ~17x to ~0.03s. `--split` makes re-writes incremental (new commits only, ~10ms). Non-destructive
+// (git writes the same file during gc/fetch); fire-and-forget on open so it never blocks the UI.
+#[tauri::command]
+pub fn git_ensure_graph(root: String) -> Result<(), String> {
+    git_out(&root, &["commit-graph", "write", "--reachable", "--split"]).map(|_| ())
+}
+
 #[tauri::command]
 pub fn git_worktrees(root: String) -> Result<Vec<Worktree>, String> {
     let out = git_out(&root, &["worktree", "list", "--porcelain"])?;

@@ -1,5 +1,6 @@
 // Keyboard-shortcuts cheat sheet. Opened from the toolbar keyboard button.
 // Keep in sync with the ⌘ handler in main.ts and the viewer selection keys.
+import { icon } from './icon';
 const GROUPS: { title: string; items: [string, string[]][] }[] = [
   {
     title: 'Projects & panels',
@@ -50,12 +51,24 @@ export function openShortcuts() {
   overlay = document.createElement('div');
   overlay.className = 'palette-overlay';
   const box = document.createElement('div');
-  box.className = 'settings';
+  box.className = 'settings settings-panel';
 
+  const header = document.createElement('div');
+  header.className = 'settings-header';
   const title = document.createElement('div');
   title.className = 'settings-title';
   title.textContent = 'Keyboard shortcuts';
-  box.appendChild(title);
+  header.appendChild(title);
+  const close = document.createElement('button');
+  close.className = 'settings-close';
+  close.setAttribute('aria-label', 'Close shortcuts');
+  close.append(icon('x'));
+  close.onclick = closeShortcuts;
+  header.appendChild(close);
+  box.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'settings-body';
 
   for (const g of GROUPS) {
     const sec = document.createElement('div');
@@ -79,9 +92,10 @@ export function openShortcuts() {
       row.append(t, kwrap);
       sec.appendChild(row);
     }
-    box.appendChild(sec);
+    body.appendChild(sec);
   }
 
+  box.appendChild(body);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
   overlay.onmousedown = (e) => {

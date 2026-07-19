@@ -43,6 +43,8 @@ pub fn run() {
             git::git_fetch,
             git::git_pull,
             git::git_log_graph,
+            git::git_refs_sig,
+            git::git_ensure_graph,
             git::git_worktrees
         ])
         .run(tauri::generate_context!())

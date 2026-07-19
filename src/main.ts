@@ -93,6 +93,23 @@ function fitAll() {
   for (const t of terms.values()) t.fitNow();
 }
 
+// Coalesce a burst of size-change events into one refit per frame.
+let fitScheduled = false;
+function scheduleFit() {
+  if (fitScheduled) return;
+  fitScheduled = true;
+  requestAnimationFrame(() => {
+    fitScheduled = false;
+    fitAll();
+  });
+}
+
+// Refit whenever the stage's box actually changes size — window resize, panel
+// toggle, or returning to the grid from an overlay (git/board/viewer hide
+// #workspace, so the stage snaps 0→full on the way back). One native hook beats
+// a fitAll() sprinkled across every view-switch call site.
+new ResizeObserver(scheduleFit).observe(stageEl);
+
 function toggleFocus(id: string) {
   clearAttention(id); // you're looking at it now
   focus(focused() === id ? null : id);
@@ -278,7 +295,7 @@ function toggleSide(key: 'tt.left' | 'tt.right') {
   const collapsed = localStorage.getItem(key) === '0';
   localStorage.setItem(key, collapsed ? '1' : '0');
   applyCollapse();
-  requestAnimationFrame(fitAll);
+  scheduleFit();
 }
 
 function applyOled() {
@@ -673,17 +690,33 @@ listen<{ id: string; status?: string; assignee?: string; result?: string }>('mcp
   updateTask(id, patch as Partial<Task>);
 });
 
-subscribe(renderAgents);
+// Coalesce a burst of store emits into one render. renderAgents does real work
+// (localStorage write + JSON.stringify of every agent + an mcp IPC), and stores
+// fire it many times per tick — spawning a fleet is N add()s, toggleFocus is two
+// emits. A microtask collapses all same-tick emits into a single render.
+// (Not rAF: it pauses when the window is minimized, which would starve the
+// mcp_set_agents snapshot that agents read via list_agents to coordinate.)
+let renderScheduled = false;
+function scheduleRenderAgents() {
+  if (renderScheduled) return;
+  renderScheduled = true;
+  queueMicrotask(() => {
+    renderScheduled = false;
+    renderAgents();
+  });
+}
+
+subscribe(scheduleRenderAgents);
 subscribeProjects(() => {
   renderProject();
-  renderAgents(); // switching tabs changes which agents are visible
+  scheduleRenderAgents(); // switching tabs changes which agents are visible
 });
 subscribeOrchestrators(() => {
   renderProject();
-  renderAgents(); // switching sessions changes which agents are visible
+  scheduleRenderAgents(); // switching sessions changes which agents are visible
 });
 subscribeProviders(renderProject); // hiding/showing providers re-renders the toolbar
-window.addEventListener('resize', fitAll);
+window.addEventListener('resize', scheduleFit);
 
 // Keyboard shortcuts (⌘): 1-9 focus agent, 0 grid, +/- zoom all, B/\ panels.
 window.addEventListener('keydown', (e) => {

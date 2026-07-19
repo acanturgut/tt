@@ -37,6 +37,15 @@ interface TileEls {
 
 const tiles = new Map<string, TileEls>();
 let lastOrder = '';
+let lastGeo = '';
+
+// Terminal geometry is a function of which tiles exist, their order, and whether
+// one is focused (single-pane) — nothing else. Status/token/label ticks don't move
+// pixels, so refitting on them is pure forced-layout waste (the old code fit every
+// terminal on every render, which is what made a fleet of agents crawl).
+export function layoutKey(agents: Agent[], focusedId: string | null): string {
+  return `${focusedId ?? ''}|${agents.map((a) => a.id).join(',')}`;
+}
 
 function fmtTokens(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}k` : `${n}`;
@@ -187,10 +196,16 @@ export function syncTiles(
     if (t.modelChip) paintModelPill(t.modelChip, a);
   }
 
-  requestAnimationFrame(() => {
-    for (const a of agents) {
-      const t = tiles.get(a.id);
-      if (t && (!focusMode || a.id === focusedId)) t.term.fitNow();
-    }
-  });
+  // Refit only when geometry actually changed. Window-resize / panel-toggle /
+  // view-return refits are driven separately (a ResizeObserver on the stage).
+  const geo = layoutKey(agents, focusedId);
+  if (geo !== lastGeo) {
+    lastGeo = geo;
+    requestAnimationFrame(() => {
+      for (const a of agents) {
+        const t = tiles.get(a.id);
+        if (t && (!focusMode || a.id === focusedId)) t.term.fitNow();
+      }
+    });
+  }
 }

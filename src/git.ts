@@ -37,7 +37,7 @@ let timer: number | null = null;
 let status: GitStatus | null = null;
 let commits: Commit[] = [];
 let worktrees: Worktree[] = [];
-let hStatus = '', hLog = '', hWt = '';
+let hStatus = '', hLog = '', hWt = '', hSig = '';
 
 let commitMsg = ''; // preserved across re-renders
 let wtOpen = false; // worktrees section starts collapsed
@@ -66,10 +66,16 @@ export function mountGit(root: HTMLElement, getProjectRoot: () => string | null,
 export function openGit(): void {
   open = true;
   document.body.classList.add('git-open');
-  hStatus = hLog = hWt = ''; // force a fresh paint
+  hStatus = hLog = hWt = hSig = ''; // force a fresh paint
   render(); // build the shell now; refresh() fills each region granularly
+  const root = getRoot();
+  // Warm git's commit-graph once (fire-and-forget) — makes `git log` ~17x faster on deep
+  // histories. Incremental after the first write; never blocks the UI.
+  if (root) void invoke('git_ensure_graph', { root }).catch(() => {});
   void refresh();
-  if (timer === null) timer = window.setInterval(() => void refresh(), 1500);
+  // Skip the poll while the window is backgrounded — no point spawning git
+  // subprocesses nobody's looking at; the next visible tick catches up in ≤1.5s.
+  if (timer === null) timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 1500);
 }
 
 export function closeGit(): void {
@@ -90,27 +96,35 @@ async function refresh(): Promise<void> {
     return;
   }
   try {
-    const [st, lg, wt] = await Promise.all([
+    // Cheap probes every tick: working-tree status + a ref fingerprint (did any branch move?).
+    // Both are milliseconds even on huge repos; the full graph (`git log --all`) and the
+    // per-worktree fan-out are the expensive part, so we run those ONLY when refs actually moved.
+    const [st, sig] = await Promise.all([
       invoke<GitStatus>('git_status', { root }),
-      invoke<Commit[]>('git_log_graph', { root, limit: 200 }),
-      invoke<Worktree[]>('git_worktrees', { root }),
+      invoke<string>('git_refs_sig', { root }),
     ]);
     const a = JSON.stringify(st);
-    const b = JSON.stringify(lg);
-    const w = JSON.stringify(wt) + JSON.stringify(deps.getAgents().map((x) => [x.dir, x.status]));
-    let sChanged = false, lChanged = false, wChanged = false;
-    if (a !== hStatus) { status = st; hStatus = a; sChanged = true; }
-    if (b !== hLog) { commits = lg; hLog = b; lChanged = true; }
-    if (w !== hWt) { worktrees = wt; hWt = w; wChanged = true; }
-    // Repaint ONLY the region that changed, not the whole page. The rail holds the commit
-    // textarea, so defer its repaint while the user is typing (in tt the repo changes
-    // constantly — a poll mustn't wipe what they're typing).
-    if (sChanged || wChanged) railPending = true;
+    if (a !== hStatus) { status = st; hStatus = a; railPending = true; }
+
+    if (sig !== hSig) {
+      hSig = sig;
+      const [lg, wt] = await Promise.all([
+        invoke<Commit[]>('git_log_graph', { root, limit: 200 }),
+        invoke<Worktree[]>('git_worktrees', { root }),
+      ]);
+      const b = JSON.stringify(lg);
+      if (b !== hLog) { commits = lg; hLog = b; treePending = true; }
+      worktrees = wt; // ponytail: other worktrees' dirty counts refresh on ref movement, not on
+                      // every keystroke there — fine in tt where agents commit constantly.
+    }
+    // The rail's worktree cards show live agent status, which changes without refs moving — so
+    // fold agents into the rail hash and repaint on either. Defer while the commit textarea holds
+    // focus (in tt the repo changes constantly — a poll mustn't wipe what they're typing).
+    const w = JSON.stringify(worktrees) + JSON.stringify(deps.getAgents().map((x) => [x.dir, x.status]));
+    if (w !== hWt) { hWt = w; railPending = true; }
     if (railPending && !typingCommitMsg()) { railPending = false; paintRail(); }
-    // The graph rebuilds only when commits change — AND never while the user is actively
-    // scrolling it (a mid-scroll 200-row DOM rebuild drops frames; agents commit constantly in
-    // tt). A deferred rebuild lands the instant scrolling settles (re-checked every poll).
-    if (lChanged) treePending = true;
+    // The graph never rebuilds while the user is actively scrolling it (a mid-scroll 200-row DOM
+    // rebuild drops frames). A deferred rebuild lands the instant scrolling settles.
     if (treePending && performance.now() >= treeBusyUntil) { treePending = false; paintTree(); }
   } catch {
     // e.g. not a git repo → git_log_graph rejects; show the empty state.

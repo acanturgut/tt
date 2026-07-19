@@ -72,6 +72,11 @@ export class AgentTerminal {
   }
 
   fitNow() {
+    // A terminal inside a hidden view (#workspace is display:none while the
+    // git/board/viewer overlay is up) measures as zero. Fitting it there computes
+    // garbage cols/rows and resizes the PTY to junk, so it comes back mis-rendered
+    // on view switch. Only fit when the element actually has a layout box.
+    if (!this.el.clientWidth || !this.el.clientHeight) return;
     try {
       this.fit.fit();
     } catch {
