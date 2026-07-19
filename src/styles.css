@@ -213,10 +213,10 @@ body.left-collapsed .rail-empty { display: none; }
 .agentrow.sub .label { font-size: 13px; font-weight: 550; color: var(--muted); }
 .agentrow.sub .dot { width: 8px; height: 8px; }
 .agentrow:hover { background: var(--elev); }
-.agentrow.active { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 2px 0 0 var(--accent); }
+.agentrow.active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .agentrow.active .label { color: var(--text) !important; }
 .agentrow.active .rail-meta { color: var(--muted) !important; }
-.agentrow.attention { background: color-mix(in srgb, var(--amber) 14%, transparent); box-shadow: inset 2px 0 0 var(--amber); }
+.agentrow.attention { background: color-mix(in srgb, var(--amber) 14%, transparent); }
 .agentrow-top { display: flex; align-items: center; gap: 10px; }
 .agentrow .label { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agentrow .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
@@ -618,13 +618,13 @@ body.git-open #git { display: flex; flex: 1; min-height: 0; }
 .dl.del .dl-code::before { content: '−'; color: var(--danger); }
 
 /* ── git commit graph (DAG) ─ */
-.git-tree-list { padding: 6px 0; }
-/* content-visibility: skip rendering off-screen rows entirely → smooth scroll at any history length */
+.git-tree-list { padding: 0; }
+/* content-visibility: skip rendering off-screen text rows; the graph is one canvas (below) */
 .git-tree-row { display: flex; align-items: center; cursor: pointer; content-visibility: auto; contain-intrinsic-size: 0 28px; }
 .git-tree-row:hover { background: var(--elev); }
 .git-tree-row.on { background: color-mix(in srgb, var(--accent) 20%, transparent); }
-.git-tree-graph { flex: none; align-self: stretch; }
-.git-tree-svg { display: block; }
+/* one bitmap canvas over the gutter — scrolls as a composited layer (no per-frame re-raster) */
+.git-tree-canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
 .git-tree-meta { display: flex; align-items: center; gap: 8px; min-width: 0; padding-right: 12px; }
 .git-ref { display: inline-flex; align-items: center; gap: 4px; background: color-mix(in srgb, var(--c, var(--accent)) 20%, transparent); color: color-mix(in srgb, var(--c, var(--accent)) 55%, var(--text)); border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 40%, transparent); border-radius: var(--r-sm); padding: 1px 7px 1px 6px; font-size: 11px; font-weight: 550; white-space: nowrap; }
 .git-ref .ph { font-size: 12px; opacity: .8; }

@@ -316,8 +316,6 @@ const LANE_PALETTE =['#5b8cff', '#3fb950', '#e3b341', '#bc8cff', '#f85149', '#39
 const LANE_W = 16; // px per lane column
 const ROW_H = 28; // px per commit row
 
-const SVGNS = 'http://www.w3.org/2000/svg';
-
 function renderTree(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'git-tree';
@@ -332,71 +330,24 @@ function renderTree(): HTMLElement {
   let runMax = 1;
   const gutters = rows.map((r) => { runMax = Math.max(runMax, r.cols); return runMax * LANE_W + LANE_W; });
 
+  const graphW = runMax * LANE_W + LANE_W; // monotonic gutter → its final value is the widest
+  const H = rows.length * ROW_H;
+
   const list = document.createElement('div');
   list.className = 'git-tree-list';
+  list.style.position = 'relative';
+  list.style.height = `${H}px`;
 
-  // Per-row self-contained SVG cell. CSS `.git-tree-row { content-visibility: auto }` then lets
-  // the browser skip rendering rows that are off-screen — so scrolling only ever paints the ~30
-  // visible rows, however long the history is. (A single tall SVG for all rows still re-rasters
-  // its whole column tile-by-tile on scroll; per-row + content-visibility avoids that.)
+  // Text rows are cheap DOM (content-visibility skips off-screen ones). The graph itself is drawn
+  // ONCE onto a single <canvas> appended below — a bitmap that just translates on scroll (GPU),
+  // not per-row SVG that re-rasterizes its vector paths every frame. This is what lets native git
+  // clients scroll instantly.
   rows.forEach((r, i) => {
     const row = document.createElement('div');
     row.className = 'git-tree-row' + (sel?.kind === 'commit' && sel.hash === r.commit.hash ? ' on' : '');
     row.style.height = `${ROW_H}px`;
+    row.style.paddingLeft = `${gutters[i]}px`;
     row.onclick = () => void selectCommit(r.commit.hash);
-
-    const rowW = gutters[i];
-    const svg = document.createElementNS(SVGNS, 'svg');
-    svg.setAttribute('class', 'git-tree-svg');
-    svg.setAttribute('width', String(rowW));
-    svg.setAttribute('height', String(ROW_H));
-    const ny = ROW_H / 2;
-    for (const e of r.edges) {
-      const p = document.createElementNS(SVGNS, 'path');
-      const x1 = x(e.from), x2 = x(e.to);
-      let d: string;
-      if (e.from === e.to) {
-        d = `M ${x1} 0 L ${x1} ${ROW_H}`;                                      // straight lane through the row
-      } else if (e.to === r.lane) {
-        d = `M ${x1} 0 C ${x1} ${ny / 2}, ${x2} ${ny / 2}, ${x2} ${ny}`;       // a side lane curves INTO this node
-      } else if (e.from === r.lane) {
-        d = `M ${x1} ${ny} C ${x1} ${ny + ny / 2}, ${x2} ${ny + ny / 2}, ${x2} ${ROW_H}`; // this node branches OUT to a parent
-      } else {
-        d = `M ${x1} 0 C ${x1} ${ny}, ${x2} ${ny}, ${x2} ${ROW_H}`;            // lane passing by (not touching this node)
-      }
-      p.setAttribute('d', d);
-      p.setAttribute('stroke', LANE_PALETTE[e.color % LANE_PALETTE.length]);
-      p.setAttribute('fill', 'none');
-      p.setAttribute('stroke-width', '2');
-      svg.appendChild(p);
-    }
-    // Commit node: a filled dot, or a larger chevron-marked circle for merges (2+ parents).
-    const isMerge = r.commit.parents.length > 1;
-    const cx = x(r.lane), cy = ROW_H / 2;
-    const col = LANE_PALETTE[r.color % LANE_PALETTE.length];
-    const dot = document.createElementNS(SVGNS, 'circle');
-    dot.setAttribute('cx', String(cx));
-    dot.setAttribute('cy', String(cy));
-    dot.setAttribute('r', isMerge ? '6.5' : '4');
-    dot.setAttribute('fill', col);
-    dot.style.stroke = 'var(--bg)'; // .style, not setAttribute — so var() resolves in WebKit
-    dot.setAttribute('stroke-width', isMerge ? '2' : '1.5');
-    svg.appendChild(dot);
-    if (isMerge) {
-      const chev = document.createElementNS(SVGNS, 'path');
-      chev.setAttribute('d', `M ${cx - 2.6} ${cy - 1.1} L ${cx} ${cy + 1.6} L ${cx + 2.6} ${cy - 1.1}`);
-      chev.setAttribute('fill', 'none');
-      chev.style.stroke = 'var(--bg)';
-      chev.setAttribute('stroke-width', '1.4');
-      chev.setAttribute('stroke-linecap', 'round');
-      chev.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(chev);
-    }
-
-    const graphCell = document.createElement('div');
-    graphCell.className = 'git-tree-graph';
-    graphCell.style.width = `${rowW}px`;
-    graphCell.appendChild(svg);
 
     const meta = document.createElement('div');
     meta.className = 'git-tree-meta';
@@ -425,9 +376,63 @@ function renderTree(): HTMLElement {
     info.textContent = `${r.commit.author} · ${r.commit.relDate}`;
     meta.append(subj, info);
 
-    row.append(graphCell, meta);
+    row.appendChild(meta);
     list.appendChild(row);
   });
+
+  // Draw the whole graph once onto a single canvas overlaid on the gutter (pointer-events: none,
+  // transparent except the lanes — row clicks pass through and the text shows through).
+  const dpr = window.devicePixelRatio || 1;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'git-tree-canvas';
+  canvas.width = Math.ceil(graphW * dpr);
+  canvas.height = Math.ceil(H * dpr);
+  canvas.style.width = `${graphW}px`;
+  canvas.style.height = `${H}px`;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth = 2;
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0a0b0d';
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const y0 = i * ROW_H, ny = i * ROW_H + ROW_H / 2, y1 = (i + 1) * ROW_H;
+      for (const e of r.edges) {
+        const x1 = x(e.from), x2 = x(e.to);
+        ctx.strokeStyle = LANE_PALETTE[e.color % LANE_PALETTE.length];
+        ctx.beginPath();
+        if (e.from === e.to) {
+          ctx.moveTo(x1, y0); ctx.lineTo(x1, y1);                                              // straight lane
+        } else if (e.to === r.lane) {
+          ctx.moveTo(x1, y0); ctx.bezierCurveTo(x1, ny - ROW_H / 4, x2, ny - ROW_H / 4, x2, ny); // into node
+        } else if (e.from === r.lane) {
+          ctx.moveTo(x1, ny); ctx.bezierCurveTo(x1, ny + ROW_H / 4, x2, ny + ROW_H / 4, x2, y1); // out of node
+        } else {
+          ctx.moveTo(x1, y0); ctx.bezierCurveTo(x1, ny, x2, ny, x2, y1);                        // passing by
+        }
+        ctx.stroke();
+      }
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const ny = i * ROW_H + ROW_H / 2, nx = x(r.lane);
+      const isMerge = r.commit.parents.length > 1;
+      ctx.beginPath();
+      ctx.arc(nx, ny, isMerge ? 6.5 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = LANE_PALETTE[r.color % LANE_PALETTE.length];
+      ctx.fill();
+      ctx.lineWidth = isMerge ? 2 : 1.5;
+      ctx.strokeStyle = bg;
+      ctx.stroke();
+      if (isMerge) {
+        ctx.beginPath();
+        ctx.moveTo(nx - 2.6, ny - 1.1); ctx.lineTo(nx, ny + 1.6); ctx.lineTo(nx + 2.6, ny - 1.1);
+        ctx.lineWidth = 1.4; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = bg;
+        ctx.stroke();
+      }
+    }
+  }
+  list.appendChild(canvas);
 
   wrap.appendChild(list);
   return wrap;
