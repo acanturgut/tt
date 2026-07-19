@@ -42,6 +42,9 @@ export function listTasks(project: string): Task[] {
 }
 
 export function addTask(project: string, title: string, description?: string, id?: string): Task {
+  // The supplied id is authoritative: the MCP layer already told the agent this exact id,
+  // so quietly substituting another would break every later update_task call. Uniqueness
+  // is enforced where ids are minted (mcp.rs) and where the store is loaded (loadTasks).
   const t: Task = {
     id: id ?? crypto.randomUUID(),
     project,
@@ -73,7 +76,11 @@ export function removeTask(id: string): void {
 }
 
 export function loadTasks(saved: Task[]): void {
-  tasks = saved.slice();
+  // Duplicate ids in the store (hand-edited, or minted by a build that predates the
+  // per-launch stamp) would make updateTask resolve to whichever came first and silently
+  // mutate the wrong card. The store is the untrusted side, so drop dupes on the way in.
+  const seen = new Set<string>();
+  tasks = saved.filter((t) => !seen.has(t.id) && (seen.add(t.id), true));
   notify();
 }
 

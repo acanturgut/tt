@@ -39,6 +39,24 @@ export function listProjects(): Project[] {
   return projects;
 }
 
+// Which open project a directory lives under. Longest match wins, so a project nested
+// inside another claims its own agents. null when the dir is under no open project.
+// Used to file a spawned agent by its OWN dir: an MCP spawn carries an arbitrary dir, so
+// attributing it to the visible tab would drop a child into the wrong project's grid.
+export function projectForDir(dir: string): string | null {
+  // Compare on a normalized root but return the STORED path: that string is the key
+  // Agent.project is matched against, so handing back a trimmed variant would file the
+  // agent under a project no lookup can find.
+  const norm = (p: string) => p.replace(/\/+$/, '') || '/';
+  let best: Project | null = null;
+  for (const p of projects) {
+    const root = norm(p.path);
+    const inside = dir === root || dir.startsWith(root === '/' ? '/' : root + '/');
+    if (inside && (!best || root.length > norm(best.path).length)) best = p;
+  }
+  return best?.path ?? null;
+}
+
 export function current(): Project | null {
   return projects.find((p) => p.path === currentPath) ?? projects[0] ?? null;
 }

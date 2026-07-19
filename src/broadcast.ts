@@ -474,7 +474,10 @@ export function closeComposer() {
   targetBtn = null;
   numBtn = null;
   // fade the composer out, then reveal the real omnibox again as it vanishes
-  const done = () => { c.remove(); s?.remove(); if (rootEl) rootEl.style.opacity = ''; };
+  // `composer` is nulled above but this runs 220ms later — by then the user may have
+  // reopened (⌘L Esc ⌘L), and un-hiding the collapsed bar would expose it behind the
+  // new composer. Only reveal if nothing has taken our place.
+  const done = () => { c.remove(); s?.remove(); if (rootEl && !composer) rootEl.style.opacity = ''; };
   if (reduceMotion() || !rootEl) { done(); return; }
   if (s) gsap.to(s, { opacity: 0, duration: 0.2, ease: 'power2.in' });
   gsap.to(Array.from(c.children), { opacity: 0, y: 8, duration: 0.16, ease: 'power2.in' });

@@ -142,8 +142,15 @@ export function openSettings() {
   const models = section('Default models');
   models.append(el('settings-section-desc', 'Model each provider spawns with. "default" leaves the CLI to pick.'));
   for (const [id, cat] of Object.entries(MODEL_CATALOG)) {
+    const saved = defaultModel(id);
+    const opts = ['default', ...cat.models];
+    // A local provider's catalog is filled in asynchronously from the machine, so opening
+    // settings early leaves it empty — the row would display the saved model while
+    // offering only "default", and picking that would silently wipe the saved value.
+    // Always offer what's currently set.
+    if (saved && !opts.includes(saved)) opts.splice(1, 0, saved);
     models.append(
-      choice(id, undefined, ['default', ...cat.models], defaultModel(id) || 'default',
+      choice(id, undefined, opts, saved || 'default',
         (v) => setDefaultModel(id, v === 'default' ? '' : v)),
     );
   }

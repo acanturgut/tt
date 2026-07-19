@@ -49,6 +49,43 @@ human, done when finished.";
 use std::sync::atomic::{AtomicUsize, Ordering};
 static TASK_SEQ: AtomicUsize = AtomicUsize::new(1);
 
+// The counter is per-process but the board is PERSISTED, so a bare "t1" collides with
+// last session's "t1" — and update_task resolves by id, so an agent marking its own new
+// task done silently mutated a stale one from a previous run instead. A per-launch stamp
+// makes the id unique across restarts. Not derived from the board: the snapshot the
+// backend holds is only the active project's, so a max+1 seed would still collide with
+// another project's tasks.
+// base36 keeps ids short — agents read and retype these.
+fn base36(mut n: u64) -> String {
+    let mut s = Vec::new();
+    while n > 0 {
+        let d = (n % 36) as u32;
+        s.push(char::from_digit(d, 36).unwrap_or('0'));
+        n /= 36;
+    }
+    if s.is_empty() {
+        s.push('0'); // n == 0 would otherwise yield an empty string
+    }
+    s.reverse();
+    s.into_iter().collect()
+}
+
+fn launch_stamp() -> &'static str {
+    static STAMP: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    STAMP.get_or_init(|| {
+        // MILLIseconds, not seconds: two launches inside the same second would otherwise
+        // share a stamp and both restart the sequence at 1 — the very collision this
+        // exists to prevent. The pid is encoded SEPARATELY rather than mixed in: any
+        // lossy combine (xor) maps distinct (time, pid) pairs onto one stamp, e.g.
+        // 1000^16 == 1001^17. Two components, two fields.
+        let millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        format!("{}-{}", base36(millis), base36(std::process::id() as u64))
+    })
+}
+
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
         let server = match Server::http(("127.0.0.1", PORT)) {
@@ -273,7 +310,11 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
                 return "error: 'title' is required".into();
             }
             let description = args.get("description").and_then(|v| v.as_str()).unwrap_or("");
-            let id = format!("t{}", TASK_SEQ.fetch_add(1, Ordering::Relaxed));
+            let id = format!(
+                "t{}-{}",
+                launch_stamp(),
+                TASK_SEQ.fetch_add(1, Ordering::Relaxed)
+            );
             let _ = app.emit(
                 "mcp-task-add",
                 json!({ "id": id, "title": title, "description": description }),
@@ -423,4 +464,51 @@ fn tool_defs() -> Value {
             }
         }
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The stamp is what keeps task ids from colliding with a previous run's, so it must
+    // be non-empty and stable within a process (the ids minted around it are sequential).
+    #[test]
+    fn launch_stamp_is_stable_and_base36() {
+        let a = launch_stamp();
+        let b = launch_stamp();
+        assert_eq!(a, b, "stamp must not change within a process");
+        assert!(!a.is_empty());
+        assert!(
+            a.chars().all(|c| (c.is_ascii_alphanumeric() && !c.is_ascii_uppercase()) || c == '-'),
+            "expected lowercase base36 fields, got {a:?}"
+        );
+    }
+
+    #[test]
+    fn base36_is_injective_over_its_components() {
+        assert_eq!(base36(0), "0"); // never empty
+        assert_eq!(base36(35), "z");
+        assert_eq!(base36(36), "10");
+        // The reason time and pid are separate fields: a lossy combine collapses distinct
+        // pairs onto one stamp (1000 ^ 16 == 1001 ^ 17), which is the collision we're
+        // preventing. Encoded as two fields, those two launches stay distinct.
+        assert_eq!(1000u64 ^ 16, 1001u64 ^ 17, "the xor collision this design avoids");
+        let stamp = |ms: u64, pid: u64| format!("{}-{}", base36(ms), base36(pid));
+        assert_ne!(stamp(1000, 16), stamp(1001, 17));
+    }
+
+    #[test]
+    fn task_ids_are_unique_and_carry_the_stamp() {
+        let mk = || {
+            format!(
+                "t{}-{}",
+                launch_stamp(),
+                TASK_SEQ.fetch_add(1, Ordering::Relaxed)
+            )
+        };
+        let a = mk();
+        let b = mk();
+        assert_ne!(a, b);
+        assert!(a.starts_with(&format!("t{}-", launch_stamp())));
+    }
 }
