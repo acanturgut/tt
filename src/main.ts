@@ -45,7 +45,7 @@ import {
 import {
   sessionAgents, activeSession, subscribeOrchestrators,
   addOrchestrator, setOrchestratorRoot, selectSession, orchestratorPrompt,
-  openNewOrchestrator, removeOrchestrator,
+  openNewOrchestrator, removeOrchestrator, getOrchestrator, childAttribution,
 } from './orchestrators';
 import {
   addTask,
@@ -602,25 +602,33 @@ void getCurrentWebview().onDragDropEvent((e) => {
 
 // MCP server -> UI: an agent (via the tt MCP tools) asked to spawn/send/broadcast/close.
 // Numbers are 1-based positions in list() (matches the list_agents snapshot).
-listen<{ agent: string; dir: string; prompt?: string }>('mcp-spawn', (e) =>
+listen<{ agent: string; dir: string; prompt?: string; parent?: string }>('mcp-spawn', (e) => {
+  const byLabel = new Map(agentTree(list()).map((n) => [n.label, n.agent.id]));
+  const parentId = e.payload.parent ? byLabel.get(String(e.payload.parent)) : undefined;
+  const parent = parentId ? list().find((a) => a.id === parentId) : undefined;
+  const s = activeSession();
+  const active = s ? { session: s, rootId: getOrchestrator(s)?.rootAgentId } : null;
+  const attr = childAttribution(parent, active);
   void spawn(e.payload.agent, e.payload.dir, undefined, {
     spawned: true,
-    parentId: focused() ?? undefined, // best-effort: the agent you're watching spawned it
+    session: attr.session,
+    parentId: attr.parentId ?? focused() ?? undefined, // General: keep today's best-effort
     prompt: e.payload.prompt || undefined,
-  }),
-);
+  });
+});
 listen<{ number: string; text: string }>('mcp-send', (e) => {
   const byLabel = new Map(agentTree(list()).map((n) => [n.label, n.agent.id]));
   const id = byLabel.get(String(e.payload.number));
   if (id) broadcast([id], e.payload.text, false);
 });
-listen<{ text: string; numbered: boolean }>('mcp-broadcast', (e) =>
-  broadcast(
-    list().map((a) => a.id),
-    e.payload.text,
-    e.payload.numbered,
-  ),
-);
+listen<{ text: string; numbered: boolean }>('mcp-broadcast', (e) => {
+  // Scope to the session in view so an orchestrator's broadcast reaches only its
+  // own workers, not General or other sessions.
+  // ponytail: uses the active view as the caller proxy (MCP has no caller id).
+  // Upgrade path: a per-session MCP token so each call self-identifies.
+  const targets = visibleAgents().map((a) => a.id);
+  broadcast(targets, e.payload.text, e.payload.numbered);
+});
 listen<{ number: string }>('mcp-close', (e) => {
   const byLabel = new Map(agentTree(list()).map((n) => [n.label, n.agent.id]));
   const id = byLabel.get(String(e.payload.number));

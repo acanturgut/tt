@@ -153,7 +153,11 @@ fn call_tool(app: &AppHandle, name: &str, args: &Value) -> String {
             if dir.is_empty() {
                 return "error: 'dir' is required".into();
             }
-            let _ = app.emit("mcp-spawn", json!({ "agent": agent, "dir": dir, "prompt": prompt }));
+            let parent = args.get("parent").and_then(|v| v.as_str()).unwrap_or("");
+            let _ = app.emit(
+                "mcp-spawn",
+                json!({ "agent": agent, "dir": dir, "prompt": prompt, "parent": parent }),
+            );
             if prompt.is_empty() {
                 format!("Spawning {agent} in {dir}. Call list_agents to see it.")
             } else {
@@ -300,13 +304,14 @@ fn tool_defs() -> Value {
     json!([
         {
             "name": "spawn_agent",
-            "description": "Open a new coding-agent in a folder. agent is one of: claude, codex, cursor, gemini, opencode, antigravity, terminal. Pass prompt to type an initial instruction into it once the CLI is ready — saves a separate send.",
+            "description": "Open a new coding-agent in a folder. agent is one of: claude, codex, cursor, gemini, opencode, antigravity, terminal. Pass prompt to type an initial instruction into it once the CLI is ready — saves a separate send. Pass parent=<your agent number> so the new agent joins your session.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "agent": { "type": "string", "description": "which CLI to run" },
                     "dir": { "type": "string", "description": "absolute folder path to run it in" },
-                    "prompt": { "type": "string", "description": "optional first message to send once the agent has started" }
+                    "prompt": { "type": "string", "description": "optional first message to send once the agent has started" },
+                    "parent": { "type": "string", "description": "your own agent number (e.g. \"1\") so the new agent joins your session/fleet" }
                 },
                 "required": ["agent", "dir"]
             }
