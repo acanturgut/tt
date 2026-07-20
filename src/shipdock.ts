@@ -48,6 +48,8 @@ let detailRoot: string | null = null; // the tree path detailStatus was fetched 
 let selFile: { path: string; staged: boolean } | null = null;
 let selDiff = '';
 let commitMsg = '';
+let statusReq = 0; // supersession counter: a newer loadStatus voids an in-flight older one
+let diffReq = 0;   // same, for loadDiff (a newer file click voids an older diff fetch)
 
 export function isDockOpen(): boolean {
   return expanded;
@@ -250,21 +252,29 @@ function renderDiffPane(): HTMLElement {
 }
 
 async function loadStatus(root: string): Promise<void> {
+  const my = ++statusReq;
+  let next: GitStatus | null;
   try {
-    detailStatus = await invoke<GitStatus>('git_status', { root });
+    next = await invoke<GitStatus>('git_status', { root });
   } catch {
-    detailStatus = null;
+    next = null;
   }
+  if (my !== statusReq) return; // superseded by a newer loadStatus (tree switched) — don't clobber
+  detailStatus = next;
   detailRoot = root; // mark as fetched (even on failure) so renderDetail doesn't refetch every render
   render();
 }
 
 async function loadDiff(root: string, path: string, staged: boolean): Promise<void> {
+  const my = ++diffReq;
+  let next: string;
   try {
-    selDiff = await invoke<string>('git_diff', { root, path, staged });
+    next = await invoke<string>('git_diff', { root, path, staged });
   } catch {
-    selDiff = '';
+    next = '';
   }
+  if (my !== diffReq) return; // superseded by a newer loadDiff (different file clicked)
+  selDiff = next;
   render();
 }
 
