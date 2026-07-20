@@ -43,6 +43,7 @@ export interface RunningAgent {
   name: string;
   dir: string;
   status: string;
+  label?: string; // workflow tag: planning | in-progress | in-review | needs-human | done
 }
 
 export interface Edge {
@@ -150,4 +151,70 @@ export function layoutGraph(commits: Commit[]): GraphRow[] {
 export function agentForWorktree(agents: RunningAgent[], wtPath: string): RunningAgent | undefined {
   const base = wtPath.replace(/\/$/, '');
   return agents.find((a) => a.dir === base || a.dir.startsWith(base + '/'));
+}
+
+export type ShipReason = 'review' | 'finished' | 'changes' | 'ahead';
+
+export interface TreeCard {
+  path: string;
+  branch: string;
+  head: string;
+  dirty: number;
+  ahead: number;
+  behind: number;
+  agents: RunningAgent[]; // all attached, by dir-nesting
+  reasons: ShipReason[];  // non-empty, ordered by priority
+}
+
+// Priority: explicit intent (review) first, then freshest signal, then raw git state.
+const REASON_RANK: Record<ShipReason, number> = { review: 0, finished: 1, changes: 2, ahead: 3 };
+
+// Every agent nested in the worktree (plural of agentForWorktree — a shared tree has many).
+export function agentsForWorktree(agents: RunningAgent[], wtPath: string): RunningAgent[] {
+  const base = wtPath.replace(/\/$/, '');
+  return agents.filter((a) => a.dir === base || a.dir.startsWith(base + '/'));
+}
+
+// A worktree becomes a card when it has ≥1 reason. `finishedIds` is the dock-owned set of
+// agent ids that just went working→idle (see detectFinished); it is passed in so this stays pure.
+export function deriveTreeCards(
+  worktrees: Worktree[],
+  agents: RunningAgent[],
+  finishedIds: Set<string>,
+): TreeCard[] {
+  const cards: TreeCard[] = [];
+  for (const w of worktrees) {
+    if (w.bare) continue;
+    const wa = agentsForWorktree(agents, w.path);
+    const reasons: ShipReason[] = [];
+    if (wa.some((a) => a.label === 'in-review' || a.label === 'done')) reasons.push('review');
+    if (wa.some((a) => finishedIds.has(a.id))) reasons.push('finished');
+    if (w.dirty > 0) reasons.push('changes');
+    if (w.ahead > 0) reasons.push('ahead');
+    if (!reasons.length) continue;
+    reasons.sort((a, b) => REASON_RANK[a] - REASON_RANK[b]);
+    cards.push({
+      path: w.path, branch: w.branch, head: w.head,
+      dirty: w.dirty, ahead: w.ahead, behind: w.behind,
+      agents: wa, reasons,
+    });
+  }
+  // Order cards by their top reason; Array.sort is stable so ties keep git_worktrees order.
+  cards.sort((a, b) => REASON_RANK[a.reasons[0]] - REASON_RANK[b.reasons[0]]);
+  return cards;
+}
+
+// Diff a previous per-agent-id status snapshot against the current agents.
+// Returns the ids that transitioned working→idle plus the fresh snapshot to store.
+export function detectFinished(
+  prev: Map<string, string>,
+  agents: RunningAgent[],
+): { transitioned: string[]; next: Map<string, string> } {
+  const next = new Map<string, string>();
+  const transitioned: string[] = [];
+  for (const a of agents) {
+    next.set(a.id, a.status);
+    if (prev.get(a.id) === 'working' && a.status === 'idle') transitioned.push(a.id);
+  }
+  return { transitioned, next };
 }

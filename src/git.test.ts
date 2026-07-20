@@ -110,3 +110,87 @@ describe('agentForWorktree', () => {
     expect(agentForWorktree(agents, '/a/wt2')).toBeUndefined();
   });
 });
+
+import {
+  agentsForWorktree,
+  deriveTreeCards,
+  detectFinished,
+  type Worktree,
+  type RunningAgent,
+} from './gitgraph';
+
+const wt = (path: string, over: Partial<Worktree> = {}): Worktree => ({
+  path, branch: 'main', head: 'abc1234', detached: false, bare: false,
+  dirty: 0, ahead: 0, behind: 0, ...over,
+});
+const ag = (id: string, dir: string, over: Partial<RunningAgent> = {}): RunningAgent => ({
+  id, name: 'a' + id, dir, status: 'idle', ...over,
+});
+
+describe('agentsForWorktree', () => {
+  it('returns all agents nested in the worktree, none outside', () => {
+    const agents = [ag('1', '/a/wt'), ag('2', '/a/wt/sub'), ag('3', '/a/other')];
+    expect(agentsForWorktree(agents, '/a/wt').map((a) => a.id)).toEqual(['1', '2']);
+  });
+});
+
+describe('deriveTreeCards', () => {
+  it('excludes clean trees with no agent reasons', () => {
+    expect(deriveTreeCards([wt('/a')], [], new Set())).toEqual([]);
+  });
+
+  it('cards a dirty tree on `changes`', () => {
+    const cards = deriveTreeCards([wt('/a', { dirty: 4 })], [], new Set());
+    expect(cards.map((c) => c.reasons)).toEqual([['changes']]);
+    expect(cards[0].dirty).toBe(4);
+  });
+
+  it('cards an unpushed-but-clean tree on `ahead` (the commit→push walk)', () => {
+    const cards = deriveTreeCards([wt('/a', { dirty: 0, ahead: 2 })], [], new Set());
+    expect(cards.map((c) => c.reasons)).toEqual([['ahead']]);
+  });
+
+  it('cards on `review` when an attached agent is in-review or done', () => {
+    const agents = [ag('1', '/a/wt', { label: 'in-review' })];
+    const cards = deriveTreeCards([wt('/a/wt')], agents, new Set());
+    expect(cards[0].reasons).toContain('review');
+    expect(cards[0].agents.map((a) => a.id)).toEqual(['1']);
+  });
+
+  it('cards on `finished` when an attached agent id is in finishedIds', () => {
+    const agents = [ag('1', '/a/wt')];
+    const cards = deriveTreeCards([wt('/a/wt')], agents, new Set(['1']));
+    expect(cards[0].reasons).toContain('finished');
+  });
+
+  it('sorts reasons and cards by priority review > finished > changes > ahead', () => {
+    const agents = [ag('1', '/a/wt', { label: 'done' })];
+    const dirtyReviewed = wt('/a/wt', { dirty: 3, ahead: 1 });
+    const aheadOnly = wt('/b', { ahead: 1 });
+    const cards = deriveTreeCards([aheadOnly, dirtyReviewed], agents, new Set(['1']));
+    // reviewed tree ranks first; its own reasons are ordered by priority
+    expect(cards[0].path).toBe('/a/wt');
+    expect(cards[0].reasons).toEqual(['review', 'finished', 'changes', 'ahead']);
+    expect(cards[1].path).toBe('/b');
+  });
+
+  it('skips bare worktrees', () => {
+    expect(deriveTreeCards([wt('/a', { bare: true, dirty: 9 })], [], new Set())).toEqual([]);
+  });
+});
+
+describe('detectFinished', () => {
+  it('flags a working→idle transition and updates the snapshot', () => {
+    const prev = new Map([['1', 'working'], ['2', 'idle']]);
+    const now = [ag('1', '/a', { status: 'idle' }), ag('2', '/a', { status: 'idle' })];
+    const { transitioned, next } = detectFinished(prev, now);
+    expect(transitioned).toEqual(['1']);
+    expect(next.get('1')).toBe('idle');
+  });
+
+  it('does not flag idle→idle, working→working, or a new agent', () => {
+    const prev = new Map([['1', 'idle'], ['2', 'working']]);
+    const now = [ag('1', '/a', { status: 'idle' }), ag('2', '/a', { status: 'working' }), ag('3', '/a', { status: 'idle' })];
+    expect(detectFinished(prev, now).transitioned).toEqual([]);
+  });
+});
