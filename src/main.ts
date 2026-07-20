@@ -36,6 +36,7 @@ import { mountBoard, openBoard, closeBoard, isBoardOpen } from './board';
 import { mountViewer, openViewer, closeViewer, isViewerOpen } from './viewer';
 import { mountGit, openGit, closeGit, isGitOpen } from './git';
 import { mountTaskStrip, renderTaskStrip } from './taskstrip';
+import { mountShipDock } from './shipdock';
 import {
   subscribeProjects,
   current as currentProject,
@@ -89,6 +90,7 @@ const viewerEl = document.getElementById('viewer')!;
 const gitEl = document.getElementById('git')!;
 const statuslineEl = document.getElementById('statusline')!;
 const taskstripEl = document.getElementById('taskstrip')!;
+const shipdockEl = document.getElementById('shipdock')!;
 const welcomeEl = document.getElementById('welcome')!;
 
 function fitAll() {
@@ -867,6 +869,15 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && isGitOpen()) closeGit();
 });
 mountTaskStrip(taskstripEl, statuslineEl, { getProject: () => curProjPath(), getAgents: agentCounts });
+mountShipDock(shipdockEl, () => curProjPath(), {
+  getAgents: () =>
+    visibleAgents().map((a) => ({ id: a.id, name: a.name, dir: a.dir, status: a.status, label: a.label })),
+  revealFolder: (p) => {
+    const proj = currentProject();
+    if (proj) void revealInTree(treeEl, proj.path, treeHandlers(), p);
+  },
+  openFile: (p) => void openViewer(p),
+});
 renderWelcome(welcomeEl);
 renderProject();
 renderAgents();

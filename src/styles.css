@@ -668,6 +668,24 @@ body.focus-mode.git-open #topbar, body.focus-mode.board-open #topbar { display: 
 
 .git-toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--elev); color: var(--text); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 14px; box-shadow: var(--shadow); z-index: 60; max-width: 60vw; white-space: pre-wrap; }
 
+/* ── ship dock — persistent bottom review/ship queue ─ */
+#shipdock { display: flex; flex-direction: column; min-height: 0; background: var(--chrome); border-top: 1px solid var(--line); }
+#shipdock:empty { display: none; }
+body.dock-open #shipdock { flex: 0 0 46%; } /* claims ~46% of #maincol; #workspace (flex:1) yields */
+
+/* The detail wrapper is a stable child (kept across repaints so the commit box holds focus).
+   It only occupies space when expanded — collapsed, an empty wrapper would still grow. */
+.dock-detailwrap { display: none; }
+body.dock-open .dock-detailwrap { display: flex; flex: 1 1 auto; min-height: 0; }
+
+.dock-strip { display: flex; align-items: center; gap: 8px; padding: 5px 12px; font-size: 11px; color: var(--muted); overflow-x: auto; flex: 0 0 auto; }
+.dock-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--reason); font-weight: 600; cursor: pointer; white-space: nowrap; }
+.dock-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); border-left: 3px solid var(--reason); background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; white-space: nowrap; }
+.dock-chip:hover { background: var(--elev); }
+.dock-chip.on { background: var(--elev); color: var(--fg); }
+.dock-chip-name { color: var(--fg); font-weight: 500; }
+.dock-chip-meta { opacity: .75; }
+
 /* ── git diff pane ─ */
 .git-diff-empty { padding: 24px; color: var(--dim); }
 .git-diff-head { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--chrome); border-bottom: 1px solid var(--line); position: sticky; top: 0; }
