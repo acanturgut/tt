@@ -25,6 +25,7 @@ export interface TopbarHandlers {
   onToggleRight: () => void;
   onBoard: () => void;
   onGit: () => void;
+  onDock: () => void;
   onTemplates: () => void;
 }
 
@@ -146,6 +147,7 @@ export function renderProjectTabs(
     onTemplates: () => void;
     onBoard: () => void;
     onGit: () => void;
+    onDock: () => void;
   },
 ) {
   root.innerHTML = '';
@@ -251,6 +253,7 @@ export function renderProjectTabs(
       toolBtn('stack', 'Fleet templates', h.onTemplates, '⌘ F'),
       toolBtn('kanban', 'Task board', h.onBoard, '⌘ J'),
       toolBtn('git-branch', 'Git', h.onGit, '⌘ G'),
+      toolBtn('git-pull-request', 'Ship dock', h.onDock, '⌘ ⇧ G'),
     );
   }
   tools.append(
@@ -289,6 +292,7 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
 
   const boardBtn = iconBtn('kanban', 'Task board', () => h.onBoard(), '⌘ J');
   const gitBtn = iconBtn('git-branch', 'Git', () => h.onGit(), '⌘ G');
+  const dockBtn = iconBtn('git-pull-request', 'Ship dock', () => h.onDock(), '⌘ ⇧ G');
   const templatesBtn = iconBtn('stack', 'Fleet templates', () => h.onTemplates(), '⌘ F');
 
   const sep = document.createElement('span');
@@ -301,5 +305,5 @@ export function renderTopbar(left: HTMLElement, right: HTMLElement, h: TopbarHan
   // repeating it on every tile would read as a per-agent number.
   const quota = quotaPills();
   if (quota) right.append(quota);
-  right.append(templatesBtn, boardBtn, gitBtn, sep2, agentsToggle);
+  right.append(templatesBtn, dockBtn, boardBtn, gitBtn, sep2, agentsToggle);
 }

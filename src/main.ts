@@ -36,7 +36,7 @@ import { mountBoard, openBoard, closeBoard, isBoardOpen } from './board';
 import { mountViewer, openViewer, closeViewer, isViewerOpen } from './viewer';
 import { mountGit, openGit, closeGit, isGitOpen } from './git';
 import { mountTaskStrip, renderTaskStrip } from './taskstrip';
-import { mountShipDock } from './shipdock';
+import { mountShipDock, toggleDock, closeDock, isDockOpen } from './shipdock';
 import {
   subscribeProjects,
   current as currentProject,
@@ -298,6 +298,7 @@ function buildCommands(): Command[] {
   cmds.push({ label: 'Fleet templates…', icon: 'stack', run: showTemplates });
   cmds.push({ label: 'Open task board', icon: 'kanban', run: () => { closeViewer(); closeGit(); openBoard(); } });
   cmds.push({ label: 'Open git', icon: 'git-branch', run: showGit });
+  cmds.push({ label: 'Toggle ship dock', icon: 'git-pull-request', run: toggleDock });
   return cmds;
 }
 
@@ -423,6 +424,7 @@ function renderProject() {
     onTemplates: showTemplates,
     onBoard: () => { closeViewer(); closeGit(); openBoard(); },
     onGit: showGit,
+    onDock: toggleDock,
   });
   renderTopbar(tbLeftEl, tbRightEl, {
     onSpawn: (agentId) => {
@@ -434,6 +436,7 @@ function renderProject() {
     onTemplates: showTemplates,
     onBoard: () => { closeViewer(); closeGit(); openBoard(); },
     onGit: showGit,
+    onDock: toggleDock,
   });
   void renderTree(treeEl, currentProject()?.path ?? null, treeHandlers());
   pushTasks();
@@ -810,6 +813,9 @@ window.addEventListener('keydown', (e) => {
     if (isBoardOpen()) closeBoard();
     else { closeViewer(); closeGit(); openBoard(); }
     e.preventDefault();
+  } else if (e.key.toLowerCase() === 'g' && e.shiftKey) {
+    toggleDock();
+    e.preventDefault();
   } else if (e.key.toLowerCase() === 'g') {
     if (isGitOpen()) closeGit();
     else showGit();
@@ -867,6 +873,9 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && isGitOpen()) closeGit();
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && isDockOpen()) closeDock();
 });
 mountTaskStrip(taskstripEl, statuslineEl, { getProject: () => curProjPath(), getAgents: agentCounts });
 mountShipDock(shipdockEl, () => curProjPath(), {
