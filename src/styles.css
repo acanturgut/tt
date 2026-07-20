@@ -682,8 +682,8 @@ body.dock-open .dock-detailwrap { display: flex; flex: 1 1 auto; min-height: 0; 
 .dock-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--reason); font-weight: 600; cursor: pointer; white-space: nowrap; }
 .dock-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); border-left: 3px solid var(--reason); background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; white-space: nowrap; }
 .dock-chip:hover { background: var(--elev); }
-.dock-chip.on { background: var(--elev); color: var(--fg); }
-.dock-chip-name { color: var(--fg); font-weight: 500; }
+.dock-chip.on { background: var(--elev); color: var(--text); }
+.dock-chip-name { color: var(--text); font-weight: 500; }
 .dock-chip-meta { opacity: .75; }
 
 /* ── git diff pane ─ */
