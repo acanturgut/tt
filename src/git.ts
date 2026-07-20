@@ -565,6 +565,37 @@ function renderTree(): HTMLElement {
   return wrap;
 }
 
+// The diff body: one row per parsed line, with two gutter columns and a highlighted code span.
+// Extracted so the ship dock renders diffs identically without duplicating this loop.
+// Resolve the language ONCE (highlightAuto per-line is what froze the view on big diffs).
+export function renderDiffBody(diffText: string, langPath: string): HTMLElement {
+  const lang = langForPath(langPath);
+  const body = document.createElement('div');
+  body.className = 'git-diff-body';
+  for (const d of parseDiff(diffText)) {
+    const { cls, text } = d;
+    const line = document.createElement('div');
+    line.className = cls;
+
+    const gutO = document.createElement('span');
+    gutO.className = 'dl-no';
+    const gutN = document.createElement('span');
+    gutN.className = 'dl-no';
+    if (d.oldNo !== null) gutO.textContent = String(d.oldNo);
+    if (d.newNo !== null) gutN.textContent = String(d.newNo);
+
+    const code = document.createElement('span');
+    code.className = 'dl-code';
+    // ponytail: per-line highlight loses multi-line string/comment context — fine for a diff.
+    code.innerHTML =
+      cls === 'dl hunk' || cls === 'dl meta' || !lang ? escapeHtml(text) : highlight(langPath, text);
+
+    line.append(gutO, gutN, code);
+    body.appendChild(line);
+  }
+  return body;
+}
+
 function renderDiff(): HTMLElement {
   const wrap = document.createElement('div');
   wrap.className = 'git-diff';
@@ -598,36 +629,8 @@ function renderDiff(): HTMLElement {
   }
   wrap.appendChild(head);
 
-  // Resolve the language ONCE, not per line. Commit diffs (and unknown file types) resolve to null
-  // → plain escaped text, which skips hljs.highlightAuto entirely (its per-line, all-languages cost
-  // is what froze the view on any real diff). Known file types still get real syntax highlighting.
   const langPath = sel.kind === 'file' ? sel.path : '.txt';
-  const lang = langForPath(langPath);
-  const body = document.createElement('div');
-  body.className = 'git-diff-body';
-  for (const d of parseDiff(diffText)) {
-    const { cls, text } = d;
-    const line = document.createElement('div');
-    line.className = cls;
-
-    const gutO = document.createElement('span');
-    gutO.className = 'dl-no';
-    const gutN = document.createElement('span');
-    gutN.className = 'dl-no';
-    if (d.oldNo !== null) gutO.textContent = String(d.oldNo);
-    if (d.newNo !== null) gutN.textContent = String(d.newNo);
-
-    const code = document.createElement('span');
-    code.className = 'dl-code';
-    // ponytail: per-line highlight loses multi-line string/comment context — fine for a diff.
-    // No known language (commit diffs, unknown types) → plain text; never fall back to highlightAuto.
-    code.innerHTML =
-      cls === 'dl hunk' || cls === 'dl meta' || !lang ? escapeHtml(text) : highlight(langPath, text);
-
-    line.append(gutO, gutN, code);
-    body.appendChild(line);
-  }
-  wrap.appendChild(body);
+  wrap.appendChild(renderDiffBody(diffText, langPath));
   return wrap;
 }
 

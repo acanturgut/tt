@@ -194,3 +194,15 @@ describe('detectFinished', () => {
     expect(detectFinished(prev, now).transitioned).toEqual([]);
   });
 });
+
+import { renderDiffBody } from './git';
+
+describe('renderDiffBody', () => {
+  it('builds one line div per parsed diff line with the parser class', () => {
+    const body = renderDiffBody(['@@ -1,1 +1,1 @@', '-a', '+b'].join('\n'), 'x.txt');
+    // renderDiffBody returns the `.git-diff-body` element itself; its direct children are the lines.
+    const rows = [...body.children];
+    expect(rows.map((r) => r.className)).toEqual(['dl hunk', 'dl del', 'dl add']);
+    expect(body.querySelectorAll('.dl-code').length).toBe(3); // one code span per line
+  });
+});
