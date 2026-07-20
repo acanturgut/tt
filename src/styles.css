@@ -686,6 +686,24 @@ body.dock-open .dock-detailwrap { display: flex; flex: 1 1 auto; min-height: 0; 
 .dock-chip-name { color: var(--text); font-weight: 500; }
 .dock-chip-meta { opacity: .75; }
 
+.dock-detail { display: flex; flex: 1 1 auto; min-height: 0; border-top: 1px solid var(--line); }
+.dock-sc { width: 320px; flex: none; display: flex; flex-direction: column; overflow: auto; border-right: 1px solid var(--line); padding: 8px; gap: 8px; }
+.dock-sc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dock-push { padding: 3px 10px; border-radius: var(--r); border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; }
+.dock-push:disabled { opacity: .4; cursor: default; }
+.dock-group-head { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
+.dock-file { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: var(--r); cursor: pointer; font-size: 12px; }
+.dock-file:hover, .dock-file.on { background: var(--elev); }
+.dock-x { width: 1.2em; text-align: center; color: var(--accent); }
+.dock-fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dock-stage { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; }
+.dock-commitbox { display: flex; flex-direction: column; gap: 6px; margin-top: auto; }
+.dock-msg { resize: vertical; min-height: 44px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: var(--r); padding: 6px; font: inherit; }
+.dock-commit-btn { padding: 5px; border-radius: var(--r); border: 1px solid var(--line); background: var(--accent); color: #fff; cursor: pointer; }
+.dock-commit-btn:disabled { opacity: .4; cursor: default; }
+.dock-diffpane { flex: 1; min-width: 0; overflow: auto; background: var(--bg); }
+.dock-diff-empty { color: var(--muted); padding: 24px; text-align: center; }
+
 /* ── git diff pane ─ */
 .git-diff-empty { padding: 24px; color: var(--dim); }
 .git-diff-head { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--chrome); border-bottom: 1px solid var(--line); position: sticky; top: 0; }

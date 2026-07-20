@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { subscribe } from './agents';
+import { renderDiffBody } from './git';
 import {
   deriveTreeCards,
   detectFinished,
@@ -7,6 +8,8 @@ import {
   type Worktree,
   type RunningAgent,
   type ShipReason,
+  type GitStatus,
+  type FileEntry,
 } from './gitgraph';
 
 export interface DockDeps {
@@ -39,6 +42,12 @@ let pollTimer: number | null = null;
 let stripRegion: HTMLElement | null = null;
 let detailRegion: HTMLElement | null = null;
 let detailHash = ''; // last-painted detail signature; skip repaint when unchanged
+
+let detailStatus: GitStatus | null = null;
+let detailRoot: string | null = null; // the tree path detailStatus was fetched for (refetch guard)
+let selFile: { path: string; staged: boolean } | null = null;
+let selDiff = '';
+let commitMsg = '';
 
 export function isDockOpen(): boolean {
   return expanded;
@@ -107,8 +116,6 @@ function render(): void {
   stripRegion!.replaceChildren(renderStrip());
 
   // Detail: only when expanded, only when its inputs changed, and never under a focused commit box.
-  // renderDetail / detailStatus / selFile / selDiff are added in Task 4; in Task 3 the detail is
-  // the stub, so this simply paints an empty region.
   if (expanded && selectedPath) {
     const dh = detailSignature();
     if (dh !== detailHash && !commitFocused()) {
@@ -121,17 +128,157 @@ function render(): void {
   }
 }
 
-// Signature of everything the detail renders from. In Task 3 (stub) it depends only on the
-// selection; Task 4 replaces this to include detailStatus / selFile / selDiff.
+// Signature of everything the detail renders from.
 function detailSignature(): string {
-  return String(selectedPath);
+  // Repaint the detail whenever the tree's status, the selected file, or its diff changes.
+  // commitMsg is deliberately excluded — the textarea owns it via oninput; including it would
+  // repaint (and drop focus) on every keystroke.
+  return JSON.stringify([
+    selectedPath,
+    detailStatus?.branch, detailStatus?.ahead,
+    detailStatus?.files.map((f) => [f.path, f.staged, f.unstaged, f.x, f.y]),
+    selFile, selDiff.length,
+  ]);
 }
 
-// Placeholder detail — replaced in Task 4. Keeps the strip shippable and testable on its own.
-function renderDetail(_path: string): HTMLElement {
-  const d = document.createElement('div');
-  d.className = 'dock-detail';
-  return d;
+// Two columns: dock-owned Source Control (changes + commit + push) left, shared diff right.
+// The dock owns its changes list rather than reusing git.ts's fileGroup: that helper is bound to
+// git.ts's module-global selection/root. ponytail: ~40 lines vs. threading git.ts's state out.
+function renderDetail(path: string): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'dock-detail';
+  wrap.append(renderSourceControl(path), renderDiffPane());
+  // Fetch status for this tree if we haven't already (async → re-render on arrival).
+  // Guard on detailRoot, not detailStatus.toplevel — git's toplevel can differ from the
+  // worktree path by normalization, which would refetch every render (a loop).
+  if (detailRoot !== path) void loadStatus(path);
+  return wrap;
+}
+
+function renderSourceControl(root: string): HTMLElement {
+  const sc = document.createElement('div');
+  sc.className = 'dock-sc';
+
+  // Push header
+  const head = document.createElement('div');
+  head.className = 'dock-sc-head';
+  const branch = document.createElement('span');
+  branch.textContent = detailStatus?.branch ?? '';
+  const push = document.createElement('button');
+  push.className = 'dock-push';
+  const ahead = detailStatus?.ahead ?? 0;
+  push.textContent = ahead ? `Push ↑${ahead}` : 'Push';
+  push.disabled = !ahead;
+  push.onclick = () => act(() => invoke('git_push', { root }), root);
+  head.append(branch, push);
+  sc.appendChild(head);
+
+  const files = detailStatus?.files ?? [];
+  sc.appendChild(fileGroup('Staged', files.filter((f) => f.staged), true, root));
+  sc.appendChild(fileGroup('Changes', files.filter((f) => f.unstaged), false, root));
+
+  // Commit box
+  const box = document.createElement('div');
+  box.className = 'dock-commitbox';
+  const ta = document.createElement('textarea');
+  ta.className = 'dock-msg';
+  ta.placeholder = 'Commit message';
+  ta.value = commitMsg;
+  const staged = files.filter((f) => f.staged);
+  const commit = document.createElement('button');
+  commit.className = 'dock-commit-btn';
+  commit.textContent = `Commit ${staged.length ? '(' + staged.length + ')' : ''}`.trim();
+  commit.disabled = !staged.length || !commitMsg.trim();
+  ta.oninput = () => {
+    commitMsg = ta.value;
+    commit.disabled = !staged.length || !commitMsg.trim();
+  };
+  commit.onclick = () =>
+    act(async () => {
+      await invoke('git_commit', { root, message: commitMsg.trim() });
+      commitMsg = '';
+    }, root);
+  box.append(ta, commit);
+  sc.appendChild(box);
+  return sc;
+}
+
+function fileGroup(label: string, files: FileEntry[], staged: boolean, root: string): HTMLElement {
+  const g = document.createElement('div');
+  g.className = 'dock-group';
+  const head = document.createElement('div');
+  head.className = 'dock-group-head';
+  head.textContent = `${label} ${files.length}`;
+  g.appendChild(head);
+  for (const f of files) {
+    const row = document.createElement('div');
+    row.className = 'dock-file' + (selFile?.path === f.path && selFile.staged === staged ? ' on' : '');
+    const st = document.createElement('span');
+    st.className = 'dock-x';
+    st.textContent = staged ? f.x : f.y;
+    const name = document.createElement('span');
+    name.className = 'dock-fname';
+    name.textContent = f.path;
+    name.title = f.path;
+    const btn = document.createElement('button');
+    btn.className = 'dock-stage';
+    btn.textContent = staged ? '−' : '+';
+    btn.title = staged ? 'Unstage' : 'Stage';
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      act(() => invoke(staged ? 'git_unstage' : 'git_stage', { root, path: f.path }), root);
+    };
+    row.append(st, name, btn);
+    row.onclick = () => { selFile = { path: f.path, staged }; void loadDiff(root, f.path, staged); };
+    g.appendChild(row);
+  }
+  return g;
+}
+
+function renderDiffPane(): HTMLElement {
+  const pane = document.createElement('div');
+  pane.className = 'dock-diffpane';
+  if (!selFile) {
+    const e = document.createElement('div');
+    e.className = 'dock-diff-empty';
+    e.textContent = 'Select a file to see the diff.';
+    pane.appendChild(e);
+    return pane;
+  }
+  pane.appendChild(renderDiffBody(selDiff, selFile.path));
+  return pane;
+}
+
+async function loadStatus(root: string): Promise<void> {
+  try {
+    detailStatus = await invoke<GitStatus>('git_status', { root });
+  } catch {
+    detailStatus = null;
+  }
+  detailRoot = root; // mark as fetched (even on failure) so renderDetail doesn't refetch every render
+  render();
+}
+
+async function loadDiff(root: string, path: string, staged: boolean): Promise<void> {
+  try {
+    selDiff = await invoke<string>('git_diff', { root, path, staged });
+  } catch {
+    selDiff = '';
+  }
+  render();
+}
+
+// Run a git mutation, then refresh this tree's status (and the worktree poll for dirty/ahead).
+function act(fn: () => Promise<unknown>, root: string): void {
+  void (async () => {
+    try {
+      await fn();
+    } catch (err) {
+      console.error('[shipdock]', err);
+    }
+    await loadStatus(root);
+    void poll();
+  })();
 }
 
 function renderStrip(): HTMLElement {
@@ -191,6 +338,7 @@ export function toggleDock(): void {
 
 // Selecting a tree clears its `finished` reason (you're now looking at it).
 export function selectTree(path: string): void {
+  if (path !== selectedPath) { detailStatus = null; detailRoot = null; selFile = null; selDiff = ''; commitMsg = ''; }
   selectedPath = path;
   const card = cards.find((c) => c.path === path);
   if (card) card.agents.forEach((a) => finishedIds.delete(a.id));
