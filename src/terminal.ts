@@ -1,10 +1,12 @@
 import { Terminal, FitAddon, init } from 'ghostty-web';
-// Vite emits the wasm as a real bundled asset and gives us its hashed URL. Passing it to
-// init() bypasses ghostty's default loader, which fetch()es an inlined data: URL — WKWebView
-// blocks that under our CSP, and the fallback ./ghostty-vt.wasm isn't in the bundle, so the
-// Tauri asset server returns index.html and WebAssembly.compile chokes on HTML ("doesn't
-// start with '\0asm'"). A same-origin asset fetch ('self') just works, dev and release.
-import ghosttyWasmUrl from 'ghostty-web/ghostty-vt.wasm?url';
+// ghostty's init(url) does a single fetch(url). Every URL we can hand it that resolves
+// through Tauri's asset protocol or a data: URL has failed in the notarized release build
+// (the fetch comes back as index.html → WebAssembly.compile chokes on HTML, "doesn't start
+// with '\0asm'"). So we sidestep serving entirely: Vite inlines the wasm bytes INTO this
+// bundle (?inline → a data: URL string), we decode them to a Blob at runtime, and feed
+// ghostty a blob: URL. The bytes are already in memory — nothing is fetched from disk or
+// the asset server, so there's no 404/SPA-fallback to turn into HTML.
+import ghosttyWasmB64 from 'virtual:ghostty-wasm';
 import { invoke } from '@tauri-apps/api/core';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { markInput } from './agents';
@@ -20,8 +22,39 @@ import { markInput } from './agents';
 // single load; the app awaits it before creating any terminal.
 let initPromise: Promise<void> | null = null;
 export function initTerminals(): Promise<void> {
-  // init() takes an optional wasm URL at runtime; its shipped .d.ts stalely omits it.
-  return (initPromise ??= (init as (u?: string) => Promise<void>)(ghosttyWasmUrl));
+  return (initPromise ??= loadGhostty());
+}
+
+// Decode the inlined wasm to bytes and load ghostty from a blob: URL (see import comment).
+export function wasmBytes(): Uint8Array {
+  const bin = atob(ghosttyWasmB64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function loadGhostty(): Promise<void> {
+  const bytes = wasmBytes();
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/wasm' }));
+  try {
+    // init() takes an optional wasm URL at runtime; its shipped .d.ts stalely omits it.
+    await (init as (u?: string) => Promise<void>)(url);
+  } catch (e) {
+    // This path resisted several release-only fixes, so pin the failing layer: if the raw
+    // bytes compile here but init(blobUrl) didn't, the blob:/CSP fetch is at fault, not the
+    // wasm. The magic bytes prove the inlined payload isn't truncated/HTML.
+    let probe: string;
+    try {
+      await WebAssembly.compile(bytes);
+      probe = 'raw bytes compile OK → blob:/fetch layer is the problem';
+    } catch (pe) {
+      probe = `raw bytes compile FAILED → ${pe}`;
+    }
+    const magic = [...bytes.slice(0, 4)].map((b) => b.toString(16).padStart(2, '0')).join(' ');
+    throw new Error(`ghostty wasm load failed: ${e} | bytes=${bytes.length} magic=${magic} | ${probe}`);
+  } finally {
+    URL.revokeObjectURL(url); // init() has already fetched+compiled by now
+  }
 }
 
 export class AgentTerminal {
