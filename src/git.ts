@@ -90,6 +90,7 @@ export function openGit(): void {
 export function closeGit(): void {
   open = false;
   document.body.classList.remove('git-open');
+  document.getElementById('viewtb')?.replaceChildren(); // empty the shared topbar action slot
   if (timer !== null) {
     clearInterval(timer);
     timer = null;
@@ -135,7 +136,7 @@ async function refresh(): Promise<void> {
     // focus (in tt the repo changes constantly — a poll mustn't wipe what they're typing).
     const w = JSON.stringify(worktrees) + JSON.stringify(deps.getAgents().map((x) => [x.dir, x.status]));
     if (w !== hWt) { hWt = w; railPending = true; }
-    if (railPending && !typingCommitMsg()) { railPending = false; paintRail(); }
+    if (railPending && !typingCommitMsg()) { railPending = false; paintRail(); paintToolbar(); }
     // The graph never rebuilds while the user is actively scrolling it (a mid-scroll 200-row DOM
     // rebuild drops frames). A deferred rebuild lands the instant scrolling settles.
     if (treePending && performance.now() >= treeBusyUntil) { treePending = false; paintTree(); }
@@ -182,6 +183,7 @@ function render(): void {
   main.append(treeEl, diffEl);
   wrap.append(railEl, main);
   gitEl.appendChild(wrap);
+  paintToolbar(); // the action bar lives in the app topbar's shared #viewtb slot, not inside #git
 }
 
 // Swap one region in place, keeping scroll — a poll touches only the changed region instead
@@ -208,25 +210,97 @@ function paintDiff(): void {
   diffEl.replaceWith(fresh);
   diffEl = fresh;
 }
+// The git action bar lives in the app topbar's shared #viewtb slot (shown only while git is
+// open) — one contextual toolbar, not a second bar inside #git. The board reuses the same slot.
+// Repainted on the same poll trigger as the rail so branch / ahead-behind / stash stay live.
+function paintToolbar(): void {
+  document.getElementById('viewtb')?.replaceChildren(renderToolbar());
+}
 
-// ---- left rail: branch, worktrees, changes, commit box ----
+// Prompt + stash all changes (untracked included, so switching branches stays safe).
+function stashSave(): void {
+  const msg = prompt('Stash message (optional)') ?? '';
+  act(async () => {
+    const out = await invoke<string>('git_stash_save', { root: repoRoot(), message: msg, includeUntracked: true });
+    toast(out || 'Stashed');
+  });
+}
+
+// ---- app-topbar action bar (rendered into #viewtb): back, branch switcher, remote ops, stash ----
+function renderToolbar(): HTMLElement {
+  const tb = document.createElement('div');
+  tb.className = 'view-toolbar';
+
+  const back = document.createElement('button');
+  back.className = 'view-back';
+  back.append(icon('caret-left'), document.createTextNode('Back'));
+  back.title = 'Back to workspace (Esc)';
+  back.onclick = closeGit;
+  const backSep = document.createElement('span');
+  backSep.className = 'tb-sep';
+  tb.append(back, backSep);
+
+  if (status?.repo) {
+    const bname = document.createElement('button');
+    bname.className = 'git-tb-branch';
+    bname.append(icon('git-branch'), document.createTextNode(status.branch || '(detached)'), icon('caret-down'));
+    bname.title = 'Switch branch';
+    bname.onclick = (e) => { e.stopPropagation(); openBranchMenu(bname); };
+    tb.appendChild(bname);
+
+    if (status.ahead || status.behind) {
+      const ab = document.createElement('span');
+      ab.className = 'git-ab';
+      ab.textContent = `${status.ahead ? '↑' + status.ahead : ''}${status.behind ? ' ↓' + status.behind : ''}`.trim();
+      tb.appendChild(ab);
+    }
+
+    const sep = () => { const s = document.createElement('span'); s.className = 'tb-sep'; tb.appendChild(s); };
+    sep();
+
+    const remote = (cls: string, ico: string, label: string, cmd: string, disabled: boolean, done: string) => {
+      const b = document.createElement('button');
+      b.className = cls;
+      b.append(icon(ico), document.createTextNode(label));
+      b.disabled = disabled;
+      b.onclick = () => {
+        // Remote ops hit the network: spin the icon so the click doesn't look ignored.
+        b.classList.add('git-busy');
+        b.disabled = true;
+        act(async () => {
+          const out = await invoke<string>(cmd, { root: repoRoot() });
+          toast(out || done);
+        }).finally(() => {
+          b.classList.remove('git-busy');
+          b.disabled = disabled;
+        });
+      };
+      tb.appendChild(b);
+    };
+    remote('git-fetch', 'arrows-clockwise', 'Fetch', 'git_fetch', false, 'Fetched');
+    remote('git-pull', 'arrow-down', 'Pull', 'git_pull', !status.behind, 'Pulled');
+    remote('git-push', 'arrow-up', 'Push', 'git_push', !status.ahead, 'Pushed');
+    sep();
+
+    const stash = document.createElement('button');
+    stash.className = 'git-tb-btn';
+    stash.append(icon('stack'), document.createTextNode('Stash'));
+    stash.title = 'Stash all changes';
+    stash.onclick = () => stashSave();
+    tb.appendChild(stash);
+  } else {
+    const title = document.createElement('span');
+    title.className = 'view-tb-title';
+    title.textContent = 'Git';
+    tb.appendChild(title);
+  }
+  return tb;
+}
+
+// ---- left rail: worktrees, stashes, changes, commit box ----
 function renderRail(): HTMLElement {
   const rail = document.createElement('div');
   rail.className = 'git-rail';
-
-  // header
-  const head = document.createElement('div');
-  head.className = 'git-head';
-  const back = document.createElement('button');
-  back.className = 'git-back';
-  back.textContent = '✕';
-  back.title = 'Close (Esc)';
-  back.onclick = closeGit;
-  const title = document.createElement('span');
-  title.className = 'git-title';
-  title.textContent = 'Git';
-  head.append(back, title);
-  rail.appendChild(head);
 
   if (!status || !status.repo) {
     const empty = document.createElement('div');
@@ -236,59 +310,7 @@ function renderRail(): HTMLElement {
     return rail;
   }
 
-  // branch + ahead/behind + push
-  const br = document.createElement('div');
-  br.className = 'git-branch';
-  const bicon = icon('git-branch');
-  const bname = document.createElement('button');
-  bname.className = 'git-branch-name git-branch-pick';
-  bname.textContent = status.branch || '(detached)';
-  bname.title = 'Switch branch';
-  bname.onclick = (e) => { e.stopPropagation(); openBranchMenu(bname); };
-  const newBr = document.createElement('button');
-  newBr.className = 'git-branch-pick git-newbranch';
-  newBr.append(icon('git-branch'), icon('plus'));
-  newBr.title = 'New branch from HEAD';
-  newBr.onclick = (e) => { e.stopPropagation(); promptNewBranch(null); };
-  br.append(bicon, bname, newBr);
-  if (status.ahead || status.behind) {
-    const ab = document.createElement('span');
-    ab.className = 'git-ab';
-    ab.textContent = `${status.ahead ? '↑' + status.ahead : ''}${status.behind ? ' ↓' + status.behind : ''}`.trim();
-    br.appendChild(ab);
-  }
-  const remote = (
-    cls: string,
-    ico: string,
-    label: string,
-    cmd: string,
-    disabled: boolean,
-    done: string,
-  ) => {
-    const b = document.createElement('button');
-    b.className = cls;
-    b.append(icon(ico), document.createTextNode(label));
-    b.disabled = disabled;
-    b.onclick = () => {
-      // Remote ops hit the network: spin the icon so the click doesn't look ignored.
-      b.classList.add('git-busy');
-      b.disabled = true;
-      act(async () => {
-        const out = await invoke<string>(cmd, { root: repoRoot() });
-        toast(out || done);
-      }).finally(() => {
-        b.classList.remove('git-busy');
-        b.disabled = disabled;
-      });
-    };
-    br.appendChild(b);
-  };
-  remote('git-fetch', 'arrows-clockwise', 'Fetch', 'git_fetch', false, 'Fetched');
-  remote('git-pull', 'arrow-down', 'Pull', 'git_pull', !status.behind, 'Pulled');
-  remote('git-push', 'arrow-up', 'Push', 'git_push', !status.ahead, 'Pushed');
-  rail.appendChild(br);
-
-  rail.appendChild(renderWorktrees()); // Task 8 fills this in
+  rail.appendChild(renderWorktrees());
   rail.appendChild(renderStashes());
 
   // changes
@@ -912,19 +934,6 @@ function renderStashes(): HTMLElement {
   cnt.className = 'git-count';
   cnt.textContent = String(stashes.length);
   head.appendChild(cnt);
-  const save = document.createElement('button');
-  save.className = 'git-all';
-  save.textContent = 'Save';
-  save.onclick = (e) => {
-    e.stopPropagation();
-    const msg = prompt('Stash message (optional)') ?? '';
-    // Include untracked by default so switching branches is safe.
-    act(async () => {
-      const out = await invoke<string>('git_stash_save', { root: repoRoot(), message: msg, includeUntracked: true });
-      toast(out || 'Stashed');
-    });
-  };
-  head.appendChild(save);
   const toggle = document.createElement('button');
   toggle.className = 'git-all';
   toggle.textContent = stashOpen ? 'Hide' : 'Show';

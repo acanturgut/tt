@@ -22,11 +22,30 @@ export function isBoardOpen(): boolean {
 export function openBoard(): void {
   open = true;
   document.body.classList.add('board-open');
+  paintToolbar(); // Back + title live in the app topbar's shared #viewtb slot (same as git)
   render();
 }
 export function closeBoard(): void {
   open = false;
   document.body.classList.remove('board-open');
+  document.getElementById('viewtb')?.replaceChildren();
+}
+
+// The board's toolbar is static (Back + title), so paint it once on open — task-change
+// re-renders only touch #board, leaving the slot alone.
+function paintToolbar(): void {
+  const tb = document.createElement('div');
+  tb.className = 'view-toolbar';
+  const back = document.createElement('button');
+  back.className = 'view-back';
+  back.append(icon('caret-left'), document.createTextNode('Back'));
+  back.title = 'Back to workspace (Esc)';
+  back.onclick = closeBoard;
+  const title = document.createElement('span');
+  title.className = 'view-tb-title';
+  title.textContent = 'Task Board';
+  tb.append(back, title);
+  document.getElementById('viewtb')?.replaceChildren(tb);
 }
 
 export function mountBoard(root: HTMLElement, getProject: () => string | null): void {
@@ -44,18 +63,6 @@ function render(): void {
   if (!boardEl) return;
   const project = getProj();
   boardEl.innerHTML = '';
-
-  const header = document.createElement('div');
-  header.className = 'board-header';
-  const back = document.createElement('button');
-  back.className = 'board-back';
-  back.textContent = '← Back';
-  back.onclick = closeBoard;
-  const title = document.createElement('span');
-  title.className = 'board-title';
-  title.textContent = 'Task Board';
-  header.append(back, title);
-  boardEl.appendChild(header);
 
   const cols = document.createElement('div');
   cols.className = 'board-cols';
