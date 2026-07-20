@@ -1,11 +1,11 @@
 import { Terminal, FitAddon, init } from 'ghostty-web';
-// ghostty's init(url) does a single fetch(url). In the notarized release webview, Tauri's
-// custom protocol intercepts EVERY url a fetch can name — asset paths, data:, even blob: —
-// and hands back index.html, so WebAssembly.compile chokes on HTML ("doesn't start with
-// '\0asm'"). Confirmed at runtime: the inlined bytes compile fine directly, only the fetch
-// is broken. So we never fetch anything real — Vite inlines the wasm bytes into this bundle
-// (virtual:ghostty-wasm), and loadGhostty() intercepts ghostty's one fetch() call to answer
-// it from memory with a Response built from those bytes. No protocol, no network, no CSP.
+// ghostty's init() ignores any argument — it always fetches its own candidate list (a
+// data:application/wasm URL, then ./ghostty-vt.wasm). In the notarized release webview
+// Tauri's custom protocol answers EVERY one of those fetches with index.html, so
+// WebAssembly.compile chokes on HTML ("doesn't start with '\0asm'"). Confirmed at runtime:
+// the wasm bytes compile fine directly; only the fetch is broken. So we inline the bytes
+// into this bundle (virtual:ghostty-wasm) and shim fetch for init()'s single run, answering
+// whatever wasm URL ghostty requests from memory. No protocol, no network, no CSP.
 import ghosttyWasmB64 from 'virtual:ghostty-wasm';
 import { invoke } from '@tauri-apps/api/core';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
@@ -33,25 +33,27 @@ export function wasmBytes(): Uint8Array {
   return bytes;
 }
 
-// Sentinel we hand ghostty; it never reaches the network — our fetch shim answers it.
-const WASM_URL = 'ghostty:vt.wasm';
+// A fetch is ghostty's wasm request iff it targets a data:wasm URL or the ghostty-vt.wasm
+// file — the only URLs init()'s loader ever tries.
+export function isGhosttyWasmUrl(u: string): boolean {
+  return u.startsWith('data:application/wasm') || u.includes('ghostty-vt.wasm');
+}
 
 async function loadGhostty(): Promise<void> {
   const bytes = wasmBytes();
   // ponytail: patch the global fetch for the single init() call, then restore. loadGhostty
-  // runs once (initPromise-cached); non-sentinel fetches pass straight through, so nothing
-  // else is affected during the brief window.
+  // runs once (initPromise-cached); non-wasm fetches pass straight through, so nothing else
+  // is affected during the brief window.
   const realFetch = globalThis.fetch;
   globalThis.fetch = ((input: RequestInfo | URL, opts?: RequestInit) => {
     const u = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    if (u === WASM_URL) {
+    if (isGhosttyWasmUrl(u)) {
       return Promise.resolve(new Response(bytes, { headers: { 'Content-Type': 'application/wasm' } }));
     }
     return realFetch(input, opts);
   }) as typeof fetch;
   try {
-    // init() takes an optional wasm URL at runtime; its shipped .d.ts stalely omits it.
-    await (init as (u?: string) => Promise<void>)(WASM_URL);
+    await init();
   } finally {
     globalThis.fetch = realFetch;
   }

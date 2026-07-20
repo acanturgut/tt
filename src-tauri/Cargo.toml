@@ -1,6 +1,6 @@
 [package]
 name = "tt"
-version = "0.1.3"
+version = "0.1.4"
 description = "tt — agent orchestrator"
 authors = ["you"]
 edition = "2021"
