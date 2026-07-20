@@ -1,4 +1,10 @@
 import { Terminal, FitAddon, init } from 'ghostty-web';
+// Vite emits the wasm as a real bundled asset and gives us its hashed URL. Passing it to
+// init() bypasses ghostty's default loader, which fetch()es an inlined data: URL — WKWebView
+// blocks that under our CSP, and the fallback ./ghostty-vt.wasm isn't in the bundle, so the
+// Tauri asset server returns index.html and WebAssembly.compile chokes on HTML ("doesn't
+// start with '\0asm'"). A same-origin asset fetch ('self') just works, dev and release.
+import ghosttyWasmUrl from 'ghostty-web/ghostty-vt.wasm?url';
 import { invoke } from '@tauri-apps/api/core';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { markInput } from './agents';
@@ -10,11 +16,12 @@ import { markInput } from './agents';
 // renderer while its WebGL one is broken on macOS 26. Canvas 2D is fast on WebKit and
 // avoids the WebGL wall entirely.
 //
-// The WASM (inlined in the bundle) must load once before any terminal opens. Cached so
-// every caller awaits the single load; the app awaits it before creating any terminal.
+// The WASM must load once before any terminal opens. Cached so every caller awaits the
+// single load; the app awaits it before creating any terminal.
 let initPromise: Promise<void> | null = null;
 export function initTerminals(): Promise<void> {
-  return (initPromise ??= init());
+  // init() takes an optional wasm URL at runtime; its shipped .d.ts stalely omits it.
+  return (initPromise ??= (init as (u?: string) => Promise<void>)(ghosttyWasmUrl));
 }
 
 export class AgentTerminal {
