@@ -199,6 +199,8 @@ function renderSourceControl(root: string): HTMLElement {
     act(async () => {
       await invoke('git_commit', { root, message: commitMsg.trim() });
       commitMsg = '';
+      selFile = null; // the committed file left the changes list — drop its now-stale diff
+      selDiff = '';
     }, root);
   box.append(ta, commit);
   sc.appendChild(box);
